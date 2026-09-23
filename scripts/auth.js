@@ -6,35 +6,39 @@
 // runtime/auth.json retire la protection (et tous les comptes).
 import path from 'node:path';
 import { AuthStore, createResetCode, roleOf } from '../src/auth.js';
-import { ROOT_DIR } from '../src/config.js';
+import { ROOT_DIR, loadConfig } from '../src/config.js';
+import { setServerLang, tr } from '../src/i18n.js';
 
-const ROLE_LABELS = { admin: 'administrateur', editor: 'éditeur', operator: 'opérateur', readonly: 'lecture seule', custom: 'personnalisé' };
+// Même langue que le serveur : instance.lang, sinon celle du système.
+try {
+  setServerLang(loadConfig(path.join(ROOT_DIR, 'projects.json')).instance.lang);
+} catch {}
+
 const store = new AuthStore(path.join(ROOT_DIR, 'runtime', 'auth.json'));
 const [command, name] = process.argv.slice(2);
 
 if (store.error) {
-  console.error(store.error);
+  console.error(tr('auth.brokenFile', { error: store.error }));
   process.exit(1);
 }
 const data = store.load();
 
 if (command === 'list') {
-  if (!data.users.length) console.log('Aucun compte : la protection n’a jamais été activée.');
+  if (!data.users.length) console.log(tr('cli.noAccounts'));
   else {
-    console.log(`Protection ${data.enabled ? 'active' : 'désactivée'} · ${data.users.length} compte(s)`);
-    for (const u of data.users) console.log(`  ${u.username.padEnd(20)} ${ROLE_LABELS[roleOf(u.permissions)]}${u.name && u.name !== u.username ? ` (${u.name})` : ''}`);
+    console.log(tr(data.enabled ? 'cli.summaryOn' : 'cli.summaryOff', { count: data.users.length }));
+    for (const u of data.users) console.log(`  ${u.username.padEnd(20)} ${tr(`role.${roleOf(u.permissions)}`)}${u.name && u.name !== u.username ? ` (${u.name})` : ''}`);
   }
 } else if (command === 'reset-password' && name) {
   try {
     const code = createResetCode(store, name.toLowerCase());
-    console.log(`Code de réinitialisation pour ${name} : ${code}`);
-    console.log('Valable 15 minutes. Sur la page de connexion : « Mot de passe oublié ? » › « J’ai un code ».');
-    console.log('Toutes les sessions de ce compte seront fermées.');
+    console.log(tr('cli.resetCode', { name, code }));
+    console.log(tr('cli.resetHelp'));
   } catch (err) {
     console.error(err.message);
     process.exit(1);
   }
 } else {
-  console.log('Usage :\n  npm run auth -- list\n  npm run auth -- reset-password <nom>');
+  console.log(tr('cli.usage'));
   process.exit(command ? 1 : 0);
 }

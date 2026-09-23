@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { LocalError, langOf, msg, tr } from './i18n.js';
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -32,7 +33,7 @@ export function roleOf(permissions) {
   return Object.entries(ROLES).find(([, p]) => [...p].sort().join() === key)?.[0] ?? 'custom';
 }
 function normalizePermissions(list) {
-  if (!Array.isArray(list) || !list.every((p) => PERMISSIONS.includes(p))) throw new AuthError(400, 'Permissions inconnues');
+  if (!Array.isArray(list) || !list.every((p) => PERMISSIONS.includes(p))) throw new AuthError(400, 'auth.badPermissions');
   if (list.includes('admin')) return [...PERMISSIONS];
   const set = new Set(['view', ...list]);
   if (set.has('commands')) set.add('edit');
@@ -40,8 +41,8 @@ function normalizePermissions(list) {
   return PERMISSIONS.filter((p) => set.has(p));
 }
 
-const ROLE_NAMES = { admin: 'administrateur', editor: 'éditeur', operator: 'opérateur', readonly: 'lecture seule', custom: 'permissions personnalisées' };
-const roleName = (permissions) => ROLE_NAMES[roleOf(permissions)];
+// Nom du rôle dans un message (journal d'audit), traduit avec lui.
+const roleName = (permissions) => msg(`role.${roleOf(permissions)}`);
 
 // Verrouillage après inactivité (secondes, 0 : jamais).
 export const LOCK_CHOICES = [0, 120, 300, 900, 1800, 3600];
@@ -54,11 +55,10 @@ const MAX_SESSIONS = 20;
 const USERNAME = /^[a-z0-9][a-z0-9._-]{1,31}$/;
 const COOKIE = 'servynex_session';
 
-export class AuthError extends Error {
-  constructor(status, message, extra = {}) {
-    super(message);
-    this.status = status;
-    this.extra = extra;
+// Message : clé de src/locales/<langue>.js ; extra : champs ajoutés à la réponse ({ auth: 'login' }).
+export class AuthError extends LocalError {
+  constructor(status, key, params = {}, extra = {}) {
+    super(status, key, params, extra);
   }
 }
 
@@ -97,16 +97,16 @@ export function humanCode(groups) {
 const normalizeCode = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 function checkPassword(password) {
-  if (typeof password !== 'string' || password.length < 8) throw new AuthError(400, 'Mot de passe trop court : 8 caractères au moins.');
-  if (password.length > 200) throw new AuthError(400, 'Mot de passe trop long.');
+  if (typeof password !== 'string' || password.length < 8) throw new AuthError(400, 'auth.passwordShort');
+  if (password.length > 200) throw new AuthError(400, 'auth.passwordLong');
 }
 function checkUsername(username) {
   if (typeof username !== 'string' || !USERNAME.test(username)) {
-    throw new AuthError(400, 'Nom d’utilisateur : 2 à 32 caractères, minuscules, chiffres, point, tiret ou tiret bas.');
+    throw new AuthError(400, 'auth.badUsername');
   }
 }
 function checkName(name) {
-  if (name !== undefined && (typeof name !== 'string' || name.trim().length > 60)) throw new AuthError(400, 'Nom affiché trop long.');
+  if (name !== undefined && (typeof name !== 'string' || name.trim().length > 60)) throw new AuthError(400, 'auth.nameLong');
 }
 
 // ---- Stockage : runtime/auth.json ----
@@ -136,7 +136,7 @@ export class AuthStore {
       this.data = { ...empty(), ...JSON.parse(fs.readFileSync(this.file, 'utf8')) };
       this.error = null;
     } catch (err) {
-      this.error = `runtime/auth.json illisible : ${err.message}`;
+      this.error = err.message; // traduit à l'affichage (auth.brokenFile)
     }
     this.mtime = info.mtimeMs;
     return this.data;
@@ -155,7 +155,7 @@ export class AuthStore {
 export function createResetCode(store, username, now = Date.now()) {
   const data = store.load();
   const user = data.users.find((u) => u.username === username);
-  if (!user) throw new AuthError(404, `Compte inconnu : ${username}`);
+  if (!user) throw new AuthError(404, 'auth.unknownUser', { username });
   const code = humanCode(2);
   data.resets = data.resets.filter((r) => r.userId !== user.id && r.expiresAt > now);
   data.resets.push({ userId: user.id, codeHash: sha256(normalizeCode(code)), expiresAt: now + RESET_TTL });
@@ -206,8 +206,9 @@ export class Auth {
     return Boolean(this.store.error) || (d.enabled && d.users.length > 0);
   }
 
-  audit(user, text, project = '-') {
-    this.log(`[audit] ${project} ${user?.username ?? '-'} · ${text}`);
+  // Texte dans la langue du serveur ; key : clé de src/locales/<langue>.js.
+  audit(user, key, params = {}, project = '-') {
+    this.log(`[audit] ${project} ${user?.username ?? '-'} · ${tr(key, params)}`);
   }
 
   publicUser(u) {
@@ -253,12 +254,12 @@ export class Auth {
   // Contrôle d'accès d'une route. Renvoie l'utilisateur (null : protection désactivée).
   require(req, permission) {
     if (!this.enabled) return null;
-    if (this.store.error) throw new AuthError(503, `${this.store.error}. Corrigez ou supprimez ce fichier.`, { auth: 'broken' });
+    if (this.store.error) throw new AuthError(503, 'auth.brokenFile', { error: this.store.error }, { auth: 'broken' });
     const ctx = this.session(req);
-    if (!ctx) throw new AuthError(401, 'Connexion requise.', { auth: 'login' });
-    if (this.isLocked(ctx.session)) throw new AuthError(401, 'Session verrouillée.', { auth: 'locked' });
+    if (!ctx) throw new AuthError(401, 'auth.loginRequired', {}, { auth: 'login' });
+    if (this.isLocked(ctx.session)) throw new AuthError(401, 'auth.locked', {}, { auth: 'locked' });
     if (permission && !ctx.user.permissions.includes(permission) && !ctx.user.permissions.includes('admin')) {
-      throw new AuthError(403, 'Votre compte n’a pas la permission de faire ceci.');
+      throw new AuthError(403, 'auth.forbidden');
     }
     return ctx.user;
   }
@@ -271,7 +272,7 @@ export class Auth {
   async confirmPassword(req, user, password) {
     const account = this.data.users.find((u) => u.id === user.id);
     const ok = await this.#attempt(req, 'login', user.username, () => verifySecret(String(password ?? ''), account?.password));
-    if (!ok) throw new AuthError(403, 'Mot de passe incorrect.');
+    if (!ok) throw new AuthError(403, 'auth.wrongPassword');
   }
 
   #openSession(res, req, user, remember) {
@@ -311,7 +312,7 @@ export class Auth {
       const f = this.#failures.get(key);
       if (f?.until > now) {
         const s = Math.ceil((f.until - now) / 1000);
-        throw new AuthError(429, `Trop d’essais : réessayez dans ${s < 60 ? `${s} s` : `${Math.ceil(s / 60)} min`}.`);
+        throw new AuthError(429, 'auth.tooMany', { wait: s < 60 ? msg('time.seconds', { n: s }) : msg('time.minutes', { n: Math.ceil(s / 60) }) });
       }
     }
   }
@@ -351,7 +352,7 @@ export class Auth {
     checkUsername(username);
     checkName(name);
     checkPassword(password);
-    if (d.users.some((u) => u.username === username)) throw new AuthError(409, 'Ce nom d’utilisateur est déjà pris.');
+    if (d.users.some((u) => u.username === username)) throw new AuthError(409, 'auth.usernameTaken');
     const recovery = humanCode(5);
     const user = {
       id: `u_${crypto.randomBytes(6).toString('hex')}`,
@@ -386,7 +387,7 @@ export class Auth {
       return send(res, 200, {
         enabled: this.enabled,
         name: this.instanceName(),
-        error: this.store.error,
+        error: this.store.error ? tr('auth.brokenFile', { error: this.store.error }, langOf(req)) : null,
         hasAccounts: d.users.length > 0,
         lockAfter: d.lockAfter,
         methods: { password: true },
@@ -394,46 +395,46 @@ export class Auth {
         locked: ctx ? this.isLocked(ctx.session) : false,
       });
     }
-    if (this.store.error) throw new AuthError(503, `${this.store.error}. Corrigez ou supprimez ce fichier.`);
+    if (this.store.error) throw new AuthError(503, 'auth.brokenFile', { error: this.store.error });
 
     if (section === 'setup' && method === 'POST') {
       // Première activation : crée le compte administrateur.
-      if (d.users.length) throw new AuthError(409, 'Des comptes existent déjà : utilisez « Réactiver ».');
+      if (d.users.length) throw new AuthError(409, 'auth.accountsExist');
       const { user, recovery } = await this.#createUser({ ...body, permissions: ['admin'] });
       d.enabled = true;
       this.#openSession(res, req, user, body.remember);
-      this.audit(user, 'Protection par mot de passe activée');
+      this.audit(user, 'audit.protectionOn');
       return send(res, 201, { user: this.publicUser(user), recovery });
     }
     if (section === 'enable' && method === 'POST') {
       // Réactivation : il faut les identifiants d'un administrateur existant.
-      if (this.enabled) throw new AuthError(409, 'La protection est déjà active.');
+      if (this.enabled) throw new AuthError(409, 'auth.alreadyOn');
       const user = this.#admins().find((u) => u.username === String(body.username ?? '').toLowerCase());
       const ok = await this.#attempt(req, 'login', body.username, () => verifySecret(body.password ?? '', user?.password));
-      if (!ok || !user) throw new AuthError(401, 'Identifiants d’administrateur incorrects.');
+      if (!ok || !user) throw new AuthError(401, 'auth.badAdmin');
       d.enabled = true;
       this.#openSession(res, req, user, body.remember);
-      this.audit(user, 'Protection réactivée');
+      this.audit(user, 'audit.protectionBack');
       return send(res, 200, { user: this.publicUser(user) });
     }
     if (section === 'login' && method === 'POST') {
-      if (!this.enabled) throw new AuthError(409, 'La protection n’est pas activée.');
+      if (!this.enabled) throw new AuthError(409, 'auth.notOn');
       const username = String(body.username ?? '').trim().toLowerCase();
       const user = d.users.find((u) => u.username === username);
       const ok = await this.#attempt(req, 'login', username, () => verifySecret(body.password ?? '', user?.password));
       if (!ok || !user) {
-        this.audit({ username: username || '?' }, `Échec de connexion depuis ${clientIp(req)}`);
-        throw new AuthError(401, 'Nom d’utilisateur ou mot de passe incorrect.');
+        this.audit({ username: username || '?' }, 'audit.loginFailed', { ip: clientIp(req) });
+        throw new AuthError(401, 'auth.badLogin');
       }
       this.#openSession(res, req, user, body.remember);
-      this.audit(user, 'Connexion');
+      this.audit(user, 'audit.login');
       return send(res, 200, { user: this.publicUser(user) });
     }
     if (section === 'logout' && method === 'POST') {
       const ctx = this.session(req);
       if (ctx) {
         this.#revoke((s) => s.id === ctx.session.id);
-        this.audit(ctx.user, 'Déconnexion');
+        this.audit(ctx.user, 'audit.logout');
       }
       this.#clearCookie(res);
       return send(res, 200, { ok: true });
@@ -448,7 +449,7 @@ export class Auth {
         const r = d.resets.find((x) => x.userId === user?.id && x.expiresAt > now);
         return Boolean(r) && crypto.timingSafeEqual(Buffer.from(sha256(secret)), Buffer.from(r.codeHash));
       });
-      if (!ok || !user) throw new AuthError(401, section === 'recover' ? 'Clé de secours incorrecte.' : 'Code incorrect ou expiré.');
+      if (!ok || !user) throw new AuthError(401, section === 'recover' ? 'auth.badKey' : 'auth.badCode');
       checkPassword(body.password);
       user.password = await hashSecret(body.password);
       d.resets = d.resets.filter((r) => r.userId !== user.id);
@@ -460,7 +461,7 @@ export class Auth {
       }
       this.#revoke((s) => s.userId === user.id);
       this.#openSession(res, req, user, false);
-      this.audit(user, section === 'recover' ? 'Mot de passe réinitialisé avec la clé de secours' : 'Mot de passe réinitialisé avec un code');
+      this.audit(user, section === 'recover' ? 'audit.resetWithKey' : 'audit.resetWithCode');
       return send(res, 200, { user: this.publicUser(user), recovery });
     }
     if (section === 'invite') {
@@ -469,28 +470,28 @@ export class Auth {
         return send(res, 200, invite ? { valid: true, role: roleOf(invite.permissions), expiresAt: invite.expiresAt } : { valid: false });
       }
       if (method === 'POST') {
-        if (!invite) throw new AuthError(410, 'Invitation invalide ou expirée.');
+        if (!invite) throw new AuthError(410, 'auth.badInvite');
         const { user, recovery } = await this.#createUser({ ...body, permissions: invite.permissions });
         d.invites = d.invites.filter((i) => i !== invite);
         this.#openSession(res, req, user, body.remember);
-        this.audit(user, `Compte créé sur invitation (${roleName(user.permissions)})`);
+        this.audit(user, 'audit.joined', { role: roleName(user.permissions) });
         return send(res, 201, { user: this.publicUser(user), recovery });
       }
     }
 
     // -- Session ouverte (même verrouillée pour déverrouiller) --
-    if (!this.enabled) throw new AuthError(409, 'La protection n’est pas activée.');
+    if (!this.enabled) throw new AuthError(409, 'auth.notOn');
     const ctx = this.session(req);
-    if (!ctx) throw new AuthError(401, 'Connexion requise.', { auth: 'login' });
+    if (!ctx) throw new AuthError(401, 'auth.loginRequired', {}, { auth: 'login' });
     const me = ctx.user;
     if (section === 'unlock' && method === 'POST') {
       const ok = await this.#attempt(req, 'login', me.username, () => verifySecret(body.password ?? '', me.password));
-      if (!ok) throw new AuthError(401, 'Mot de passe incorrect.');
+      if (!ok) throw new AuthError(401, 'auth.wrongPassword');
       Object.assign(ctx.session, { locked: false, activeAt: now });
       this.store.save();
       return send(res, 200, { ok: true });
     }
-    if (this.isLocked(ctx.session)) throw new AuthError(401, 'Session verrouillée.', { auth: 'locked' });
+    if (this.isLocked(ctx.session)) throw new AuthError(401, 'auth.locked', {}, { auth: 'locked' });
     if (section === 'activity' && method === 'POST') {
       ctx.session.activeAt = now;
       this.store.save();
@@ -509,7 +510,7 @@ export class Auth {
         if (body.prefs !== undefined) {
           const p = body.prefs;
           const ok = p && typeof p === 'object' && JSON.stringify(p).length < 500;
-          if (!ok) throw new AuthError(400, 'Préférences invalides.');
+          if (!ok) throw new AuthError(400, 'auth.badPrefs');
           me.prefs = { ...me.prefs, ...p };
         }
         this.store.save();
@@ -517,20 +518,20 @@ export class Auth {
       }
       if (id === 'password' && method === 'POST') {
         const ok = await this.#attempt(req, 'login', me.username, () => verifySecret(body.current ?? '', me.password));
-        if (!ok) throw new AuthError(401, 'Mot de passe actuel incorrect.');
+        if (!ok) throw new AuthError(401, 'auth.wrongCurrent');
         checkPassword(body.password);
         me.password = await hashSecret(body.password);
         const closed = this.#revoke((s) => s.userId === me.id && s.id !== ctx.session.id);
-        this.audit(me, 'Mot de passe changé');
+        this.audit(me, 'audit.passwordChanged');
         return send(res, 200, { closed });
       }
       if (id === 'recovery' && method === 'POST') {
         const ok = await this.#attempt(req, 'login', me.username, () => verifySecret(body.password ?? '', me.password));
-        if (!ok) throw new AuthError(401, 'Mot de passe incorrect.');
+        if (!ok) throw new AuthError(401, 'auth.wrongPassword');
         const recovery = humanCode(5);
         me.recovery = await hashSecret(normalizeCode(recovery));
         this.store.save();
-        this.audit(me, 'Nouvelle clé de secours générée');
+        this.audit(me, 'audit.newKey');
         return send(res, 200, { recovery });
       }
       if (id === 'sessions') {
@@ -546,42 +547,42 @@ export class Auth {
         }
         if (method === 'POST' && sub === 'others') {
           const n = this.#revoke((s) => s.userId === me.id && s.id !== ctx.session.id);
-          this.audit(me, 'Autres sessions fermées');
+          this.audit(me, 'audit.othersClosed');
           return send(res, 200, { closed: n });
         }
       }
     }
 
     // -- Administration --
-    if (!me.permissions.includes('admin')) throw new AuthError(403, 'Réservé aux administrateurs.');
+    if (!me.permissions.includes('admin')) throw new AuthError(403, 'auth.adminOnly');
     if (section === 'users') {
       if (!id && method === 'GET') return send(res, 200, { users: d.users.map((u) => this.publicUser(u)) });
       const user = d.users.find((u) => u.id === id);
-      if (!user) throw new AuthError(404, 'Compte inconnu.');
+      if (!user) throw new AuthError(404, 'auth.unknownAccount');
       const lastAdmin = user.permissions.includes('admin') && this.#admins().length === 1;
       if (!sub && method === 'PATCH') {
         checkName(body.name);
         if (body.permissions !== undefined) {
           const perms = normalizePermissions(body.permissions);
-          if (lastAdmin && !perms.includes('admin')) throw new AuthError(409, 'Impossible de retirer les droits du dernier administrateur.');
+          if (lastAdmin && !perms.includes('admin')) throw new AuthError(409, 'auth.lastAdminRights');
           user.permissions = perms;
         }
         if (body.name !== undefined) user.name = body.name.trim() || user.username;
         this.store.save();
-        this.audit(me, `Compte ${user.username} modifié (${roleName(user.permissions)})`);
+        this.audit(me, 'audit.userChanged', { username: user.username, role: roleName(user.permissions) });
         return send(res, 200, { user: this.publicUser(user) });
       }
       if (!sub && method === 'DELETE') {
-        if (lastAdmin) throw new AuthError(409, 'Impossible de supprimer le dernier administrateur.');
+        if (lastAdmin) throw new AuthError(409, 'auth.lastAdminDelete');
         d.users = d.users.filter((u) => u !== user);
         d.resets = d.resets.filter((r) => r.userId !== user.id);
         this.#revoke((s) => s.userId === user.id);
-        this.audit(me, `Compte ${user.username} supprimé`);
+        this.audit(me, 'audit.userDeleted', { username: user.username });
         return send(res, 200, { ok: true });
       }
       if (sub === 'reset' && method === 'POST') {
         const code = createResetCode(this.store, user.username, now);
-        this.audit(me, `Code de réinitialisation créé pour ${user.username}`);
+        this.audit(me, 'audit.resetCode', { username: user.username });
         return send(res, 200, { code, expiresAt: now + RESET_TTL });
       }
     }
@@ -595,7 +596,7 @@ export class Auth {
         const permissions = normalizePermissions(body.permissions ?? ROLES.operator);
         d.invites.push({ tokenHash: sha256(token), permissions, expiresAt: now + INVITE_TTL, createdBy: me.username });
         this.store.save();
-        this.audit(me, `Invitation créée (${roleName(permissions)})`);
+        this.audit(me, 'audit.invited', { role: roleName(permissions) });
         return send(res, 201, { token, expiresAt: now + INVITE_TTL });
       }
       if (method === 'DELETE' && id) {
@@ -606,23 +607,23 @@ export class Auth {
     }
     if (section === 'settings' && method === 'PATCH') {
       if (body.lockAfter !== undefined) {
-        if (!LOCK_CHOICES.includes(body.lockAfter)) throw new AuthError(400, 'Durée de verrouillage invalide.');
+        if (!LOCK_CHOICES.includes(body.lockAfter)) throw new AuthError(400, 'auth.badLock');
         d.lockAfter = body.lockAfter;
         for (const s of d.sessions) s.activeAt = now;
       }
       this.store.save();
-      this.audit(me, `Verrouillage après inactivité : ${d.lockAfter ? `${d.lockAfter / 60} min` : 'jamais'}`);
+      this.audit(me, 'audit.lock', { value: d.lockAfter ? msg('time.minutes', { n: d.lockAfter / 60 }) : msg('auth.never') });
       return send(res, 200, { lockAfter: d.lockAfter });
     }
     if (section === 'disable' && method === 'POST') {
       const ok = await this.#attempt(req, 'login', me.username, () => verifySecret(body.password ?? '', me.password));
-      if (!ok) throw new AuthError(401, 'Mot de passe incorrect.');
+      if (!ok) throw new AuthError(401, 'auth.wrongPassword');
       d.enabled = false;
       this.#revoke(() => true);
       this.#clearCookie(res);
-      this.audit(me, 'Protection désactivée (les comptes sont conservés)');
+      this.audit(me, 'audit.protectionOff');
       return send(res, 200, { ok: true });
     }
-    throw new AuthError(404, 'Route inconnue');
+    throw new AuthError(404, 'http.unknownRoute');
   }
 }

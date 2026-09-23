@@ -6,6 +6,11 @@ import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { createResetCode } from '../src/auth.js';
 import { createApp } from '../server.js';
+import { setServerLang } from '../src/i18n.js';
+
+// Messages attendus en français, quelle que soit la langue de la machine qui lance les tests.
+process.env.SERVYNEX_LANG = 'fr';
+setServerLang('fr');
 
 function request(port, { method = 'GET', path: p = '/', cookie, body, headers = {} } = {}) {
   return new Promise((resolve, reject) => {

@@ -62,12 +62,15 @@ function row(r) {
     h('td', {}, owner));
 }
 
+// Profil Windows du réseau (code renvoyé par le serveur).
+const CATEGORY = { public: 'public', private: 'privé', domain: 'domaine' };
+
 function networkCards() {
   const cards = networks.map((n) => {
     const pub = n.category === 'public';
     return h('div', { class: 'card net-card' },
       h('h3', {}, icon(/wi-?fi|wlan|sans fil/i.test(n.interface) ? 'radio-tower' : 'network'), n.name,
-        h('span', { class: `badge${pub ? ' warn' : ''}`, text: `Réseau ${n.category}` })),
+        h('span', { class: `badge${pub ? ' warn' : ''}`, text: `Réseau ${CATEGORY[n.category] ?? n.category}` })),
       h('p', { text: n.interface }),
       pub ? h('p', { class: 'hint warn', text: 'Non déclaré de confiance dans Windows : un projet exposé y est joignable par tous.' }) : null);
   });

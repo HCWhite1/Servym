@@ -3,6 +3,7 @@
 // enregistré que si la configuration entière reste valide.
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { LANGS, LocalError, msg } from './i18n.js';
 
 export const ROOT_DIR = path.resolve(import.meta.dirname, '..');
 
@@ -16,7 +17,6 @@ const ICON = /^[a-z][a-z0-9-]{0,31}$/;
 // garderaient un sens même entre guillemets. & | < > ^ ( ) sont refusés aussi,
 // pour que la sécurité ne repose pas sur le seul placement des guillemets.
 const SAFE_ARG = /^[^"%\r\n&|<>^()]*$/;
-const SAFE_CHARS = 'sans " % & | < > ^ ( )';
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const HOST_CONTROLS = ['env', 'args', 'local'];
 const TYPES = ['static', 'file', undefined];
@@ -25,69 +25,67 @@ const isPort = (v) => Number.isInteger(v) && v >= 1 && v <= 65535;
 const isText = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
 const isArgList = (v) => Array.isArray(v) && v.length <= 64 && v.every((a) => typeof a === 'string' && a.length <= 1000 && SAFE_ARG.test(a));
 
-export class ConfigError extends Error {
-  status = 400;
+// Message : clé de src/locales/<langue>.js et ses paramètres.
+export class ConfigError extends LocalError {
+  constructor(key, params = {}, status = 400) {
+    super(status, key, params);
+  }
 }
 
-function check(ok, message) {
-  if (!ok) throw new ConfigError(message);
+function check(ok, key, params) {
+  if (!ok) throw new ConfigError(key, params);
 }
 
 function checkProject(p, ids) {
-  check(p && typeof p === 'object' && !Array.isArray(p), 'Projet invalide');
-  check(ID.test(p.id ?? ''), `Identifiant invalide : ${p.id} (lettres minuscules, chiffres et tirets)`);
-  const where = `Projet « ${p.name ?? p.id} »`;
-  check(!ids.has(p.id), `${where} : identifiant en double`);
+  check(p && typeof p === 'object' && !Array.isArray(p), 'config.invalidProject');
+  check(ID.test(p.id ?? ''), 'config.badId', { id: p.id });
+  const where = { where: msg('config.where', { name: p.name ?? p.id }) };
+  check(!ids.has(p.id), 'config.duplicateId', where);
   ids.add(p.id);
-  check(isText(p.name, 40), `${where} : nom manquant ou trop long (40 caractères au plus)`);
-  check(p.desc === undefined || (typeof p.desc === 'string' && p.desc.length <= 160), `${where} : description trop longue (160 caractères au plus)`);
-  check(p.icon === undefined || (typeof p.icon === 'string' && ICON.test(p.icon)) || isText(p.icon, 8), `${where} : icône (icon) invalide`);
-  check(p.color === undefined || COLOR.test(p.color), `${where} : couleur invalide`);
-  check(p.tags === undefined || (Array.isArray(p.tags) && p.tags.length <= 6 && p.tags.every((t) => isText(t, 20))),
-    `${where} : 6 étiquettes au plus, de 20 caractères au plus`);
-  check(TYPES.includes(p.type), `${where} : type inconnu`);
+  check(isText(p.name, 40), 'config.badName', where);
+  check(p.desc === undefined || (typeof p.desc === 'string' && p.desc.length <= 160), 'config.badDesc', where);
+  check(p.icon === undefined || (typeof p.icon === 'string' && ICON.test(p.icon)) || isText(p.icon, 8), 'config.badIcon', where);
+  check(p.color === undefined || COLOR.test(p.color), 'config.badColor', where);
+  check(p.tags === undefined || (Array.isArray(p.tags) && p.tags.length <= 6 && p.tags.every((t) => isText(t, 20))), 'config.badTags', where);
+  check(TYPES.includes(p.type), 'config.badType', where);
   if (p.type === 'file') {
     // Fichier ouvert directement dans le navigateur : pas de port, pas de processus.
-    check(p.port === undefined, `${where} : un projet « fichier » n'a pas de port`);
-    check(isText(p.open, 260) && !path.isAbsolute(p.open) && !p.open.split(/[\\/]/).includes('..'),
-      `${where} : le fichier à ouvrir doit être un chemin relatif au dossier`);
+    check(p.port === undefined, 'config.filePort', where);
+    check(isText(p.open, 260) && !path.isAbsolute(p.open) && !p.open.split(/[\\/]/).includes('..'), 'config.fileOpen', where);
   } else {
-    check(isPort(p.port), `${where} : port invalide`);
+    check(isPort(p.port), 'config.badPort', where);
   }
-  check(typeof p.cwd === 'string' && p.cwd.length <= 260 && path.isAbsolute(p.cwd), `${where} : le dossier doit être un chemin absolu (C:/…)`);
+  check(typeof p.cwd === 'string' && p.cwd.length <= 260 && path.isAbsolute(p.cwd), 'config.badCwd', where);
   if (p.type === undefined) {
-    check(isText(p.cmd, 260) && SAFE_ARG.test(p.cmd), `${where} : commande manquante ou invalide (${SAFE_CHARS})`);
-    check(isArgList(p.args), `${where} : arguments (args) invalides (${SAFE_CHARS})`);
-    check(HOST_CONTROLS.includes(p.hostControl), `${where} : adresse d'écoute (hostControl) : ${HOST_CONTROLS.join(', ')}`);
+    check(isText(p.cmd, 260) && SAFE_ARG.test(p.cmd), 'config.badCmd', where);
+    check(isArgList(p.args), 'config.badArgs', where);
+    check(HOST_CONTROLS.includes(p.hostControl), 'config.badHostControl', { ...where, choices: HOST_CONTROLS.join(', ') });
   }
   if (p.stop !== undefined) {
     // Exécutée sans shell, mais validée comme cmd/args : une erreur remonte au
     // chargement plutôt qu'au moment d'arrêter le projet.
-    check(p.type === undefined, `${where} : seul un programme a une commande d'arrêt`);
-    check(p.stop && isText(p.stop.cmd, 260) && SAFE_ARG.test(p.stop.cmd) && isArgList(p.stop.args ?? []),
-      `${where} : commande d'arrêt (stop) invalide (${SAFE_CHARS})`);
+    check(p.type === undefined, 'config.stopNotProgram', where);
+    check(p.stop && isText(p.stop.cmd, 260) && SAFE_ARG.test(p.stop.cmd) && isArgList(p.stop.args ?? []), 'config.badStop', where);
   }
   if (p.env !== undefined) {
     check(p.env && typeof p.env === 'object' && !Array.isArray(p.env) && Object.keys(p.env).length <= 64
       && Object.entries(p.env).every(([k, v]) => ENV_NAME.test(k) && typeof v === 'string' && v.length <= 1000 && SAFE_ARG.test(v)),
-      `${where} : variables d'environnement (env) invalides (NOM=valeur, valeurs ${SAFE_CHARS})`);
+      'config.badEnv', where);
   }
-  check(p.url === undefined || (typeof p.url === 'string' && p.url.length <= 300 && /^https?:\/\//.test(p.url)),
-    `${where} : l'adresse doit commencer par http:// ou https://`);
+  check(p.url === undefined || (typeof p.url === 'string' && p.url.length <= 300 && /^https?:\/\//.test(p.url)), 'config.badUrl', where);
   if (p.health !== undefined) {
     const hc = p.health;
-    check(hc && typeof hc === 'object' && ['http', 'tcp', undefined].includes(hc.type), `${where} : vérification invalide`);
-    check(hc.path === undefined || (typeof hc.path === 'string' && hc.path.startsWith('/') && hc.path.length <= 200), `${where} : le chemin vérifié doit commencer par /`);
-    check(hc.expect === undefined || (typeof hc.expect === 'string' && hc.expect.length <= 200), `${where} : texte attendu trop long`);
+    check(hc && typeof hc === 'object' && ['http', 'tcp', undefined].includes(hc.type), 'config.badHealth', where);
+    check(hc.path === undefined || (typeof hc.path === 'string' && hc.path.startsWith('/') && hc.path.length <= 200), 'config.badHealthPath', where);
+    check(hc.expect === undefined || (typeof hc.expect === 'string' && hc.expect.length <= 200), 'config.badHealthExpect', where);
   }
-  check(p.startTimeout === undefined || (Number.isInteger(p.startTimeout) && p.startTimeout >= 1 && p.startTimeout <= 600),
-    `${where} : délai de démarrage entre 1 et 600 secondes`);
-  check(p.requires === undefined || (Array.isArray(p.requires) && p.requires.every((d) => typeof d === 'string')), `${where} : dépendances invalides`);
-  check(p.service === undefined || typeof p.service === 'boolean', `${where} : service doit valoir true ou false`);
-  check(p.expose === undefined || typeof p.expose === 'boolean', `${where} : expose doit valoir true ou false`);
-  check(p.fixedPort === undefined || isText(p.fixedPort, 300), `${where} : fixedPort doit être un texte`);
-  check(p.autostart === undefined || typeof p.autostart === 'boolean', `${where} : autostart doit valoir true ou false`);
-  check(!(p.autostart && p.type === 'file'), `${where} : un fichier ne se lance pas au démarrage (autostart)`);
+  check(p.startTimeout === undefined || (Number.isInteger(p.startTimeout) && p.startTimeout >= 1 && p.startTimeout <= 600), 'config.badTimeout', where);
+  check(p.requires === undefined || (Array.isArray(p.requires) && p.requires.every((d) => typeof d === 'string')), 'config.badRequires', where);
+  check(p.service === undefined || typeof p.service === 'boolean', 'config.badService', where);
+  check(p.expose === undefined || typeof p.expose === 'boolean', 'config.badExpose', where);
+  check(p.fixedPort === undefined || isText(p.fixedPort, 300), 'config.badFixedPort', where);
+  check(p.autostart === undefined || typeof p.autostart === 'boolean', 'config.badAutostart', where);
+  check(!(p.autostart && p.type === 'file'), 'config.fileAutostart', where);
 }
 
 // Dépendances : projet existant, pas un fichier, pas de boucle (A attend B qui attend A).
@@ -95,16 +93,16 @@ function checkRequires(projects) {
   const byId = new Map(projects.map((p) => [p.id, p]));
   for (const p of projects) {
     for (const dep of p.requires ?? []) {
-      check(dep !== p.id, `${p.name} ne peut pas dépendre de lui-même`);
-      check(byId.has(dep), `${p.name} dépend d'un projet inconnu : ${dep}`);
-      check(byId.get(dep).type !== 'file', `${p.name} dépend de ${byId.get(dep).name}, qui s'ouvre comme un fichier et ne se lance pas`);
+      check(dep !== p.id, 'config.requiresSelf', { name: p.name });
+      check(byId.has(dep), 'config.requiresUnknown', { name: p.name, dep });
+      check(byId.get(dep).type !== 'file', 'config.requiresFile', { name: p.name, dep: byId.get(dep).name });
     }
   }
   const done = new Set();
   const visit = (id, trail) => {
     if (trail.includes(id)) {
       const loop = [...trail.slice(trail.indexOf(id)), id].map((x) => byId.get(x).name);
-      throw new ConfigError(`Dépendances en boucle : ${loop.join(' → ')}`);
+      throw new ConfigError('config.requiresLoop', { loop: loop.join(' → ') });
     }
     if (done.has(id)) return;
     for (const dep of byId.get(id).requires ?? []) visit(dep, [...trail, id]);
@@ -114,15 +112,16 @@ function checkRequires(projects) {
 }
 
 export function validate(config) {
-  check(config && Array.isArray(config.projects), 'projects.json : liste « projects » manquante');
-  check(isPort(config.instance?.port), 'projects.json : instance.port invalide');
-  check(config.instance.name === undefined || isText(config.instance.name, 40), 'projects.json : instance.name trop long (40 caractères au plus)');
+  check(config && Array.isArray(config.projects), 'config.noProjects');
+  check(isPort(config.instance?.port), 'config.badInstancePort');
+  check(config.instance.name === undefined || isText(config.instance.name, 40), 'config.badInstanceName');
+  check(config.instance.lang === undefined || LANGS.includes(config.instance.lang), 'config.badInstanceLang');
   const ids = new Set();
-  const ports = new Map([[config.instance.port, 'Servynex']]);
+  const ports = new Map([[config.instance.port, msg('config.instance')]]);
   for (const p of config.projects) {
     checkProject(p, ids);
     if (p.port === undefined) continue;
-    check(!ports.has(p.port), `Port ${p.port} utilisé à la fois par ${ports.get(p.port)} et ${p.name}`);
+    check(!ports.has(p.port), 'config.duplicatePort', { port: p.port, first: ports.get(p.port), second: p.name });
     ports.set(p.port, p.name);
   }
   checkRequires(config.projects);
@@ -137,7 +136,7 @@ export function loadConfig(file) {
   try {
     raw = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
   } catch (err) {
-    throw new ConfigError(`${path.basename(file)} illisible : ${err.message}`);
+    throw new ConfigError('config.unreadable', { file: path.basename(file), error: err.message });
   }
   return validate(raw);
 }
@@ -181,11 +180,11 @@ const FIELDS = ['name', 'desc', 'icon', 'color', 'tags', 'type', 'cwd', 'cmd', '
 const REQUIRED = ['name', 'cwd'];
 
 function applyFields(project, patch) {
-  check(patch && typeof patch === 'object' && !Array.isArray(patch), 'Modification invalide');
+  check(patch && typeof patch === 'object' && !Array.isArray(patch), 'config.invalidPatch');
   for (const [key, value] of Object.entries(patch)) {
-    check(FIELDS.includes(key), `Champ non modifiable : ${key}`);
+    check(FIELDS.includes(key), 'config.readOnlyField', { key });
     if (value === null || value === undefined) {
-      check(!REQUIRED.includes(key), `Champ obligatoire : ${key}`);
+      check(!REQUIRED.includes(key), 'config.requiredField', { key });
       delete project[key];
     } else {
       project[key] = key === 'tags' && Array.isArray(value) ? value.map((t) => String(t).trim()) : value;
@@ -201,11 +200,11 @@ function applyFields(project, patch) {
 export function patchProject(config, id, patch) {
   const next = structuredClone(config);
   const project = next.projects.find((p) => p.id === id);
-  if (!project) throw Object.assign(new ConfigError('Projet inconnu'), { status: 404 });
+  if (!project) throw new ConfigError('project.unknown', {}, 404);
   const before = { port: project.port, fixedPort: project.fixedPort };
   applyFields(project, patch);
-  if (project.port !== before.port && before.fixedPort && 'port' in patch && !('fixedPort' in patch)) check(false, before.fixedPort);
-  if (patch.expose) check(project.hostControl !== 'local', `${project.name} écoute toujours en local : pas d'exposition possible`);
+  if (project.port !== before.port && before.fixedPort && 'port' in patch && !('fixedPort' in patch)) check(false, 'config.fixedPort', { reason: before.fixedPort });
+  if (patch.expose) check(project.hostControl !== 'local', 'config.localOnly', { name: project.name });
   return validate(next);
 }
 
@@ -220,11 +219,11 @@ export function slugify(name, taken) {
 
 // Ajoute un projet ; renvoie { config, id }.
 export function createProject(config, input) {
-  check(input && typeof input === 'object' && !Array.isArray(input), 'Projet invalide');
+  check(input && typeof input === 'object' && !Array.isArray(input), 'config.invalidProject');
   const next = structuredClone(config);
   const taken = new Set(next.projects.map((p) => p.id));
   const id = input.id ?? slugify(input.name ?? '', taken);
-  check(!taken.has(id), `Identifiant déjà utilisé : ${id}`);
+  check(!taken.has(id), 'config.idTaken', { id });
   const project = { id };
   const { id: _, ...fields } = input;
   applyFields(project, fields);
@@ -232,7 +231,7 @@ export function createProject(config, input) {
     project.args ??= [];
     project.hostControl ??= 'env';
   }
-  if (project.expose) check(project.hostControl !== 'local', `${project.name} écoute toujours en local : pas d'exposition possible`);
+  if (project.expose) check(project.hostControl !== 'local', 'config.localOnly', { name: project.name });
   next.projects.push(project);
   return { config: validate(next), id };
 }
@@ -240,7 +239,7 @@ export function createProject(config, input) {
 // Retire un projet et le supprime des dépendances des autres ; renvoie la nouvelle configuration.
 export function removeProject(config, id) {
   const next = structuredClone(config);
-  if (!next.projects.some((p) => p.id === id)) throw Object.assign(new ConfigError('Projet inconnu'), { status: 404 });
+  if (!next.projects.some((p) => p.id === id)) throw new ConfigError('project.unknown', {}, 404);
   next.projects = next.projects.filter((p) => p.id !== id);
   for (const p of next.projects) {
     if (!p.requires?.includes(id)) continue;
@@ -253,8 +252,7 @@ export function removeProject(config, id) {
 // Nouvel ordre des projets : chaque identifiant exactement une fois.
 export function reorderProjects(config, order) {
   const ids = config.projects.map((p) => p.id);
-  check(Array.isArray(order) && order.length === ids.length && new Set(order).size === ids.length && order.every((id) => ids.includes(id)),
-    'Ordre invalide : il faut chaque projet exactement une fois');
+  check(Array.isArray(order) && order.length === ids.length && new Set(order).size === ids.length && order.every((id) => ids.includes(id)), 'config.badOrder');
   const next = structuredClone(config);
   next.projects = order.map((id) => next.projects.find((p) => p.id === id));
   return next;

@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expand, hostOf, urlOf } from './config.js';
+import { LocalError, msg, serverLang, tr } from './i18n.js';
 import { lastError } from './logs.js';
 import { startStaticSite } from './static-server.js';
 import * as sys from './system.js';
@@ -36,12 +37,8 @@ import * as sys from './system.js';
 const LAUNCHER = path.join(import.meta.dirname, 'launch.ps1');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
+// Message : clé de src/locales/<langue>.js et ses paramètres (« raw » : texte déjà traduit).
+export class HttpError extends LocalError {}
 
 const IDLE = { state: 'stopped', managed: false, pid: null, startedAt: null, exitCode: null, error: null, detail: null, activePort: null, activeHost: null, dependency: false };
 const ACTIVE = ['running', 'starting', 'stopping'];
@@ -83,7 +80,7 @@ export class Manager extends EventEmitter {
     const orphans = this.#config.projects.filter((p) => !kept.has(p.id) && (this.#statics.has(p.id) || (this.state(p.id).managed && ACTIVE.includes(this.state(p.id).state))));
     if (orphans.length) {
       const names = orphans.map((p) => p.name).join(', ');
-      throw new HttpError(409, `${names} tourne encore : arrêtez-le avant de le retirer de projects.json.`);
+      throw new HttpError(409, 'process.stillRunning', { names });
     }
   }
 
@@ -98,7 +95,7 @@ export class Manager extends EventEmitter {
 
   project(id) {
     const p = this.#config.projects.find((x) => x.id === id);
-    if (!p) throw new HttpError(404, 'Projet inconnu');
+    if (!p) throw new HttpError(404, 'project.unknown');
     return p;
   }
 
@@ -129,7 +126,7 @@ export class Manager extends EventEmitter {
       requires: p.requires ?? [],
       cwd: p.cwd,
       url: urlOf(p),
-      command: p.type === 'static' ? 'Serveur de fichiers intégré à Servynex' : p.type === 'file' ? 'Aucune : ouvert dans le navigateur' : [p.cmd, ...p.args].map((a) => expand(a, p)).join(' '),
+      command: p.type === 'static' ? tr('process.builtinServer') : p.type === 'file' ? tr('process.openedInBrowser') : [p.cmd, ...p.args].map((a) => expand(a, p)).join(' '),
       env: p.env ?? {},
       open: p.open ?? null,
       file: p.type === 'file' ? path.join(p.cwd, p.open) : null,
@@ -173,7 +170,7 @@ export class Manager extends EventEmitter {
     // Projet retiré du fichier pendant que Servynex était arrêté : il tourne toujours.
     for (const [id, s] of Object.entries(saved)) {
       if (!this.#config.projects.some((p) => p.id === id) && sys.isAlive(s.pid)) {
-        this.emit('warning', `[config] « ${id} » ne figure plus dans projects.json mais son processus ${s.pid} tourne encore`);
+        this.emit('warning', `[config] ${tr('process.orphan', { id, pid: s.pid })}`);
       }
     }
     await this.tick();
@@ -257,9 +254,9 @@ export class Manager extends EventEmitter {
     if (health === 'ok') {
       this.#set(p.id, { state: 'running', error: null, detail: null });
     } else if (health === 'mismatch') {
-      this.#set(p.id, { state: 'conflict', error: `Le port ${st.activePort ?? p.port} répond, mais ce n'est pas ${p.name}.` });
+      this.#set(p.id, { state: 'conflict', error: tr('process.wrongService', { port: st.activePort ?? p.port, name: p.name }) });
     } else if (st.managed) {
-      this.#set(p.id, { state: 'failed', error: `Le processus tourne mais ne répond plus sur le port ${st.activePort ?? p.port}.` });
+      this.#set(p.id, { state: 'failed', error: tr('process.notResponding', { port: st.activePort ?? p.port }) });
     } else if (st.state !== 'failed') {
       this.#set(p.id, { ...IDLE, exitCode: st.exitCode });
     }
@@ -281,7 +278,7 @@ export class Manager extends EventEmitter {
       // Sortie propre sans demande d'arrêt : le projet se relance peut-être
       // lui-même (bouton « Redémarrer » d’une application). On attend un peu.
       this.#relaunch.set(id, { until: Date.now() + this.relaunchMs, code, activePort: st.activePort, activeHost: st.activeHost });
-      this.#set(id, { ...IDLE, state: 'starting', detail: 'Redémarrage…', activePort: st.activePort, activeHost: st.activeHost });
+      this.#set(id, { ...IDLE, state: 'starting', detail: tr('process.restarting'), activePort: st.activePort, activeHost: st.activeHost });
       return this.#savePids();
     }
     const expected = st.state === 'stopping' || code === 0;
@@ -289,15 +286,16 @@ export class Manager extends EventEmitter {
       ...IDLE,
       state: expected ? 'stopped' : 'failed',
       exitCode: code,
-      error: expected ? null : lastError(this.logFile(id)) ?? `Arrêt inattendu${code === null ? '' : ` (code ${code})`}`,
+      error: expected ? null : lastError(this.logFile(id)) ?? (code === null ? tr('process.unexpectedExit') : tr('process.unexpectedExitCode', { code })),
     });
     this.#savePids();
   }
 
   // ---- Actions ----
 
-  #refuse(p, verb, why) {
-    return new HttpError(409, `Impossible de ${verb} ${p.name} : ${why}.`);
+  // action : start ou stop ; why : clé de la raison (process.why.*).
+  #refuse(p, action, why, params = {}) {
+    return new HttpError(409, action === 'start' ? 'process.cannotStart' : 'process.cannotStop', { name: p.name, why: msg(why, params) });
   }
 
   // Lance en arrière-plan : la promesse se termine quand le projet répond
@@ -305,10 +303,10 @@ export class Manager extends EventEmitter {
   // asDependency : lancé pour un projet qui en dépend (voir « dependency »).
   start(id, { asDependency = false } = {}) {
     const p = this.project(id);
-    if (p.type === 'file') throw this.#refuse(p, 'lancer', 's’ouvre directement, sans serveur');
+    if (p.type === 'file') throw this.#refuse(p, 'start', 'process.why.file');
     const st = this.state(id);
     if (this.#ops.has(id) || !['stopped', 'failed'].includes(st.state) || this.#relaunch.has(id)) {
-      throw this.#refuse(p, 'lancer', st.state === 'running' ? 'il tourne déjà' : 'une action est déjà en cours');
+      throw this.#refuse(p, 'start', st.state === 'running' ? 'process.why.running' : 'process.why.busy');
     }
     this.#relaunch.delete(id);
     const op = {};
@@ -324,20 +322,20 @@ export class Manager extends EventEmitter {
     for (const depId of p.requires ?? []) {
       const dep = this.project(depId);
       if (this.state(depId).state === 'running') continue;
-      this.#set(p.id, { detail: `Attente de ${dep.name}…` });
+      this.#set(p.id, { detail: tr('process.waiting', { name: dep.name }) });
       if (!this.#ops.has(depId)) this.start(depId, { asDependency: true });
       while (this.#ops.has(depId)) await sleep(250);
       if (aborted()) return;
-      if (this.state(depId).state !== 'running') throw new Error(`${dep.name} n'a pas démarré : ${this.state(depId).error ?? 'raison inconnue'}`);
+      if (this.state(depId).state !== 'running') throw new Error(tr('process.depFailed', { name: dep.name, reason: this.state(depId).error ?? tr('process.unknownReason') }));
     }
     this.#set(p.id, { detail: null });
 
     if (await sys.portInUse(p.port)) {
       if ((await this.#health(p, p.port)) === 'ok') return this.#set(p.id, { state: 'running' });
       const pid = await sys.pidOnPort(p.port);
-      throw new Error(`Le port ${p.port} est déjà pris${pid ? ` par le processus ${pid}` : ''}. Choisissez un autre port dans les réglages du projet.`);
+      throw new Error(pid ? tr('process.portTakenBy', { port: p.port, pid }) : tr('process.portTaken', { port: p.port }));
     }
-    if (!fs.existsSync(p.cwd)) throw new Error(`Dossier introuvable : ${p.cwd}`);
+    if (!fs.existsSync(p.cwd)) throw new Error(tr('process.noFolder', { path: p.cwd }));
 
     const active = { activePort: p.port, activeHost: hostOf(p), startedAt: Date.now() };
     if (p.type === 'static') {
@@ -358,7 +356,7 @@ export class Manager extends EventEmitter {
       fs.renameSync(log, path.join(this.logsDir, `${p.id}.prev.log`));
     } catch {}
     const argv = [expand(p.cmd, p), ...p.args.map((a) => expand(a, p))];
-    const stamp = new Date().toLocaleString('fr-FR');
+    const stamp = new Date().toLocaleString(serverLang());
     fs.writeFileSync(log, `[servynex] ${stamp} · ${argv.join(' ')} · ${hostOf(p)}:${p.port}\n`);
 
     const env = sys.cleanEnv({
@@ -391,7 +389,7 @@ export class Manager extends EventEmitter {
       child.on('error', reject);
       child.on('exit', (code) => {
         if (pid) this.#exited(p.id, pid, code);
-        else reject(new Error(err.trim().split('\n')[0] || `Lancement impossible (code ${code})`));
+        else reject(new Error(err.trim().split('\n')[0] || tr('process.launchFailed', { code })));
       });
     });
   }
@@ -404,10 +402,10 @@ export class Manager extends EventEmitter {
       if (st.pid !== pid || st.state !== 'starting') return; // arrêté ou mort entre-temps
       const health = await this.#health(p);
       if (health === 'ok') return this.#set(p.id, { state: 'running' });
-      if (health === 'mismatch') throw new Error(`Le port ${p.port} répond, mais ce n'est pas ${p.name}.`);
+      if (health === 'mismatch') throw new Error(tr('process.wrongService', { port: p.port, name: p.name }));
       await sleep(600);
     }
-    throw new Error(`${p.name} ne répond pas sur le port ${p.port} après ${seconds} s : voir son journal.`);
+    throw new Error(tr('process.timeout', { name: p.name, port: p.port, seconds }));
   }
 
   // Arrêt : commande d'arrêt propre si le projet en déclare une, sinon (ou
@@ -415,12 +413,12 @@ export class Manager extends EventEmitter {
   // cascade : arrête ensuite les dépendances démarrées pour lui et devenues inutiles.
   async stop(id, { cascade = false, reason = null } = {}) {
     const p = this.project(id);
-    if (p.type === 'file') throw this.#refuse(p, 'arrêter', 'aucun processus ne tourne');
+    if (p.type === 'file') throw this.#refuse(p, 'stop', 'process.why.noProcess');
     const st = this.state(id);
-    if (this.#ops.has(id) && st.state !== 'starting') throw this.#refuse(p, 'arrêter', 'une action est déjà en cours');
-    if (st.state === 'stopped' || (st.state === 'failed' && !st.managed)) throw this.#refuse(p, 'arrêter', 'il est déjà arrêté');
+    if (this.#ops.has(id) && st.state !== 'starting') throw this.#refuse(p, 'stop', 'process.why.busy');
+    if (st.state === 'stopped' || (st.state === 'failed' && !st.managed)) throw this.#refuse(p, 'stop', 'process.why.stopped');
     // Sans PID connu, le port désigne le processus : pas question de tuer un programme étranger.
-    if (st.state === 'conflict' && !st.managed) throw this.#refuse(p, 'arrêter', `le port ${p.port} est occupé par un autre programme`);
+    if (st.state === 'conflict' && !st.managed) throw this.#refuse(p, 'stop', 'process.why.portTaken', { port: p.port });
     const op = {};
     this.#ops.set(id, op); // remplace un démarrage en cours, qui s'interrompt
     this.#relaunch.delete(id);
@@ -443,7 +441,7 @@ export class Manager extends EventEmitter {
       if (cascade) await this.#stopUnusedDependencies(p);
     } catch (err) {
       this.#set(id, { state: st.state === 'starting' ? 'failed' : st.state, error: err.message });
-      throw new HttpError(500, err.message);
+      throw new HttpError(500, 'raw', { text: err.message });
     } finally {
       if (this.#ops.get(id) === op) this.#ops.delete(id);
     }
@@ -457,15 +455,15 @@ export class Manager extends EventEmitter {
       if (!dep || !st.dependency || !st.managed || st.state !== 'running' || this.#ops.has(depId)) continue;
       const users = this.#config.projects.filter((x) => x.id !== p.id && (x.requires ?? []).includes(depId) && ACTIVE.includes(this.state(x.id).state));
       if (users.length) continue;
-      await this.stop(depId, { cascade: true, reason: `Plus utilisé par ${p.name}` }).catch((err) => this.emit('warning', `[stop] ${depId} : ${err.message}`));
+      await this.stop(depId, { cascade: true, reason: tr('process.unusedBy', { name: p.name }) }).catch((err) => this.emit('warning', `[stop] ${depId} : ${err.message}`));
     }
   }
 
   openFile(id) {
     const p = this.project(id);
-    if (p.type !== 'file') throw new HttpError(400, `${p.name} n'est pas un fichier à ouvrir`);
+    if (p.type !== 'file') throw new HttpError(400, 'process.notAFile', { name: p.name });
     const file = path.join(p.cwd, p.open);
-    if (!fs.existsSync(file)) throw new HttpError(404, `Fichier introuvable : ${file}`);
+    if (!fs.existsSync(file)) throw new HttpError(404, 'process.fileMissing', { path: file });
     sys.openFile(file);
   }
 

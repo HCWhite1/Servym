@@ -36,8 +36,9 @@ export function lastError(file) {
 }
 
 // Historique des changements d'état d'un projet (de tous, sans id), lu dans
-// servynex.log et le précédent : lignes « <date> [état] <id> <avant> → <après>[ · détail] ».
-const TRANSITION = /^(\S+) \[état\] ([a-z0-9-]+) (\w+) → (\w+)(?: · (.*))?$/;
+// servynex.log et le précédent : lignes « <date> [state] <id> <avant> → <après>[ · détail] »
+// ([état] dans les journaux écrits avant la traduction).
+const TRANSITION = /^(\S+) \[(?:state|état)\] ([a-z0-9-]+) (\w+) → (\w+)(?: · (.*))?$/;
 // Journal d'audit : « <date> [audit] <projet ou -> <compte ou -> · <texte> ».
 const AUDIT = /^(\S+) \[audit\] ([a-z0-9-]+|-) (\S+) · (.*)$/;
 

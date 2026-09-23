@@ -6,6 +6,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { ConfigError, createProject, DEFAULT_CONFIG, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig } from './src/config.js';
 import { Auth, AuthError } from './src/auth.js';
+import { LocalError, langOf, msg, setServerLang, tr } from './src/i18n.js';
 import { followLog, history, tailLines } from './src/logs.js';
 import { HttpError, Manager } from './src/processes.js';
 import { staticHandler } from './src/static.js';
@@ -30,16 +31,16 @@ const send = (res, status, body) => {
 };
 
 async function readJson(req) {
-  if (!String(req.headers['content-type']).startsWith('application/json')) throw new HttpError(415, 'JSON attendu');
+  if (!String(req.headers['content-type']).startsWith('application/json')) throw new HttpError(415, 'http.jsonExpected');
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 16_000) throw new HttpError(413, 'Requête trop grosse');
+    if (raw.length > 16_000) throw new HttpError(413, 'http.tooLarge');
   }
   try {
     return JSON.parse(raw || '{}');
   } catch {
-    throw new HttpError(400, 'JSON invalide');
+    throw new HttpError(400, 'http.badJson');
   }
 }
 
@@ -63,18 +64,18 @@ const COSTLY_GET = /^\/api\/(free-port|git|ports|network|autostart|stats)(\?|$)/
 // CSRF (un site tiers ne peut pas poser l'en-tête sans pré-vol CORS, refusé).
 function guard(req) {
   const host = String(req.headers.host ?? '').replace(/:\d+$/, '').toLowerCase();
-  if (!LOOPBACK.has(host)) throw new HttpError(421, 'Hôte refusé');
+  if (!LOOPBACK.has(host)) throw new HttpError(421, 'http.badHost');
   const site = req.headers['sec-fetch-site'];
-  if (req.url.startsWith('/api/') && site && site !== 'same-origin' && site !== 'none') throw new HttpError(403, 'Requête inter-sites refusée');
+  if (req.url.startsWith('/api/') && site && site !== 'same-origin' && site !== 'none') throw new HttpError(403, 'http.crossSite');
   if ((req.method === 'GET' || req.method === 'HEAD') && !COSTLY_GET.test(req.url)) return;
-  if (req.headers['x-servynex-request'] !== '1') throw new HttpError(403, 'Requête non autorisée');
+  if (req.headers['x-servynex-request'] !== '1') throw new HttpError(403, 'http.forbidden');
   const { origin } = req.headers;
   if (origin === undefined) return;
   let sameHost = false;
   try {
     sameHost = new URL(origin).host === req.headers.host;
   } catch {}
-  if (!sameHost) throw new HttpError(403, 'Origine refusée');
+  if (!sameHost) throw new HttpError(403, 'http.badOrigin');
 }
 
 // Permission exigée par une route de l'API (voir src/auth.js).
@@ -111,19 +112,20 @@ export function createApp({
   // dernière configuration valide, et l'interface affiche l'erreur (mode dégradé).
   const validCopy = path.join(runtimeDir, 'projects.valid.json');
   const events = new EventEmitter();
-  let configError = null;
+  let configError = null; // ConfigError, traduite pour chaque page
   let initial;
   try {
     initial = loadConfig(configFile);
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
-    configError = err.message;
+    configError = err;
     try {
       initial = loadConfig(validCopy);
     } catch {
       initial = structuredClone(DEFAULT_CONFIG);
     }
   }
+  setServerLang(initial.instance.lang);
   const manager = new Manager({ config: initial, logsDir, runtimeDir, ...options });
   const serveUi = staticHandler(path.join(ROOT_DIR, 'public'));
   const sampler = new Sampler({ sample, cores: sys.cores });
@@ -141,11 +143,12 @@ export function createApp({
   };
   let ownLogSize = fs.statSync(ownLog, { throwIfNoEntry: false })?.size ?? 0;
 
-  const setConfigError = (message) => {
-    if (message === configError) return;
-    configError = message;
-    events.emit('instance', { configError });
+  const setConfigError = (err) => {
+    if (err?.message === configError?.message) return;
+    configError = err;
+    events.emit('instance');
   };
+  const configErrorIn = (lang) => configError?.in(lang) ?? null;
   const rememberValid = (config) => {
     try {
       saveConfig(validCopy, config);
@@ -159,8 +162,8 @@ export function createApp({
       return loadConfig(configFile);
     } catch (err) {
       if (err instanceof ConfigError) {
-        setConfigError(err.message);
-        throw new ConfigError(`projects.json contient une erreur, à corriger d'abord : ${err.message}`);
+        setConfigError(err);
+        throw new ConfigError('config.fixFirst', { error: msg(err.key, err.params) });
       }
       throw err;
     }
@@ -169,6 +172,7 @@ export function createApp({
     manager.assertCanApply(next);
     saveConfig(configFile, next);
     manager.setConfig(next);
+    setServerLang(next.instance.lang);
     rememberValid(next);
     setConfigError(null);
   }
@@ -195,11 +199,11 @@ export function createApp({
     const details = [];
     if (to === 'stopping' && detail) details.push(detail);
     const actor = actors.get(id);
-    if (actor && ['starting', 'stopping'].includes(to) && clock() - actor.at < 10_000) details.push(`par ${actor.user}`);
-    if (to === 'running' && !managed) details.push('lancé hors de Servynex');
-    if (exitCode !== null && ['stopped', 'failed'].includes(to)) details.push(`code ${exitCode}`);
+    if (actor && ['starting', 'stopping'].includes(to) && clock() - actor.at < 10_000) details.push(tr('history.by', { user: actor.user }));
+    if (to === 'running' && !managed) details.push(tr('history.external'));
+    if (exitCode !== null && ['stopped', 'failed'].includes(to)) details.push(tr('history.exitCode', { code: exitCode }));
     if (error) details.push(error.replace(/\s+/g, ' '));
-    log(`[état] ${id} ${from} → ${to}${details.length ? ` · ${details.join(' · ')}` : ''}`);
+    log(`[state] ${id} ${from} → ${to}${details.length ? ` · ${details.join(' · ')}` : ''}`);
   });
 
   // Flux SSE ouverts par session : fermés quand la session est révoquée ou verrouillée.
@@ -225,7 +229,7 @@ export function createApp({
   const actors = new Map();
 
   manager.on('warning', (message) => log(message));
-  if (configError) log(`[config] projects.json invalide, dernière configuration valide utilisée : ${configError}`);
+  if (configError) log(`[config] ${tr('log.degraded', { error: configError.message })}`);
   else rememberValid(initial);
 
   const actions = {
@@ -262,7 +266,7 @@ export function createApp({
     for (let port = Math.max(from, 1024); port < Math.min(from + 500, 65536); port++) {
       if (!taken.has(port) && !(await sys.portInUse(port))) return port;
     }
-    throw new HttpError(404, 'Aucun port libre trouvé');
+    throw new HttpError(404, 'http.noFreePort');
   }
 
   // Profils réseau : une requête PowerShell (~1 s), gardée une minute.
@@ -312,7 +316,8 @@ export function createApp({
     // Tout le reste : compte connecté et permission de la route (null : protection désactivée).
     const user = auth.require(req, permissionFor(section, id, action, method));
     const who = user?.username ?? '-';
-    const audit = (project, text) => log(`[audit] ${project} ${who} · ${text}`);
+    const audit = (project, key, params) => log(`[audit] ${project} ${who} · ${tr(key, params)}`);
+    const lang = langOf(req);
 
     if (section === 'projects' && !id && method === 'GET') {
       const instance = {
@@ -327,22 +332,22 @@ export function createApp({
         name: manager.config.instance.name ?? null,
         // Présentation vue : par compte si la protection est active, sinon pour Servynex.
         onboarded: user ? Boolean(user.prefs?.onboarded) : Boolean(readUi().onboarded),
-        configError,
+        configError: configErrorIn(lang),
       };
       return send(res, 200, { instance, projects: manager.snapshot() });
     }
     if (section === 'projects' && !id && method === 'POST') {
       const { config: next, id: created } = createProject(diskConfig(), await readJson(req));
       applyConfig(next);
-      log(`[config] ${created} ajouté`);
-      audit(created, 'Projet ajouté');
+      log(`[config] ${tr('log.added', { id: created })}`);
+      audit(created, 'audit.added');
       return send(res, 201, manager.view(manager.project(created)));
     }
     if (section === 'projects' && !id && method === 'PUT') {
       const { order } = await readJson(req);
       applyConfig(reorderProjects(diskConfig(), order));
-      log('[config] ordre des projets modifié');
-      audit('-', 'Ordre des projets modifié');
+      log(`[config] ${tr('log.reordered')}`);
+      audit('-', 'audit.reordered');
       return send(res, 200, { ok: true });
     }
     if (section === 'history' && !id && method === 'GET') {
@@ -352,9 +357,9 @@ export function createApp({
       if (method === 'GET') return send(res, 200, { enabled: await task.enabled() });
       if (method === 'PUT') {
         const { enabled } = await readJson(req);
-        if (typeof enabled !== 'boolean') throw new HttpError(400, 'enabled doit valoir true ou false');
+        if (typeof enabled !== 'boolean') throw new HttpError(400, 'http.badEnabled');
         await task.set(enabled);
-        log(`[autostart] démarrage de Servynex avec la session ${enabled ? 'activé' : 'désactivé'}`);
+        log(`[autostart] ${tr(enabled ? 'log.autostartOn' : 'log.autostartOff')}`);
         return send(res, 200, { enabled: await task.enabled() });
       }
     }
@@ -369,12 +374,12 @@ export function createApp({
     if (section === 'instance' && !id && method === 'PATCH') {
       // Nom de l'instance, affiché dans la barre latérale (« Servynex · Serveur maison »).
       const { name } = await readJson(req);
-      if (name !== null && (typeof name !== 'string' || name.trim().length > 40)) throw new HttpError(400, 'Nom trop long (40 caractères au plus)');
+      if (name !== null && (typeof name !== 'string' || name.trim().length > 40)) throw new HttpError(400, 'http.nameTooLong');
       const next = diskConfig();
       if (name?.trim()) next.instance.name = name.trim();
       else delete next.instance.name;
       applyConfig(next);
-      audit('-', `Nom de l’instance : ${name?.trim() || 'Servynex'}`);
+      audit('-', 'audit.instanceName', { name: name?.trim() || 'Servynex' });
       return send(res, 200, { name: next.instance.name ?? null });
     }
     if (section === 'events' && method === 'GET') {
@@ -382,9 +387,9 @@ export function createApp({
       trackStream(req, res);
       const onChange = (project) => emit('state', project);
       const onConfig = () => emit('snapshot', manager.snapshot());
-      const onInstance = (info) => emit('instance', info);
+      const onInstance = () => emit('instance', { configError: configErrorIn(lang) });
       emit('snapshot', manager.snapshot());
-      emit('instance', { configError });
+      onInstance();
       manager.on('change', onChange).on('config', onConfig);
       events.on('instance', onInstance);
       await done;
@@ -421,8 +426,8 @@ export function createApp({
     }
     if (section === 'network' && method === 'GET') return send(res, 200, { lan: sys.lanAddresses(), networks: await networkProfiles() });
     if (section === 'restart' && method === 'POST') {
-      if (!restart) throw new HttpError(409, 'Servynex lancé à la main (npm start) : relancez-le depuis son terminal.');
-      log(`[restart] Servynex${user ? ` · par ${who}` : ''}`);
+      if (!restart) throw new HttpError(409, 'http.notRestartable');
+      log(`[restart] Servynex${user ? ` · ${tr('history.by', { user: who })}` : ''}`);
       send(res, 200, { ok: true });
       return void setImmediate(restart);
     }
@@ -431,43 +436,44 @@ export function createApp({
       try {
         next = loadConfig(configFile);
       } catch (err) {
-        if (err instanceof ConfigError) setConfigError(err.message);
+        if (err instanceof ConfigError) setConfigError(err);
         throw err;
       }
       manager.setConfig(next);
+      setServerLang(next.instance.lang);
       rememberValid(next);
       setConfigError(null);
-      log('[config] rechargée depuis le fichier');
+      log(`[config] ${tr('log.reloaded')}`);
       return send(res, 200, { ok: true });
     }
-    if (section !== 'projects' || !id) throw new HttpError(404, 'Route inconnue');
+    if (section !== 'projects' || !id) throw new HttpError(404, 'http.unknownRoute');
 
     const project = manager.project(id);
     if (!action && method === 'PATCH') {
       const patch = await readJson(req);
       const sensitive = Object.keys(patch ?? {}).filter((k) => SENSITIVE.includes(k));
       if (sensitive.length && !auth.can(user, 'commands')) {
-        throw new AuthError(403, 'Modifier la commande, le dossier, l’environnement ou l’exposition demande la permission « Commandes ».');
+        throw new AuthError(403, 'auth.needsCommands');
       }
       const next = patchProject(diskConfig(), id, patch);
       applyConfig(next);
-      log(`[config] ${id} modifié`);
-      audit(id, `Réglages modifiés : ${Object.keys(patch).join(', ')}`);
+      log(`[config] ${tr('log.changed', { id })}`);
+      audit(id, 'audit.changed', { fields: Object.keys(patch).join(', ') });
       return send(res, 200, manager.view(manager.project(id)));
     }
     if (!action && method === 'DELETE') {
       // Confirmation : mot de passe du compte si la protection est active, sinon le nom exact du projet.
       const { password, confirm } = req.headers['content-type'] ? await readJson(req) : {};
       if (user) await auth.confirmPassword(req, user, password);
-      else if (confirm !== project.name) throw new HttpError(400, `Tapez « ${project.name} » pour confirmer la suppression.`);
+      else if (confirm !== project.name) throw new HttpError(400, 'http.confirmName', { name: project.name });
       // Arrêté d'abord (avec les dépendances lancées pour lui) : il ne tournerait plus sous aucun contrôle.
       const st = manager.state(id);
       if ((st.managed || project.type === 'static') && st.state !== 'stopped') {
-        await manager.stop(id, { cascade: true, reason: 'Projet supprimé' });
+        await manager.stop(id, { cascade: true, reason: tr('history.deleted') });
       }
       applyConfig(removeProject(diskConfig(), id));
-      log(`[config] ${id} supprimé`);
-      audit(id, `Projet supprimé : ${project.name}`);
+      log(`[config] ${tr('log.deleted', { id })}`);
+      audit(id, 'audit.deleted', { name: project.name });
       return send(res, 200, { ok: true });
     }
     if (action === 'logs' && method === 'GET') {
@@ -483,12 +489,12 @@ export function createApp({
       return send(res, 200, { entries: history([ownPrevLog, ownLog], id) });
     }
     if (method === 'POST' && Object.hasOwn(actions, action)) {
-      log(`[${action}] ${id}${user ? ` · par ${who}` : ''}`);
+      log(`[${action}] ${id}${user ? ` · ${tr('history.by', { user: who })}` : ''}`);
       if (user) actors.set(id, { user: who, at: clock() });
       await actions[action](project);
       return send(res, 200, { ok: true });
     }
-    throw new HttpError(404, 'Route inconnue');
+    throw new HttpError(404, 'http.unknownRoute');
   }
 
   const server = http.createServer(async (req, res) => {
@@ -498,12 +504,13 @@ export function createApp({
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname.startsWith('/api/')) return await api(req, res, url);
       if (await serveUi(req, res)) return;
-      throw new HttpError(404, 'Introuvable');
+      throw new HttpError(404, 'http.notFound');
     } catch (err) {
-      const status = err instanceof HttpError || err instanceof ConfigError || err instanceof AuthError ? err.status : 500;
-      if (status === 500) log('[erreur]', req.method, req.url, err.stack ?? err.message);
+      const status = err instanceof LocalError ? err.status : 500;
+      if (status === 500) log('[error]', req.method, req.url, err.stack ?? err.message);
       if (res.headersSent) return res.end();
-      send(res, status, { error: err.message, ...(err.extra ?? {}) });
+      // Message dans la langue de la page (Accept-Language).
+      send(res, status, { error: err instanceof LocalError ? err.in(langOf(req)) : err.message, ...(err.extra ?? {}) });
     }
   });
 
@@ -533,7 +540,7 @@ if (import.meta.filename === path.resolve(process.argv[1] ?? '')) {
   const { server, manager, log } = app;
   const port = Number(process.env.SERVYNEX_PORT) || manager.config.instance.port;
   server.on('error', (err) => {
-    log('[écoute]', err.code === 'EADDRINUSE' ? `le port ${port} est déjà utilisé (une autre instance de Servynex tourne ?)` : err.message);
+    log('[listen]', err.code === 'EADDRINUSE' ? tr('log.portInUse', { port }) : err.message);
     process.exit(1);
   });
   // Local uniquement : le panneau lance des programmes, il ne doit pas être
@@ -550,7 +557,7 @@ if (import.meta.filename === path.resolve(process.argv[1] ?? '')) {
   }
   process.on('SIGINT', () => shutdown()).on('SIGTERM', () => shutdown());
   process.on('uncaughtException', (err) => {
-    log('[plantage]', err.stack);
+    log('[crash]', err.stack);
     process.exit(1);
   });
 }

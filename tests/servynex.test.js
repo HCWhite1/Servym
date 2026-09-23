@@ -11,6 +11,11 @@ import { resolveInside } from '../src/static.js';
 import { Sampler, treeOf, usageOf } from '../src/stats.js';
 import { Manager } from '../src/processes.js';
 import { createApp } from '../server.js';
+import { setServerLang } from '../src/i18n.js';
+
+// Messages attendus en français, quelle que soit la langue de la machine qui lance les tests.
+process.env.SERVYNEX_LANG = 'fr';
+setServerLang('fr');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -184,6 +189,11 @@ describe('configuration', () => {
     for (const order of [['c', 'a'], ['c', 'a', 'b', 'x'], ['a', 'a', 'b'], 'a,b,c', null, ['a', 'b', 3]]) {
       assert.throws(() => reorderProjects(base, order), (err) => err.status === 400, JSON.stringify(order));
     }
+  });
+
+  test('langue des messages du serveur (instance.lang) : fr ou en', () => {
+    for (const lang of ['fr', 'en']) assert.doesNotThrow(() => validate({ ...base, instance: { port: 9000, lang } }));
+    assert.throws(() => validate({ ...base, instance: { port: 9000, lang: 'de' } }), /instance.lang/);
   });
 
   test('fichier absent : configuration vide ; mise en forme compacte conservée', () => {
@@ -602,6 +612,16 @@ describe('serveur et processus', () => {
     const audit = (await get('/api/history')).json.entries.filter((e) => e.kind === 'audit');
     assert.ok(audit.some((e) => e.id === 'solo' && /Projet supprimé/.test(e.text)));
     assert.equal((await send('DELETE', '/api/projects/solo', { confirm: 'Solo' })).status, 404, 'déjà supprimé');
+  });
+
+  test('erreurs dans la langue demandée par la page (Accept-Language)', async () => {
+    const del = (lang) => request(port, { method: 'DELETE', path: '/api/projects/crash', headers: { 'x-servynex-request': '1', 'accept-language': lang, 'content-type': 'application/json' }, body: '{}' })
+      .then((r) => JSON.parse(r.body).error);
+    assert.match(await del('en-US,en;q=0.9'), /Type "Crash" to confirm/);
+    assert.match(await del('fr-FR'), /Tapez « Crash » pour confirmer/);
+    const unknown = await request(port, { method: 'POST', path: '/api/projects/absent/start', headers: { 'x-servynex-request': '1', 'accept-language': 'en' } });
+    assert.equal(unknown.status, 404);
+    assert.equal(JSON.parse(unknown.body).error, 'Unknown project');
   });
 
   test('réordonner : écrit dans projects.json, refuse une liste incomplète', async () => {

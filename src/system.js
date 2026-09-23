@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { ROOT_DIR } from './config.js';
+import { tr } from './i18n.js';
 
 const run = promisify(execFile);
 
@@ -99,8 +100,8 @@ export function lanAddresses() {
 }
 
 // Réseaux connectés et leur profil Windows (public : Wi-Fi d'école, café… ;
-// privé : réseau déclaré de confiance). Le pare-feu applique ses règles par profil.
-const CATEGORY = { 0: 'public', 1: 'privé', 2: 'domaine', Public: 'public', Private: 'privé', DomainAuthenticated: 'domaine' };
+// private : réseau déclaré de confiance). Le pare-feu applique ses règles par profil.
+const CATEGORY = { 0: 'public', 1: 'private', 2: 'domain', Public: 'public', Private: 'private', DomainAuthenticated: 'domain' };
 export async function networkProfiles() {
   const script = '[Console]::OutputEncoding = [Text.Encoding]::UTF8; '
     + 'ConvertTo-Json -Compress -InputObject @(Get-NetConnectionProfile | Select-Object Name, InterfaceAlias, NetworkCategory)';
@@ -126,7 +127,7 @@ export async function killTree(pid) {
   await run('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }).catch(() => {});
   for (let i = 0; i < 20 && isAlive(pid); i++) await new Promise((r) => setTimeout(r, 100));
   if (isAlive(pid)) {
-    throw new Error(`Impossible d'arrêter le processus ${pid}. S'il a été lancé en administrateur (tâche planifiée « plus hauts privilèges »), arrêtez-le depuis le Gestionnaire des tâches.`);
+    throw new Error(tr('system.killFailed', { pid }));
   }
 }
 
@@ -257,14 +258,14 @@ function openProbe() {
   let lines = [];
   let buffer = '';
   let idle = null;
-  const close = (reason) => {
+  const close = () => {
     if (probe?.child === child) probe = null;
     clearTimeout(idle);
     child.kill();
-    for (const w of waiting.splice(0)) w.reject(new Error(`Mesure des processus interrompue${reason ? ` : ${reason}` : ''}`));
+    for (const w of waiting.splice(0)) w.reject(new Error(tr('system.sampleStopped')));
   };
-  child.on('error', (err) => close(err.message));
-  child.on('exit', () => close());
+  child.on('error', close);
+  child.on('exit', close);
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk) => {
     const parts = (buffer + chunk).split(/\r?\n/);
@@ -293,10 +294,10 @@ function openProbe() {
     child,
     sample() {
       clearTimeout(idle);
-      idle = setTimeout(() => close(), 60_000);
+      idle = setTimeout(close, 60_000);
       idle.unref();
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => close('délai dépassé'), 15_000);
+        const timer = setTimeout(close, 15_000);
         timer.unref();
         waiting.push({ resolve, reject, timer });
         child.stdin.write('x\n');
