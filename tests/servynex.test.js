@@ -5,7 +5,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { createProject, formatConfig, loadConfig, patchProject, validate } from '../src/config.js';
+import { createProject, formatConfig, loadConfig, patchProject, removeProject, reorderProjects, validate } from '../src/config.js';
 import { lastError } from '../src/logs.js';
 import { resolveInside } from '../src/static.js';
 import { Manager } from '../src/processes.js';
@@ -33,7 +33,8 @@ async function until(check, ms = 20000) {
 
 function request(port, { method = 'GET', path: p = '/', headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { host: `localhost:${port}`, ...headers } }, (res) => {
+    const length = body === undefined ? {} : { 'content-length': Buffer.byteLength(body) }; // DELETE : Node n'envoie pas la longueur tout seul
+    const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { host: `localhost:${port}`, ...length, ...headers } }, (res) => {
       let data = '';
       res.on('data', (c) => (data += c));
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
@@ -163,6 +164,27 @@ describe('configuration', () => {
     assert.equal(base.projects.length, 3, "l'original n'est pas modifié");
   });
 
+  test('suppression : retirée des dépendances des autres projets', () => {
+    const conf = structuredClone(base);
+    conf.projects.push({ id: 'd', name: 'D', cwd: 'C:/d', cmd: 'node', args: [], port: 3004, hostControl: 'env', requires: ['a', 'c'] });
+    conf.projects.push({ id: 'e', name: 'E', cwd: 'C:/e', cmd: 'node', args: [], port: 3005, hostControl: 'env', requires: ['a'] });
+    const next = removeProject(conf, 'a');
+    assert.deepEqual(next.projects.map((p) => p.id), ['b', 'c', 'd', 'e']);
+    assert.deepEqual(next.projects.find((p) => p.id === 'd').requires, ['c']);
+    assert.equal('requires' in next.projects.find((p) => p.id === 'e'), false, 'liste vide : champ retiré');
+    assert.equal(conf.projects.length, 5, "l'original n'est pas modifié");
+    assert.throws(() => removeProject(conf, 'absent'), (err) => err.status === 404);
+  });
+
+  test('réordonner : tous les identifiants, chacun une fois', () => {
+    const next = reorderProjects(base, ['c', 'a', 'b']);
+    assert.deepEqual(next.projects.map((p) => p.id), ['c', 'a', 'b']);
+    assert.deepEqual(base.projects.map((p) => p.id), ['a', 'b', 'c'], "l'original n'est pas modifié");
+    for (const order of [['c', 'a'], ['c', 'a', 'b', 'x'], ['a', 'a', 'b'], 'a,b,c', null, ['a', 'b', 3]]) {
+      assert.throws(() => reorderProjects(base, order), (err) => err.status === 400, JSON.stringify(order));
+    }
+  });
+
   test('fichier absent : configuration vide ; mise en forme compacte conservée', () => {
     const missing = path.join(os.tmpdir(), `servynex-absent-${process.pid}.json`);
     assert.deepEqual(loadConfig(missing), { instance: { port: 9000 }, projects: [] });
@@ -213,7 +235,7 @@ describe('serveur et processus', () => {
   const get = (p) => request(port, { path: p, headers: { 'x-servynex-request': '1' } }).then((r) => ({ ...r, json: JSON.parse(r.body) }));
 
   before(async () => {
-    ports = { ok: await freePort(), crash: await freePort(), site: await freePort(), busy: await freePort(), wrong: await freePort(), respawn: await freePort(), auto: await freePort(), db: await freePort(), web: await freePort() };
+    ports = { ok: await freePort(), crash: await freePort(), site: await freePort(), busy: await freePort(), wrong: await freePort(), respawn: await freePort(), auto: await freePort(), db: await freePort(), web: await freePort(), solo: await freePort(), sdb: await freePort() };
     fs.mkdirSync(path.join(dir, 'app'));
     fs.writeFileSync(path.join(dir, 'app', 'server.js'), `
       const http = require('node:http');
@@ -254,6 +276,9 @@ describe('serveur et processus', () => {
         { id: 'dep', name: 'Dépendant', cwd: path.join(dir, 'app'), cmd: 'node', args: ['crash.js'], port: await freePort(), hostControl: 'env', requires: ['crash'] },
         { id: 'db', name: 'Base', cwd: path.join(dir, 'app'), cmd: 'node', args: ['server.js'], port: ports.db, hostControl: 'env', service: true, health: { expect: 'Factice' } },
         { id: 'web', name: 'Web', cwd: path.join(dir, 'app'), cmd: 'node', args: ['server.js'], port: ports.web, hostControl: 'env', requires: ['db'], health: { expect: 'Factice' } },
+        { id: 'sdb', name: 'Base solo', cwd: path.join(dir, 'app'), cmd: 'node', args: ['server.js'], port: ports.sdb, hostControl: 'env', service: true, health: { expect: 'Factice' } },
+        { id: 'solo', name: 'Solo', cwd: path.join(dir, 'app'), cmd: 'node', args: ['server.js'], port: ports.solo, hostControl: 'env', requires: ['sdb'], health: { expect: 'Factice' } },
+        { id: 'fan', name: 'Fan', cwd: path.join(dir, 'app'), cmd: 'node', args: ['server.js'], port: await freePort(), hostControl: 'env', requires: ['solo', 'db'] },
       ],
     };
     fs.writeFileSync(path.join(dir, 'projects.json'), JSON.stringify(config));
@@ -264,7 +289,7 @@ describe('serveur et processus', () => {
   });
 
   after(async () => {
-    for (const id of ['ok', 'wrong', 'respawn', 'auto', 'db', 'web', 'nouveau-projet']) if (state(id).managed || state(id).state === 'running') await app.manager.stop(id).catch(() => {});
+    for (const id of ['ok', 'wrong', 'respawn', 'auto', 'db', 'web', 'nouveau-projet', 'sdb']) if (state(id).managed || state(id).state === 'running') await app.manager.stop(id).catch(() => {});
     await app.manager.close();
     app.server.closeAllConnections();
     await new Promise((r) => app.server.close(r));
@@ -491,6 +516,49 @@ describe('serveur et processus', () => {
     assert.equal(state('db').state, 'running', 'lancée à la main : reste en marche');
     await post('/api/projects/db/stop');
     await until(() => state('db').state === 'stopped');
+  });
+
+  const send = (method, p, body) => request(port, { method, path: p, headers: { 'x-servynex-request': '1', ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) })
+    .then((r) => ({ ...r, json: r.body ? JSON.parse(r.body) : null }));
+  const onDisk = () => JSON.parse(fs.readFileSync(path.join(dir, 'projects.json'), 'utf8'));
+  const listening = (p) => new Promise((resolve) => {
+    const socket = net.connect(p, '127.0.0.1', () => { socket.destroy(); resolve(true); });
+    socket.on('error', () => resolve(false));
+  });
+
+  test('supprimer : confirmation par le nom, arrêt d’abord, dépendances nettoyées, journal gardé', async () => {
+    await post('/api/projects/solo/start');
+    await until(() => state('solo').state === 'running' && state('sdb').state === 'running');
+    assert.equal((await send('DELETE', '/api/projects/solo')).status, 400, 'sans confirmation');
+    assert.equal((await send('DELETE', '/api/projects/solo', { confirm: 'solo' })).status, 400, "l'identifiant ne suffit pas : le nom exact");
+    assert.equal((await send('DELETE', '/api/projects/solo', { confirm: 'Autre' })).status, 400);
+    assert.ok(onDisk().projects.some((p) => p.id === 'solo'), 'rien de supprimé');
+    assert.equal(state('solo').state, 'running', 'rien arrêté');
+
+    const res = await send('DELETE', '/api/projects/solo', { confirm: 'Solo' });
+    assert.equal(res.status, 200);
+    assert.equal(onDisk().projects.some((p) => p.id === 'solo'), false, 'retiré de projects.json');
+    assert.equal((await get('/api/projects')).json.projects.some((p) => p.id === 'solo'), false, 'retiré de la liste');
+    assert.deepEqual(onDisk().projects.find((p) => p.id === 'fan').requires, ['db'], 'retiré des dépendances');
+    assert.equal(await listening(ports.solo), false, 'arrêté avant la suppression');
+    await until(() => state('sdb').state === 'stopped'); // lancée pour lui : arrêtée avec lui
+    assert.ok(fs.existsSync(path.join(dir, 'logs', 'solo.log')), 'journal gardé');
+    const audit = (await get('/api/history')).json.entries.filter((e) => e.kind === 'audit');
+    assert.ok(audit.some((e) => e.id === 'solo' && /Projet supprimé/.test(e.text)));
+    assert.equal((await send('DELETE', '/api/projects/solo', { confirm: 'Solo' })).status, 404, 'déjà supprimé');
+  });
+
+  test('réordonner : écrit dans projects.json, refuse une liste incomplète', async () => {
+    const ids = onDisk().projects.map((p) => p.id);
+    const reversed = [...ids].reverse();
+    assert.equal((await send('PUT', '/api/projects', { order: reversed })).status, 200);
+    assert.deepEqual(onDisk().projects.map((p) => p.id), reversed);
+    assert.deepEqual((await get('/api/projects')).json.projects.map((p) => p.id), reversed, 'la liste suit le nouvel ordre');
+    assert.equal((await send('PUT', '/api/projects', { order: reversed.slice(1) })).status, 400, 'identifiant manquant');
+    assert.equal((await send('PUT', '/api/projects', { order: [...reversed, 'x'] })).status, 400, 'identifiant inconnu');
+    assert.equal((await send('PUT', '/api/projects', {})).status, 400);
+    assert.deepEqual(onDisk().projects.map((p) => p.id), reversed, 'refusé : fichier inchangé');
+    assert.equal((await send('PUT', '/api/projects', { order: ids })).status, 200);
   });
 
   test('projects.json invalide au démarrage : Servynex démarre avec la dernière configuration valide', async () => {

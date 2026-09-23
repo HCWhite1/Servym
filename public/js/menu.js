@@ -84,6 +84,10 @@ function render(p) {
     if (tools.code) items.push(item('Ouvrir dans VS Code', 'code-xml', () => handlers.run(p, 'code')));
     items.push(item(`Ouvrir ${tools.terminal ?? 'un terminal'}`, 'square-terminal', () => handlers.run(p, 'terminal')));
   }
+  if (can('commands')) {
+    items.push(h('hr'));
+    items.push(item('Supprimer…', 'trash-2', () => handlers.remove(p), { danger: true }));
+  }
   menu.replaceChildren(...items);
 }
 

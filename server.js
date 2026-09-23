@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { ConfigError, createProject, DEFAULT_CONFIG, ROOT_DIR, loadConfig, patchProject, saveConfig } from './src/config.js';
+import { ConfigError, createProject, DEFAULT_CONFIG, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig } from './src/config.js';
 import { Auth, AuthError } from './src/auth.js';
 import { followLog, history, tailLines } from './src/logs.js';
 import { HttpError, Manager } from './src/processes.js';
@@ -82,7 +82,9 @@ const INSTANCE_ACTION_PERMISSION = { config: 'commands', log: 'instance', folder
 function permissionFor(section, id, action, method) {
   if (method === 'GET' || method === 'HEAD') return 'view';
   if (section === 'projects' && !id && method === 'POST') return 'commands';
+  if (section === 'projects' && !id && method === 'PUT') return 'edit'; // ordre des projets
   if (section === 'projects' && id && !action && method === 'PATCH') return 'edit';
+  if (section === 'projects' && id && !action && method === 'DELETE') return 'commands';
   if (section === 'projects' && OPERATE.has(action) && method === 'POST') return 'operate';
   if (section === 'reload') return 'edit';
   if (section === 'instance' && id) return INSTANCE_ACTION_PERMISSION[id] ?? 'admin';
@@ -333,6 +335,13 @@ export function createApp({
       audit(created, 'Projet ajouté');
       return send(res, 201, manager.view(manager.project(created)));
     }
+    if (section === 'projects' && !id && method === 'PUT') {
+      const { order } = await readJson(req);
+      applyConfig(reorderProjects(diskConfig(), order));
+      log('[config] ordre des projets modifié');
+      audit('-', 'Ordre des projets modifié');
+      return send(res, 200, { ok: true });
+    }
     if (section === 'history' && !id && method === 'GET') {
       return send(res, 200, { entries: history([ownPrevLog, ownLog], null, 300) });
     }
@@ -424,6 +433,21 @@ export function createApp({
       log(`[config] ${id} modifié`);
       audit(id, `Réglages modifiés : ${Object.keys(patch).join(', ')}`);
       return send(res, 200, manager.view(manager.project(id)));
+    }
+    if (!action && method === 'DELETE') {
+      // Confirmation : mot de passe du compte si la protection est active, sinon le nom exact du projet.
+      const { password, confirm } = req.headers['content-type'] ? await readJson(req) : {};
+      if (user) await auth.confirmPassword(req, user, password);
+      else if (confirm !== project.name) throw new HttpError(400, `Tapez « ${project.name} » pour confirmer la suppression.`);
+      // Arrêté d'abord (avec les dépendances lancées pour lui) : il ne tournerait plus sous aucun contrôle.
+      const st = manager.state(id);
+      if ((st.managed || project.type === 'static') && st.state !== 'stopped') {
+        await manager.stop(id, { cascade: true, reason: 'Projet supprimé' });
+      }
+      applyConfig(removeProject(diskConfig(), id));
+      log(`[config] ${id} supprimé`);
+      audit(id, `Projet supprimé : ${project.name}`);
+      return send(res, 200, { ok: true });
     }
     if (action === 'logs' && method === 'GET') {
       const file = manager.logFile(id);

@@ -1,6 +1,6 @@
 // Paramètres › Mon compte, Sécurité, Membres (comptes et protection par mot de passe).
 import { showKeyDialog, logout } from './auth.js';
-import { PERMISSION_LABELS, ROLE_LABELS, ROLE_PERMISSIONS, ago, api, confirmDialog, h, icon, initials, session, toast } from './lib.js';
+import { PERMISSION_LABELS, ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, h, icon, initials, session, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LOCKS = [[0, 'Jamais'], [120, '2 min'], [300, '5 min'], [900, '15 min'], [1800, '30 min'], [3600, '1 h']];
@@ -31,48 +31,6 @@ function button(text, iconName, onClick, cls = 'btn') {
     }
   });
   return b;
-}
-
-// Fenêtre qui demande un ou plusieurs champs ; renvoie les valeurs, ou null si annulée.
-function ask({ title, body, fields, confirm = 'Valider', danger = false, submit }) {
-  const inputs = fields.map((f) => ({ ...f, el: input({ type: f.type ?? 'text', autocomplete: f.autocomplete ?? 'off', placeholder: f.placeholder ?? '' }) }));
-  const error = h('p', { class: 'hint warn', hidden: true });
-  const ok = h('button', { class: `btn ${danger ? 'danger-fill' : 'primary'}`, type: 'submit', text: confirm });
-  const cancel = h('button', { class: 'btn', type: 'button', text: 'Annuler' });
-  const form = h('form', { class: 'form' },
-    body ? h('p', { class: 'muted', text: body }) : null,
-    ...inputs.map((f) => h('label', { class: 'field' }, h('span', { text: f.label }), f.el)),
-    error);
-  const dialog = h('dialog', { class: 'modal' },
-    h('header', { class: 'modal-head' }, h('h2', { text: title })),
-    h('div', { class: 'modal-body' }, form),
-    h('footer', { class: 'modal-foot' }, cancel, ok));
-  document.body.append(dialog);
-  dialog.showModal();
-  inputs[0]?.el.focus();
-  return new Promise((resolve) => {
-    const close = (value) => {
-      dialog.close();
-      dialog.remove();
-      resolve(value);
-    };
-    cancel.addEventListener('click', () => close(null));
-    dialog.addEventListener('cancel', () => close(null));
-    const run = async (e) => {
-      e?.preventDefault();
-      const values = Object.fromEntries(inputs.map((f) => [f.name, f.el.value]));
-      ok.disabled = true;
-      try {
-        close(submit ? await submit(values) : values);
-      } catch (err) {
-        error.textContent = err.message;
-        error.hidden = false;
-        ok.disabled = false;
-      }
-    };
-    form.addEventListener('submit', run);
-    ok.addEventListener('click', run);
-  });
 }
 
 const passwordFields = (first = 'Mot de passe') => [

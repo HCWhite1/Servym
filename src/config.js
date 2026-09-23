@@ -237,6 +237,29 @@ export function createProject(config, input) {
   return { config: validate(next), id };
 }
 
+// Retire un projet et le supprime des dépendances des autres ; renvoie la nouvelle configuration.
+export function removeProject(config, id) {
+  const next = structuredClone(config);
+  if (!next.projects.some((p) => p.id === id)) throw Object.assign(new ConfigError('Projet inconnu'), { status: 404 });
+  next.projects = next.projects.filter((p) => p.id !== id);
+  for (const p of next.projects) {
+    if (!p.requires?.includes(id)) continue;
+    p.requires = p.requires.filter((r) => r !== id);
+    if (!p.requires.length) delete p.requires;
+  }
+  return validate(next);
+}
+
+// Nouvel ordre des projets : chaque identifiant exactement une fois.
+export function reorderProjects(config, order) {
+  const ids = config.projects.map((p) => p.id);
+  check(Array.isArray(order) && order.length === ids.length && new Set(order).size === ids.length && order.every((id) => ids.includes(id)),
+    'Ordre invalide : il faut chaque projet exactement une fois');
+  const next = structuredClone(config);
+  next.projects = order.map((id) => next.projects.find((p) => p.id === id));
+  return next;
+}
+
 // Adresse d'écoute demandée au projet.
 export const hostOf = (p) => (p.expose && p.hostControl !== 'local' ? '0.0.0.0' : '127.0.0.1');
 

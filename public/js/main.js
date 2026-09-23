@@ -1,5 +1,5 @@
 // Page principale : navigation, liste des projets (ou orbite), état en direct, raccourcis.
-import { ROLE_LABELS, act, addressOf, api, applyTheme, can, canRestart, canStop, confirmDialog, fillTile, gitSummary, h, icon, initials, isExternal, primaryOf, safeUrl, session, statusText, store, toast } from './lib.js';
+import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, gitSummary, h, icon, initials, isExternal, primaryOf, safeUrl, session, statusText, store, toast } from './lib.js';
 import { gate, lockNow, logout } from './auth.js';
 import * as activity from './activity.js';
 import * as menu from './menu.js';
@@ -55,6 +55,32 @@ async function run(p, action, button) {
   } finally {
     if (button) update(projects.get(p.id));
   }
+}
+
+// Supprimer : confirmation par le mot de passe du compte (protection active),
+// sinon en retapant le nom exact du projet. Le serveur arrête le projet d'abord.
+async function removeProject(p) {
+  if (!can('commands')) return toast('Supprimer un projet demande la permission « Commandes ».', 'error');
+  const users = [...projects.values()].filter((x) => x.requires.includes(p.id)).map((x) => x.name);
+  const running = ['running', 'starting'].includes(p.state);
+  const body = [
+    running && (p.managed || p.type === 'static') ? 'Il sera d’abord arrêté.' : null,
+    running && isExternal(p) ? 'Lancé en dehors de Servynex, il continuera de tourner.' : null,
+    `Il sera retiré de projects.json${users.length ? ` et des dépendances de ${users.join(', ')}` : ''}. Ses journaux sont conservés.`,
+  ].filter(Boolean).join(' ');
+  const field = session.enabled
+    ? { name: 'password', label: 'Votre mot de passe', type: 'password', autocomplete: 'current-password' }
+    : { name: 'confirm', label: `Tapez « ${p.name} » pour confirmer`, placeholder: p.name };
+  const done = await ask({
+    title: `Supprimer ${p.name} ?`,
+    body,
+    fields: [field],
+    confirm: 'Supprimer',
+    danger: true,
+    valid: (v) => (session.enabled ? v.password.length > 0 : v.confirm === p.name),
+    submit: (v) => api(`projects/${encodeURIComponent(p.id)}`, { method: 'DELETE', body: v }),
+  });
+  if (done) toast(`${p.name} supprimé`);
 }
 
 // L'action principale demande la permission « Piloter », sauf ouvrir l'adresse
@@ -126,6 +152,7 @@ export const handlers = {
   setMotion,
   openPanel: (id, tab) => panel.open(id, tab),
   addProject: () => openAdd(),
+  remove: (p) => removeProject(p),
   refreshGit: () => refreshGit(true),
   renderBanners: () => renderBanners(),
   onboarding: () => onboarding.open(),
@@ -267,8 +294,81 @@ function applyFilter() {
     table.closest('.group').hidden = none || (query && !table.querySelector('.row:not(.dim)'));
   }
   $('#empty').hidden = shown > 0 || prefs.layout === 'orbit' || projects.size === 0;
+  syncReorder();
   orbit.filter((p) => !query || matches(p, query));
 }
+
+// ---- Réordonner : glisser la poignée, ou flèches haut et bas quand elle a le focus ----
+
+// Permission « Modifier les projets », et pas pendant une recherche (lignes masquées).
+function syncReorder() {
+  $('#list-view').classList.toggle('reorderable', can('edit') && !search.value.trim());
+}
+
+
+async function saveOrder() {
+  const order = [...document.querySelectorAll('#apps .row, #services .row')].map((r) => r.dataset.id);
+  if (order.join() === [...projects.keys()].join()) return;
+  // Même ordre en mémoire : la configuration renvoyée par le serveur ne reconstruit pas la liste.
+  const entries = order.map((id) => [id, projects.get(id)]);
+  projects.clear();
+  for (const [id, p] of entries) projects.set(id, p);
+  orbit.build();
+  for (const p of projects.values()) orbit.update(p);
+  try {
+    await api('projects', { method: 'PUT', body: { order } });
+  } catch (err) {
+    toast(err.message, 'error');
+    const list = await api('projects').catch(() => null);
+    if (list) {
+      projects.clear();
+      applySnapshot(list.projects);
+    }
+  }
+}
+
+function moveRow(row, delta) {
+  const sibling = delta < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling?.classList.contains('row')) return;
+  if (delta < 0) sibling.before(row);
+  else sibling.after(row);
+  row.querySelector('.grip').focus(); // déplacer l'élément lui fait perdre le focus
+  saveOrder();
+}
+
+let dragged = null;
+document.addEventListener('pointerdown', (e) => {
+  const grip = e.target.closest('.reorderable .grip');
+  if (grip) grip.closest('.row').draggable = true;
+});
+document.addEventListener('dragstart', (e) => {
+  const row = e.target.closest?.('.row[draggable="true"]');
+  if (!row) return;
+  dragged = row;
+  row.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', row.dataset.id);
+});
+document.addEventListener('dragover', (e) => {
+  const row = e.target.closest?.('.row');
+  // Seulement dans le même groupe : une application ne devient pas un service.
+  if (!dragged || !row || row.parentElement !== dragged.parentElement) return;
+  e.preventDefault();
+  if (row === dragged) return;
+  const box = row.getBoundingClientRect();
+  if (e.clientY > box.top + box.height / 2) row.after(dragged);
+  else row.before(dragged);
+});
+document.addEventListener('drop', (e) => {
+  if (dragged) e.preventDefault();
+});
+document.addEventListener('dragend', () => {
+  if (!dragged) return;
+  dragged.classList.remove('dragging');
+  dragged.draggable = false;
+  dragged = null;
+  saveOrder();
+});
 
 // ---- Bandeaux : connexion perdue, projet exposé sur un réseau public ----
 
@@ -363,7 +463,7 @@ async function refreshGit(fresh = false) {
 
 document.addEventListener('click', (e) => {
   const row = e.target.closest('.row');
-  if (!row) return;
+  if (!row || e.target.closest('.grip')) return;
   const p = projects.get(row.dataset.id);
   if (!p) return;
   const button = e.target.closest('button[data-act]');
@@ -375,6 +475,10 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.target.closest?.('.reorderable .grip')) {
+    e.preventDefault();
+    return moveRow(e.target.closest('.row'), e.key === 'ArrowUp' ? -1 : 1);
+  }
   if (e.key === 'Enter' && e.target.classList?.contains('row')) {
     e.preventDefault();
     return panel.open(e.target.dataset.id);
@@ -462,6 +566,7 @@ function renderUser() {
   $('#user-chip').hidden = !u;
   $('#brand-name').textContent = instance.name || 'Servynex';
   $('#add-project').hidden = !can('commands');
+  syncReorder();
   if (!u) return;
   $('#user-avatar').textContent = initials(u);
   $('#user-name').textContent = u.name;

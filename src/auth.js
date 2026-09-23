@@ -267,6 +267,13 @@ export class Auth {
     return !user || user.permissions.includes('admin') || user.permissions.includes(permission);
   }
 
+  // Mot de passe redemandé avant une action grave (supprimer un projet), sous la même limite d'essais.
+  async confirmPassword(req, user, password) {
+    const account = this.data.users.find((u) => u.id === user.id);
+    const ok = await this.#attempt(req, 'login', user.username, () => verifySecret(String(password ?? ''), account?.password));
+    if (!ok) throw new AuthError(403, 'Mot de passe incorrect.');
+  }
+
   #openSession(res, req, user, remember) {
     const d = this.data;
     const token = randomToken();

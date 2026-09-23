@@ -11,7 +11,7 @@ function request(port, { method = 'GET', path: p = '/', cookie, body, headers = 
   return new Promise((resolve, reject) => {
     const h = { host: `localhost:${port}`, ...headers };
     if (method !== 'GET') h['x-servynex-request'] = '1';
-    if (body !== undefined) h['content-type'] = 'application/json';
+    if (body !== undefined) Object.assign(h, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(JSON.stringify(body)) });
     if (cookie) h.cookie = cookie;
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: h }, (res) => {
       let data = '';
@@ -40,7 +40,10 @@ describe('authentification', () => {
   const call = (method, p, opts = {}) => request(port, { method, path: p, ...opts });
 
   before(async () => {
-    const config = { instance: { port: 1 }, projects: [{ id: 'site', name: 'Site', cwd: dir, type: 'file', open: 'index.html' }] };
+    const config = { instance: { port: 1 }, projects: [
+      { id: 'site', name: 'Site', cwd: dir, type: 'file', open: 'index.html' },
+      { id: 'extra', name: 'Extra', cwd: dir, type: 'file', open: 'index.html' },
+    ] };
     fs.writeFileSync(path.join(dir, 'projects.json'), JSON.stringify(config));
     app = createApp({
       configFile: path.join(dir, 'projects.json'),
@@ -205,6 +208,28 @@ describe('authentification', () => {
   test("nom de l'instance", async () => {
     assert.equal((await call('PATCH', '/api/instance', { cookie: admin, body: { name: 'Serveur maison' } })).status, 200);
     assert.equal((await call('GET', '/api/projects', { cookie: admin })).json.instance.name, 'Serveur maison');
+  });
+
+  test('supprimer : permission « Commandes » et mot de passe ; réordonner : permission « Modifier »', async () => {
+    const invite = async (permissions) => (await call('POST', '/api/auth/invites', { cookie: admin, body: { permissions } })).json.token;
+    const join = async (permissions, username) => (await call('POST', '/api/auth/invite', { body: { token: await invite(permissions), username, password: 'mot de passe 5' } })).cookie;
+    const pilote = await join(['operate'], 'pilote');
+    const editeur = await join(['edit'], 'editeur');
+    const commandes = await join(['commands'], 'commandes');
+    const ids = () => JSON.parse(fs.readFileSync(path.join(dir, 'projects.json'), 'utf8')).projects.map((p) => p.id);
+
+    assert.equal((await call('PUT', '/api/projects', { cookie: pilote, body: { order: ['extra', 'site'] } })).status, 403);
+    assert.equal((await call('PUT', '/api/projects', { cookie: editeur, body: { order: ['extra', 'site'] } })).status, 200);
+    assert.deepEqual(ids(), ['extra', 'site']);
+
+    assert.equal((await call('DELETE', '/api/projects/extra', { cookie: editeur, body: { password: 'mot de passe 5' } })).status, 403, 'permission Commandes');
+    assert.equal((await call('DELETE', '/api/projects/extra', { cookie: commandes, body: { confirm: 'Extra' } })).status, 403, 'protection active : le nom ne suffit pas');
+    assert.equal((await call('DELETE', '/api/projects/extra', { cookie: commandes, body: { password: 'faux' } })).status, 403);
+    assert.deepEqual(ids(), ['extra', 'site'], 'rien de supprimé');
+    assert.equal((await call('DELETE', '/api/projects/extra', { cookie: commandes, body: { password: 'mot de passe 5' } })).status, 200);
+    assert.deepEqual(ids(), ['site']);
+    const { json } = await call('GET', '/api/history', { cookie: admin });
+    assert.ok(json.entries.some((e) => e.kind === 'audit' && e.user === 'commandes' && e.id === 'extra' && /Projet supprimé/.test(e.text)));
   });
 
   test('désactiver puis réactiver : comptes conservés', async () => {

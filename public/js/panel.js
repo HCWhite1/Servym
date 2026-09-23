@@ -16,6 +16,7 @@ let tab = 'logs';
 let infoTimer = null;
 let shownState = null; // état au dernier affichage de l'historique
 let form = null; // formulaire des Réglages
+let dangerZone = null; // « Supprimer ce projet », sous le formulaire
 
 const current = () => handlers.get(currentId);
 
@@ -37,7 +38,14 @@ export function init(hs) {
     toast('Journal copié');
   });
   form = createForm({ handlers, submitLabel: 'Enregistrer', onSubmit: save });
-  $('#pane-settings').replaceChildren(form.element);
+  const remove = h('button', { class: 'btn danger', type: 'button' }, icon('trash-2'), 'Supprimer');
+  remove.addEventListener('click', () => current() && handlers.remove(current()));
+  dangerZone = h('div', { class: 'danger-zone' },
+    h('div', { class: 'setting-text' },
+      h('p', { class: 'setting-label', text: 'Supprimer ce projet' }),
+      h('p', { class: 'setting-desc', text: 'Arrêté s’il tourne, puis retiré de projects.json et des dépendances des autres projets. Ses journaux sont conservés.' })),
+    remove);
+  $('#pane-settings').replaceChildren(form.element, dangerZone);
 }
 
 async function save(body, p) {
@@ -57,6 +65,7 @@ async function save(body, p) {
 // La liste des projets a changé : les dépendances proposées suivent.
 export function projectsChanged() {
   form?.projectsChanged();
+  if (currentId && !current() && dialog.open) dialog.close(); // projet supprimé
 }
 
 export function open(id, which = 'logs') {
@@ -115,6 +124,7 @@ export function update(p) {
   const error = $('#panel-error');
   error.textContent = p.error ?? '';
   error.hidden = !p.error;
+  dangerZone.hidden = !can('commands');
 
   const main = $('#panel-actions [data-act="main"]');
   const { label, icon: name, disabled, primary, hidden } = primaryOf(p);

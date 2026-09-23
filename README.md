@@ -28,7 +28,7 @@ Ouvrir http://localhost:9000 : une présentation propose de démarrer Servynex a
 
 ## Projets
 
-Tout se règle depuis l'interface : bouton **Ajouter**, puis l'onglet **Réglages** du volet d'un projet (clic sur sa ligne). La configuration est enregistrée dans `projects.json`, à la racine. Ce fichier est personnel et n'est pas versionné ; `projects.example.json` montre un exemple de chaque type de projet. Sans `projects.json`, Servynex démarre avec une liste vide. La section `instance` règle Servynex lui-même : `port` (9000 par défaut) et `name`, le nom affiché de l'instance.
+Tout se règle depuis l'interface : bouton **Ajouter**, puis l'onglet **Réglages** du volet d'un projet (clic sur sa ligne). La configuration est enregistrée dans `projects.json`, à la racine. Ce fichier est personnel et n'est pas versionné ; `projects.example.json` montre un exemple de chaque type de projet. Sans `projects.json`, Servynex démarre avec une liste vide. **Supprimer** : Réglages du volet (en bas) ou menu « … » de la ligne ; le projet est arrêté d'abord, retiré des dépendances des autres, ses journaux sont gardés. Confirmation par le mot de passe du compte si la protection est active, sinon en retapant le nom du projet. **Réordonner** : glisser la poignée à gauche d'une ligne, ou flèches haut et bas quand elle a le focus. La section `instance` règle Servynex lui-même : `port` (9000 par défaut) et `name`, le nom affiché de l'instance.
 
 Le fichier peut aussi se modifier à la main (Paramètres › Configuration › Modifier, puis Relire). Une modification faite à la main n'est jamais écrasée par l'interface : chaque enregistrement repart du fichier tel qu'il est sur le disque. Si le fichier devient invalide, Servynex continue avec la dernière configuration valide (`runtime/projects.valid.json`) et affiche l'erreur.
 
@@ -76,8 +76,8 @@ Par défaut, pas d'authentification : usage local, par une seule personne. Param
   | --- | --- | --- | --- | --- |
   | Voir (projets, journaux, réseau, activité) | oui | oui | oui | oui |
   | Piloter (démarrer, arrêter, ouvrir) | | oui | oui | oui |
-  | Modifier les projets (nom, port, dépendances…) | | | oui | oui |
-  | Commandes (commande, dossier, environnement, exposition, ajout) | | | au choix | oui |
+  | Modifier les projets (nom, port, dépendances, ordre…) | | | oui | oui |
+  | Commandes (commande, dossier, environnement, exposition, ajout, suppression) | | | au choix | oui |
   | Servynex (redémarrage, démarrage avec Windows, nom de l'instance) | | | au choix | oui |
   | Administration (comptes, invitations, sécurité) | | | | oui |
 
@@ -116,6 +116,8 @@ Servynex n'écoute qu'en local, avec ou sans comptes. L'accès distant (écoute 
 | GET | `/api/projects` | configuration et état |
 | POST | `/api/projects` | ajoute un projet (mêmes champs que `projects.json`, `id` facultatif) |
 | PATCH | `/api/projects/:id` | modifie un projet (`null` retire un champ facultatif) |
+| DELETE | `/api/projects/:id` | supprime un projet : `{ "password": "…" }` si la protection est active, sinon `{ "confirm": "<nom exact>" }` ; arrêté d'abord, retiré des `requires` des autres, journaux gardés |
+| PUT | `/api/projects` | nouvel ordre : `{ "order": ["id", …] }`, chaque projet une fois |
 | GET | `/api/events` | flux SSE : `snapshot`, `state` à chaque changement, `instance` (erreur de configuration) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |
 | POST | `/api/projects/:id/open` | ouvre le fichier d'un projet « file » |
