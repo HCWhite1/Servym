@@ -1,5 +1,5 @@
 // Page principale : navigation, liste des projets (ou orbite), état en direct, raccourcis.
-import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, gitSummary, h, icon, initials, isExternal, primaryOf, safeUrl, session, statusText, store, toast } from './lib.js';
+import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, formatBytes, formatCpu, gitSummary, h, icon, initials, isExternal, primaryOf, safeUrl, session, statusText, store, toast } from './lib.js';
 import { gate, lockNow, logout } from './auth.js';
 import * as activity from './activity.js';
 import * as menu from './menu.js';
@@ -9,6 +9,7 @@ import * as orbit from './orbit.js';
 import * as panel from './panel.js';
 import { createForm } from './project-form.js';
 import * as settings from './settings.js';
+import * as stats from './stats.js';
 
 const $ = (sel) => document.querySelector(sel);
 const search = $('#search');
@@ -185,6 +186,26 @@ function buildRows() {
   $('#services-group').hidden = services().length === 0;
 }
 
+// Processeur et mémoire (stats.js) : seulement pour un projet en marche.
+function fillResources(row, p) {
+  const cell = row.querySelector('.cell-res');
+  const s = ['running', 'starting', 'stopping'].includes(p.state) ? stats.get(p.id) : null;
+  if (!s) cell.replaceChildren();
+  else if (s.inProcess) cell.replaceChildren(h('span', { class: 'faint', text: 'intégré' }));
+  else cell.replaceChildren(h('span', { class: 'cpu', text: formatCpu(s.cpu) }), h('span', { text: formatBytes(s.memory) }));
+  cell.title = !s ? '' : s.inProcess
+    ? 'Site servi par Servynex lui-même : compté dans ses propres ressources'
+    : `Processeur (part de toute la machine) et mémoire, ${s.processes} processus`;
+}
+
+function statsChanged() {
+  for (const p of projects.values()) {
+    const row = document.querySelector(`.row[data-id="${CSS.escape(p.id)}"]`);
+    if (row) fillResources(row, p);
+  }
+  panel.statsChanged();
+}
+
 function updateRow(p) {
   const row = document.querySelector(`.row[data-id="${CSS.escape(p.id)}"]`);
   if (!row) return;
@@ -227,6 +248,7 @@ function updateRow(p) {
     error.hidden = !p.error;
   }
 
+  fillResources(row, p);
   fillMain(row.querySelector('[data-act="main"]'), p);
   row.querySelector('[data-act="restart"]').hidden = p.type === 'file' || !canRestart(p) || !can('operate');
   row.querySelector('[data-act="stop"]').hidden = p.type === 'file' || !canStop(p) || !can('operate');
@@ -441,6 +463,7 @@ function connect() {
     projects.set(p.id, p);
     update(p);
     if (before !== p.state) activity.changed();
+    if (before !== p.state && p.state === 'running') stats.schedule(); // premier relevé sans attendre
   });
   events.addEventListener('instance', (e) => {
     Object.assign(instance, JSON.parse(e.data));
@@ -617,6 +640,7 @@ setLayout(prefs.layout, false);
 orbit.setMotion(prefs.motion);
 showView();
 connect();
+stats.init(handlers, statsChanged);
 refreshGit();
 setInterval(refreshGit, 60_000);
 network.refreshNetwork().then(renderBanners);

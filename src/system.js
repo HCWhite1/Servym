@@ -233,3 +233,74 @@ export async function gitInfo(dir) {
     return { repo: false };
   }
 }
+
+// ---- Processeur et mémoire (src/stats.js) ----
+
+export const cores = os.availableParallelism?.() ?? os.cpus().length;
+
+// PowerShell gardé ouvert (src/sample.ps1) tant que des pages demandent des
+// relevés, fermé après une minute sans demande. Relevé : PID → processus.
+let probe = null;
+process.on('exit', () => probe?.child.kill());
+
+export function sampleProcesses() {
+  probe ??= openProbe();
+  return probe.sample();
+}
+
+function openProbe() {
+  const child = spawn('powershell.exe', [...PS, '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT_DIR, 'src', 'sample.ps1')], {
+    windowsHide: true,
+    stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  const waiting = []; // relevés demandés, servis dans l'ordre
+  let lines = [];
+  let buffer = '';
+  let idle = null;
+  const close = (reason) => {
+    if (probe?.child === child) probe = null;
+    clearTimeout(idle);
+    child.kill();
+    for (const w of waiting.splice(0)) w.reject(new Error(`Mesure des processus interrompue${reason ? ` : ${reason}` : ''}`));
+  };
+  child.on('error', (err) => close(err.message));
+  child.on('exit', () => close());
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    const parts = (buffer + chunk).split(/\r?\n/);
+    buffer = parts.pop();
+    for (const line of parts) {
+      if (line !== 'END') {
+        lines.push(line);
+        continue;
+      }
+      const processes = new Map();
+      for (const l of lines) {
+        const [pid, ppid, start, cpu, memory] = l.split(' ').map(Number);
+        if (Number.isFinite(pid) && Number.isFinite(memory)) processes.set(pid, { pid, ppid, start, cpu, memory });
+      }
+      lines = [];
+      const w = waiting.shift();
+      clearTimeout(w?.timer);
+      w?.resolve(processes);
+    }
+  });
+  // Ne retient pas Node à la fermeture : seul le serveur le fait.
+  child.unref();
+  child.stdin.unref?.();
+  child.stdout.unref?.();
+  return {
+    child,
+    sample() {
+      clearTimeout(idle);
+      idle = setTimeout(() => close(), 60_000);
+      idle.unref();
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => close('délai dépassé'), 15_000);
+        timer.unref();
+        waiting.push({ resolve, reject, timer });
+        child.stdin.write('x\n');
+      });
+    },
+  };
+}

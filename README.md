@@ -118,6 +118,7 @@ Servynex n'écoute qu'en local, avec ou sans comptes. L'accès distant (écoute 
 | PATCH | `/api/projects/:id` | modifie un projet (`null` retire un champ facultatif) |
 | DELETE | `/api/projects/:id` | supprime un projet : `{ "password": "…" }` si la protection est active, sinon `{ "confirm": "<nom exact>" }` ; arrêté d'abord, retiré des `requires` des autres, journaux gardés |
 | PUT | `/api/projects` | nouvel ordre : `{ "order": ["id", …] }`, chaque projet une fois |
+| GET | `/api/stats` | processeur (part de toute la machine) et mémoire de chaque projet en marche, arborescence de processus comprise ; relevé partagé, au plus un toutes les 2 s |
 | GET | `/api/events` | flux SSE : `snapshot`, `state` à chaque changement, `instance` (erreur de configuration) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |
 | POST | `/api/projects/:id/open` | ouvre le fichier d'un projet « file » |
@@ -140,6 +141,7 @@ Servynex n'écoute qu'en local, avec ou sans comptes. L'accès distant (écoute 
 ## Interface
 
 - **Projets** : liste par défaut ; **Orbite** en option (Servynex au centre, les projets en ligne tournent, un service requis est une lune de l'application qui en dépend, un projet exposé porte un halo en pointillés).
+- **Ressources** : processeur et mémoire de chaque projet en marche, dans la liste et en courbes (5 dernières minutes) dans l'onglet Infos du volet. Toute l'arborescence de processus est comptée (`cmd.exe`, puis `node` et ses enfants). Relevé toutes les 5 s, seulement quand la page est visible et qu'un projet tourne ; un PowerShell reste ouvert pour ces relevés et se ferme après une minute sans demande.
 - **Activité**, **Réseau**, **Paramètres** (démarrage, thème — système, clair, sombre, Solarized clair ou sombre —, `projects.json`, redémarrage de Servynex, raccourcis).
 - Raccourcis : `1`–`9` démarrer ou ouvrir un projet · `/` rechercher · `,` paramètres · `V` liste ou orbite · `P` pause de l'orbite · `Échap` fermer.
 - Icônes : [Lucide](https://lucide.dev) (licence ISC). Polices : Inter et JetBrains Mono (licence OFL), servies localement. Textes des licences : `THIRD-PARTY-NOTICES.md`.

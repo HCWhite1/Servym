@@ -126,6 +126,21 @@ export function gitSummary(g) {
   return { branch: g.branch ?? 'détachée', text: bits.join(' · '), dirty: g.changes > 0 };
 }
 
+// ---- Ressources ----
+
+const decimal = new Intl.NumberFormat('fr', { maximumFractionDigits: 1 });
+
+// Part du processeur de toute la machine : une décimale sous 10 %.
+export function formatCpu(cpu) {
+  if (cpu === null || cpu === undefined) return '—';
+  return `${decimal.format(cpu < 10 ? cpu : Math.round(cpu))} %`;
+}
+
+export function formatBytes(bytes) {
+  const mb = bytes / 1048576;
+  return mb < 1000 ? `${Math.round(mb)} Mo` : `${decimal.format(mb / 1024)} Go`;
+}
+
 // ---- DOM ----
 
 export function h(tag, props = {}, ...children) {

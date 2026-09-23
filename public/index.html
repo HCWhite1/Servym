@@ -63,13 +63,13 @@
           <section class="group">
             <h2 class="group-title">Applications</h2>
             <div class="table" role="list" id="apps">
-              <div class="thead" aria-hidden="true"><span>Nom</span><span>Statut</span><span>Adresse</span><span class="h-git">Git</span><span></span></div>
+              <div class="thead" aria-hidden="true"><span>Nom</span><span>Statut</span><span>Adresse</span><span class="h-res" title="Processeur et mémoire, processus enfants compris">Ressources</span><span class="h-git">Git</span><span></span></div>
             </div>
           </section>
           <section class="group" id="services-group">
             <h2 class="group-title">Services <span>démarrés au besoin par les applications qui en dépendent</span></h2>
             <div class="table" role="list" id="services">
-              <div class="thead" aria-hidden="true"><span>Nom</span><span>Statut</span><span>Adresse</span><span class="h-git"></span><span></span></div>
+              <div class="thead" aria-hidden="true"><span>Nom</span><span>Statut</span><span>Adresse</span><span class="h-res" title="Processeur et mémoire, processus enfants compris">Ressources</span><span class="h-git"></span><span></span></div>
             </div>
           </section>
           <p class="empty" id="empty" hidden>Aucun projet ne correspond à la recherche.</p>
@@ -185,6 +185,7 @@
     </section>
 
     <section class="pane" id="pane-info" role="tabpanel" aria-labelledby="tab-info" hidden>
+      <div class="res" id="res" hidden></div>
       <dl class="info" id="info"></dl>
     </section>
   </dialog>
@@ -439,6 +440,7 @@
       </div>
       <div class="cell-status"><span class="status"><i class="dot"></i><span class="status-text"></span></span></div>
       <div class="cell-addr"><span class="mono"></span></div>
+      <div class="cell-res"></div>
       <div class="cell-git"></div>
       <div class="cell-actions">
         <button class="icon-btn" type="button" data-act="restart" title="Redémarrer"><svg><use href="icons.svg#rotate-cw"/></svg></button>

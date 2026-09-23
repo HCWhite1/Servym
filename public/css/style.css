@@ -390,7 +390,7 @@ input[type='search']::-webkit-search-cancel-button { display: none; }
 .group-title span { color: var(--text-3); font-weight: 400; }
 
 .table {
-  --cols: minmax(240px, 2fr) 120px minmax(150px, 1fr) minmax(130px, 1fr) 200px;
+  --cols: minmax(220px, 2fr) 112px minmax(140px, 1fr) 112px minmax(120px, 1fr) 200px;
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -410,6 +410,8 @@ input[type='search']::-webkit-search-cancel-button { display: none; }
 .cell-addr { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-2); white-space: nowrap; }
 .cell-addr .mono { overflow: hidden; text-overflow: ellipsis; }
 .cell-addr.exposed .mono { color: var(--warn); }
+.cell-res { display: flex; gap: 10px; color: var(--text-2); font: 12px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cell-res .cpu { min-width: 46px; }
 .cell-git { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-2); font-size: 12.5px; white-space: nowrap; }
 .cell-git svg { width: 14px; height: 14px; color: var(--text-3); }
 .cell-git .dirty { color: var(--busy); }
@@ -580,6 +582,17 @@ dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 .setting-line strong { display: block; font-weight: 500; }
 
 .info { display: grid; grid-template-columns: 130px 1fr; gap: 10px 16px; }
+
+/* Processeur et mémoire du projet, en tête des Infos. */
+.res { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; }
+.res-card { padding: 12px 14px 10px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); }
+.res-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--text-2); font-size: 12.5px; }
+.res-head strong { color: var(--text); font: 600 15px var(--mono); font-variant-numeric: tabular-nums; }
+.res-card svg { display: block; width: 100%; height: 40px; margin-top: 8px; }
+.res-card polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.res-card polygon { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: none; }
+.res-foot { margin-top: 6px; color: var(--text-3); font-size: 11.5px; }
+.res-note { grid-column: 1 / -1; color: var(--text-3); font-size: 12px; }
 .info dt { color: var(--text-3); }
 .info dd { min-width: 0; overflow-wrap: anywhere; }
 .info .exposed { color: var(--warn); }
@@ -883,12 +896,22 @@ dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 
 /* ---- Écrans étroits ---- */
 
-@media (max-width: 1100px) {
-  .table { --cols: minmax(220px, 2fr) 116px minmax(140px, 1fr) 200px; }
+/* Colonnes retirées une à une pour que la liste tienne sans défiler de côté ;
+   largeur utile : celle de la fenêtre moins 312 px (barre latérale, marges). */
+@media (max-width: 1340px) {
+  .table { --cols: minmax(200px, 2fr) 110px minmax(130px, 1fr) 112px 200px; }
   .cell-git, .thead .h-git { display: none; }
 }
-@media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; }
+@media (max-width: 1160px) {
+  .table { --cols: minmax(180px, 2fr) 104px minmax(120px, 1fr) 100px 184px; }
+  .cell-actions .btn { min-width: 0; }
+}
+@media (max-width: 1100px) {
+  .table { --cols: minmax(180px, 2fr) 104px minmax(120px, 1fr) 184px; }
+  .cell-res, .thead .h-res { display: none; }
+}
+@media (max-width: 980px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--border); }
   .brand-sub { display: none; }
   .nav { flex-direction: row; }
@@ -903,7 +926,7 @@ dialog::backdrop { background: rgb(0 0 0 / 0.4); }
   .search { flex: 1; }
   .search input { width: 100%; }
   .table { --cols: minmax(0, 1fr) auto; }
-  .thead, .cell-status, .cell-addr { display: none; }
+  .thead, .cell-status, .cell-addr, .cell-res { display: none; }
   .cell-actions .btn { min-width: 0; }
   .settings[open] { flex-direction: column; }
   .settings-nav { width: auto; flex-direction: row; overflow-x: auto; padding: 8px; border-right: 0; border-bottom: 1px solid var(--border); }

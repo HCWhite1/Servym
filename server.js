@@ -9,6 +9,7 @@ import { Auth, AuthError } from './src/auth.js';
 import { followLog, history, tailLines } from './src/logs.js';
 import { HttpError, Manager } from './src/processes.js';
 import { staticHandler } from './src/static.js';
+import { Sampler } from './src/stats.js';
 import * as sys from './src/system.js';
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -56,7 +57,7 @@ function openStream(req, res) {
 // en-tête exigé que pour les écritures, pour qu'un <img> tiers ne puisse pas
 // les déclencher sur un navigateur qui n'envoie pas Sec-Fetch-Site. Les flux
 // SSE (EventSource ne pose pas d'en-tête) restent libres : ils ne font que lire.
-const COSTLY_GET = /^\/api\/(free-port|git|ports|network|autostart)(\?|$)/;
+const COSTLY_GET = /^\/api\/(free-port|git|ports|network|autostart|stats)(\?|$)/;
 
 // Host : bloque le DNS rebinding. En-tête X-Servynex-Request et Origin : bloquent le
 // CSRF (un site tiers ne peut pas poser l'en-tête sans pré-vol CORS, refusé).
@@ -103,6 +104,7 @@ export function createApp({
   restart = null, // arrêt de Servynex pour qu'un superviseur le relance (null : impossible)
   task = sys.autostartTask, // tâche planifiée qui démarre Servynex avec la session
   clock = () => Date.now(), // horloge de l'authentification (remplacée dans les tests)
+  sample = sys.sampleProcesses, // relevé des processus (processeur et mémoire)
   ...options
 } = {}) {
   // projects.json invalide au démarrage : Servynex démarre quand même, avec la
@@ -124,6 +126,7 @@ export function createApp({
   }
   const manager = new Manager({ config: initial, logsDir, runtimeDir, ...options });
   const serveUi = staticHandler(path.join(ROOT_DIR, 'public'));
+  const sampler = new Sampler({ sample, cores: sys.cores });
   const gitCache = new Map();
   const ownLog = path.join(logsDir, 'servynex.log');
   const ownPrevLog = path.join(logsDir, 'servynex.prev.log');
@@ -398,6 +401,24 @@ export function createApp({
       return send(res, 200, { port: await freePort(Number(url.searchParams.get('from')) || 3500) });
     }
     if (section === 'ports' && method === 'GET') return send(res, 200, await ports());
+    if (section === 'stats' && method === 'GET') {
+      // Racines de chaque projet en marche : le PID lancé par Servynex et celui qui écoute
+      // sur son port (un projet qui se relance lui-même n'est plus sous le premier).
+      const running = manager.snapshot().filter((p) => p.type !== 'file' && ['running', 'starting', 'stopping'].includes(p.state));
+      const listening = running.some((p) => p.type !== 'static') ? await sys.listeners() : [];
+      const roots = {};
+      const inProcess = {}; // sites statiques : servis par Servynex lui-même
+      for (const p of running) {
+        if (p.type === 'static') {
+          inProcess[p.id] = { inProcess: true };
+          continue;
+        }
+        const port = p.activePort ?? p.port;
+        roots[p.id] = [p.managed ? p.pid : null, ...listening.filter((l) => l.port === port).map((l) => l.pid)].filter(Boolean);
+      }
+      const measured = Object.keys(roots).length ? await sampler.measure(roots) : {};
+      return send(res, 200, { cores: sys.cores, projects: { ...measured, ...inProcess } });
+    }
     if (section === 'network' && method === 'GET') return send(res, 200, { lan: sys.lanAddresses(), networks: await networkProfiles() });
     if (section === 'restart' && method === 'POST') {
       if (!restart) throw new HttpError(409, 'Servynex lancé à la main (npm start) : relancez-le depuis son terminal.');

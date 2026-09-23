@@ -8,6 +8,7 @@ import { after, before, describe, test } from 'node:test';
 import { createProject, formatConfig, loadConfig, patchProject, removeProject, reorderProjects, validate } from '../src/config.js';
 import { lastError } from '../src/logs.js';
 import { resolveInside } from '../src/static.js';
+import { Sampler, treeOf, usageOf } from '../src/stats.js';
 import { Manager } from '../src/processes.js';
 import { createApp } from '../server.js';
 
@@ -195,6 +196,45 @@ describe('configuration', () => {
   });
 });
 
+describe('processeur et mémoire', () => {
+  // Relevé : PID → { pid, ppid, start (ms), cpu (ms cumulées), memory (octets) }.
+  const proc = (pid, ppid, start, cpu, memory) => [pid, { pid, ppid, start, cpu, memory }];
+  const snap = (at, list) => ({ at, processes: new Map(list) });
+
+  test('arborescence : enfants et petits-enfants, jamais un PID réutilisé', () => {
+    const { processes } = snap(0, [proc(10, 1, 100, 0, 0), proc(11, 10, 110, 0, 0), proc(12, 11, 120, 0, 0), proc(13, 10, 50, 0, 0), proc(20, 1, 100, 0, 0)]);
+    assert.deepEqual([...treeOf(processes, [10])].sort(), [10, 11, 12], "13 a démarré avant 10 : son parent n'est pas ce 10-là");
+    assert.deepEqual([...treeOf(processes, [10, 11])].sort(), [10, 11, 12], 'racines qui se recouvrent : chaque processus une fois');
+    assert.equal(treeOf(processes, [99]).size, 0);
+  });
+
+  test('somme de l’arborescence, en part de toute la machine', () => {
+    const prev = snap(10_000, [proc(10, 1, 100, 1_000, 0), proc(11, 10, 110, 3_000, 0), proc(12, 11, 120, 500, 0)]);
+    const next = snap(15_000, [proc(10, 1, 100, 1_200, 10e6), proc(11, 10, 110, 3_600, 50e6), proc(12, 11, 12_000, 200, 5e6), proc(14, 11, 13_000, 200, 1e6)]);
+    // 12 a été remplacé (autre début) et 14 est nouveau : comptés depuis leur démarrage.
+    // (200 + 600 + 200 + 200) ms sur 5 000 ms × 4 cœurs = 6 %.
+    assert.deepEqual(usageOf(prev, next, [10], 4), { cpu: 6, memory: 66e6, processes: 4 });
+    assert.equal(usageOf(null, next, [10], 4).cpu, null, 'premier relevé : processeur inconnu');
+    assert.equal(usageOf(null, next, [10], 4).memory, 66e6);
+    assert.equal(usageOf(prev, next, [99], 4), null, 'processus introuvable');
+  });
+
+  test('relevés partagés : des lectures rapprochées ne relancent pas la mesure', async () => {
+    let calls = 0;
+    let now = 0;
+    const sampler = new Sampler({ sample: async () => new Map([proc(10, 1, 0, ++calls * 1000, 5e6)]), now: () => now, cores: 1, maxAge: 2000 });
+    const first = await sampler.measure({ a: [10], b: [99] });
+    assert.deepEqual(first, { a: { cpu: null, memory: 5e6, processes: 1 } }, 'b introuvable : absent');
+    now = 1000;
+    assert.deepEqual(await sampler.measure({ a: [10] }), first, 'moins de 2 s : même relevé');
+    assert.equal(calls, 1);
+    now = 5000;
+    await Promise.all([sampler.measure({ a: [10] }), sampler.measure({ a: [10] })]);
+    assert.equal(calls, 2, 'deux onglets en même temps : une seule mesure');
+    assert.equal((await sampler.measure({ a: [10] })).a.cpu, 20, '(2 000 − 1 000) ms sur 5 000 ms');
+  });
+});
+
 describe('fichiers statiques', () => {
   const root = path.resolve('C:/site');
   test('reste dans le dossier', () => {
@@ -313,6 +353,22 @@ describe('serveur et processus', () => {
     assert.match(page.headers['content-security-policy'], /script-src 'self'/);
     assert.equal((await request(port, { method: 'PATCH', path: '/api/projects/ok', headers: { 'x-servynex-request': '1' }, body: '{}' })).status, 415);
     assert.equal((await request(port, { method: 'POST', path: '/api/projects/ok/start', headers: { 'x-hub-request': '1' } })).status, 403, 'ancien en-tête X-Hub-Request refusé');
+  });
+
+  test('ressources : processeur et mémoire des projets en marche', async () => {
+    assert.equal((await request(port, { path: '/api/stats' })).status, 403, 'sans en-tête : une mesure coûte');
+    await post('/api/projects/ok/start');
+    await until(() => state('ok').state === 'running');
+    const first = (await get('/api/stats')).json;
+    assert.ok(first.projects.ok.memory > 1_000_000, 'mémoire du processus node');
+    assert.ok(first.projects.ok.processes >= 2, 'cmd.exe puis node : toute l’arborescence');
+    assert.equal(first.projects.crash, undefined, 'arrêté : absent');
+    await sleep(2500);
+    const second = (await get('/api/stats')).json;
+    assert.equal(typeof second.projects.ok.cpu, 'number');
+    assert.ok(second.projects.ok.cpu >= 0 && second.projects.ok.cpu <= 100);
+    await post('/api/projects/ok/stop');
+    await until(() => state('ok').state === 'stopped');
   });
 
   test('lance, suit le journal, arrête', async () => {

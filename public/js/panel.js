@@ -1,8 +1,9 @@
 // Volet d'un projet : journal en direct, historique, réglages, infos.
-import { STATE_LABELS, ago, api, can, canRestart, canStop, confirmDialog, exposure, fillTile, h, icon, isExternal, primaryOf, safeUrl, statusText, toast, uptime } from './lib.js';
+import { STATE_LABELS, ago, api, can, canRestart, canStop, confirmDialog, exposure, fillTile, formatBytes, formatCpu, h, icon, isExternal, primaryOf, safeUrl, statusText, toast, uptime } from './lib.js';
 import { ERROR_LINE, WARN_LINE } from './log-patterns.js';
 import { createForm } from './project-form.js';
 import { auditLine } from './activity.js';
+import * as stats from './stats.js';
 
 const $ = (sel) => document.querySelector(sel);
 const dialog = $('#panel');
@@ -194,10 +195,67 @@ function reachableAt(port) {
   return urls.length ? `, par exemple ${urls.join(', ')}` : '';
 }
 
+// ---- Ressources (en tête des Infos) ----
+
+const SVG = 'http://www.w3.org/2000/svg';
+const POINTS = 60; // 5 minutes, un relevé toutes les 5 s (stats.js)
+
+export function statsChanged() {
+  if (tab === 'info' && current()) renderResources(current());
+}
+
+// Courbe des derniers relevés, calée à droite ; null : pas de mesure (premier relevé).
+function sparkline(values, max) {
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('viewBox', '0 0 240 40');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+  const step = 240 / (POINTS - 1);
+  let pts = values
+    .map((v, i) => (v === null ? null : [240 - (values.length - 1 - i) * step, 39 - (v / max) * 36]))
+    .filter(Boolean);
+  if (pts.length === 1) pts = [[pts[0][0] - step, pts[0][1]], pts[0]];
+  if (!pts.length) return svg;
+  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = document.createElementNS(SVG, 'polygon');
+  area.setAttribute('points', `${pts[0][0].toFixed(1)},40 ${line} ${pts.at(-1)[0].toFixed(1)},40`);
+  const stroke = document.createElementNS(SVG, 'polyline');
+  stroke.setAttribute('points', line);
+  svg.append(area, stroke);
+  return svg;
+}
+
+function resCard(label, value, chart, foot) {
+  return h('div', { class: 'res-card' },
+    h('div', { class: 'res-head' }, h('span', { text: label }), h('strong', { text: value })),
+    chart,
+    h('p', { class: 'res-foot', text: foot }));
+}
+
+function renderResources(p) {
+  const box = $('#res');
+  const s = ['running', 'starting', 'stopping'].includes(p.state) ? stats.get(p.id) : null;
+  box.hidden = !s;
+  if (!s) return box.replaceChildren();
+  if (s.inProcess) {
+    return box.replaceChildren(h('p', { class: 'res-note', text: 'Site servi par Servynex lui-même : ses ressources sont comptées dans celles de Servynex.' }));
+  }
+  const list = stats.historyOf(p.id);
+  const cpus = list.map((e) => e.cpu);
+  const mems = list.map((e) => e.memory);
+  const peakCpu = Math.max(0, ...cpus.filter((v) => v !== null));
+  const peakMem = Math.max(0, ...mems);
+  box.replaceChildren(
+    resCard('Processeur', formatCpu(s.cpu), sparkline(cpus, Math.min(100, Math.max(5, peakCpu * 1.2))), `Max ${formatCpu(peakCpu)}`),
+    resCard('Mémoire', formatBytes(s.memory), sparkline(mems, peakMem * 1.2 || 1), `Max ${formatBytes(peakMem)}`),
+    h('p', { class: 'res-note', text: `${s.processes} processus · processeur : part de toute la machine · 5 dernières minutes au plus, depuis l’ouverture de la page` }));
+}
+
 // ---- Infos ----
 
 async function renderInfo(p, fresh = false) {
   if (!p) return;
+  renderResources(p);
   const url = safeUrl(p.url);
   const tags = p.tags.length ? p.tags.join(', ') : '—';
   if (p.type === 'file') {
