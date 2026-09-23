@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Servynex</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div class="auth-screen" id="auth-screen" hidden></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 32 32"><use href="icons.svg#servynex-logo"/></svg>
+        <div>
+          <p class="brand-name" id="brand-name">Servynex</p>
+          <p class="brand-sub" id="brand-sub">localhost</p>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Sections">
+        <a class="nav-item" href="#projects" data-view="projects"><svg><use href="icons.svg#layout-grid"/></svg>Projets<span class="nav-count" id="nav-count"></span></a>
+        <a class="nav-item" href="#activity" data-view="activity"><svg><use href="icons.svg#history"/></svg>Activité</a>
+        <a class="nav-item" href="#network" data-view="network"><svg><use href="icons.svg#network"/></svg>Réseau<span class="nav-alert" id="nav-net-alert" title="Projet exposé sur un réseau public" hidden></span></a>
+      </nav>
+      <div class="sidebar-foot">
+        <button class="nav-item user-chip" type="button" id="user-chip" aria-haspopup="menu" hidden><span class="avatar" id="user-avatar"></span><span class="user-name" id="user-name"></span></button>
+        <button class="nav-item" type="button" id="open-settings"><svg><use href="icons.svg#settings"/></svg>Paramètres<kbd>,</kbd></button>
+        <p class="conn" id="conn" data-state="ok"><i class="dot"></i><span id="conn-text">Connecté</span></p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="banners" id="banners"></div>
+
+      <!-- Projets -->
+      <section class="view" id="view-projects" aria-labelledby="projects-title">
+        <header class="view-head">
+          <div>
+            <h1 id="projects-title">Projets</h1>
+            <p class="view-sub" id="summary">Chargement…</p>
+          </div>
+          <div class="view-tools">
+            <label class="search">
+              <svg><use href="icons.svg#search"/></svg>
+              <span class="visually-hidden">Rechercher un projet</span>
+              <input id="search" type="search" placeholder="Rechercher" autocomplete="off">
+              <kbd>/</kbd>
+            </label>
+            <div class="segmented" role="radiogroup" aria-label="Affichage">
+              <button type="button" role="radio" data-layout="list" aria-checked="true"><svg><use href="icons.svg#list"/></svg>Liste</button>
+              <button type="button" role="radio" data-layout="orbit" aria-checked="false"><svg><use href="icons.svg#orbit"/></svg>Orbite</button>
+            </div>
+            <button class="btn primary" type="button" id="add-project"><svg><use href="icons.svg#plus"/></svg>Ajouter</button>
+          </div>
+        </header>
+
+        <div id="list-view">
+          <section class="group">
+            <h2 class="group-title">Applications</h2>
+            <div class="table" role="list" id="apps">
+              <div class="thead" aria-hidden="true"><span>Nom</span><span>Statut</span><span>Adresse</span><span class="h-git">Git</span><span></span></div>
+            </div>
+          </section>
+          <section class="group" id="services-group">
+            <h2 class="group-title">Services <span>démarrés au besoin par les applications qui en dépendent</span></h2>
+            <div class="table" role="list" id="services">
+              <div class="thead" aria-hidden="true"><span>Nom</span><span>Statut</span><span>Adresse</span><span class="h-git"></span><span></span></div>
+            </div>
+          </section>
+          <p class="empty" id="empty" hidden>Aucun projet ne correspond à la recherche.</p>
+          <div class="card empty-state" id="no-projects" hidden>
+            <svg class="empty-icon"><use href="icons.svg#layout-grid"/></svg>
+            <h2>Aucun projet pour l’instant</h2>
+            <p>Ajoutez un site, une application ou un service (base de données…) : Servynex pourra le lancer, le surveiller et l’arrêter.</p>
+            <button class="btn primary" type="button" data-add><svg><use href="icons.svg#plus"/></svg>Ajouter un projet</button>
+          </div>
+        </div>
+
+        <div id="orbit-view" hidden></div>
+      </section>
+
+      <!-- Activité -->
+      <section class="view" id="view-activity" aria-labelledby="activity-title" hidden>
+        <header class="view-head">
+          <div>
+            <h1 id="activity-title">Activité</h1>
+            <p class="view-sub">Démarrages, arrêts et plantages vus par Servynex, du plus récent au plus ancien.</p>
+          </div>
+          <div class="view-tools">
+            <label><span class="visually-hidden">Filtrer par projet</span><select class="select" id="activity-filter"><option value="">Tous les projets</option></select></label>
+            <label class="check"><input type="checkbox" id="activity-audit" checked> Comptes et réglages</label>
+            <label class="check"><input type="checkbox" id="activity-steps"> Étapes intermédiaires</label>
+            <label class="check"><input type="checkbox" id="activity-failures"> Échecs seulement</label>
+          </div>
+        </header>
+        <div id="activity"></div>
+      </section>
+
+      <!-- Réseau -->
+      <section class="view" id="view-network" aria-labelledby="network-title" hidden>
+        <header class="view-head">
+          <div>
+            <h1 id="network-title">Réseau</h1>
+            <p class="view-sub" id="ports-summary">Réseaux connectés et ports en écoute sur ce PC.</p>
+          </div>
+          <div class="view-tools">
+            <label class="check"><input type="checkbox" id="ports-dynamic"> Ports dynamiques de Windows (49152 et plus)</label>
+            <button class="btn" type="button" id="ports-refresh"><svg><use href="icons.svg#refresh-cw"/></svg>Actualiser</button>
+          </div>
+        </header>
+        <h2 class="section-title">Réseaux connectés</h2>
+        <div class="net-grid" id="networks"></div>
+        <h2 class="section-title">Ports en écoute</h2>
+        <div class="card table-card">
+          <table class="data-table">
+            <thead><tr><th>Port</th><th>Écoute</th><th>Programme</th><th>PID</th><th>Projet</th></tr></thead>
+            <tbody id="ports-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Menu du compte connecté -->
+  <div class="menu" id="user-menu" popover role="menu">
+    <p class="menu-head" id="user-menu-head"></p>
+    <button type="button" role="menuitem" data-user-act="account"><svg><use href="icons.svg#user"/></svg>Mon compte</button>
+    <button type="button" role="menuitem" data-user-act="lock"><svg><use href="icons.svg#lock"/></svg>Verrouiller</button>
+    <hr>
+    <button type="button" role="menuitem" data-user-act="logout"><svg><use href="icons.svg#log-out"/></svg>Se déconnecter</button>
+  </div>
+
+  <!-- Menu d'actions d'un projet -->
+  <div class="menu" id="row-menu" popover role="menu"></div>
+
+  <!-- Volet d'un projet -->
+  <dialog class="drawer" id="panel" aria-labelledby="panel-name">
+    <header class="drawer-head">
+      <span class="tile lg" id="panel-tile" aria-hidden="true"></span>
+      <div class="drawer-title">
+        <h2 id="panel-name"></h2>
+        <p class="status" id="panel-status"></p>
+      </div>
+      <button class="icon-btn" type="button" data-close title="Fermer (Échap)"><svg><use href="icons.svg#x"/></svg></button>
+    </header>
+    <div class="drawer-actions" id="panel-actions">
+      <button class="btn" type="button" data-act="main"></button>
+      <button class="btn" type="button" data-act="restart"><svg><use href="icons.svg#rotate-cw"/></svg>Redémarrer</button>
+      <button class="btn" type="button" data-act="stop"><svg><use href="icons.svg#square"/></svg>Arrêter</button>
+      <span class="spacer"></span>
+      <button class="icon-btn" type="button" data-act="folder" title="Ouvrir le dossier"><svg><use href="icons.svg#folder-open"/></svg></button>
+      <button class="icon-btn" type="button" data-act="code" title="Ouvrir dans VS Code"><svg><use href="icons.svg#code-xml"/></svg></button>
+      <button class="icon-btn" type="button" data-act="terminal" title="Terminal dans ce dossier"><svg><use href="icons.svg#square-terminal"/></svg></button>
+    </div>
+    <p class="alert error" id="panel-error" hidden></p>
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-logs" aria-controls="pane-logs" aria-selected="true">Journal</button>
+      <button type="button" role="tab" id="tab-history" aria-controls="pane-history" aria-selected="false">Historique</button>
+      <button type="button" role="tab" id="tab-settings" aria-controls="pane-settings" aria-selected="false">Réglages</button>
+      <button type="button" role="tab" id="tab-info" aria-controls="pane-info" aria-selected="false">Infos</button>
+    </nav>
+
+    <section class="pane" id="pane-logs" role="tabpanel" aria-labelledby="tab-logs">
+      <div class="pane-tools">
+        <label class="check"><input type="checkbox" id="log-follow" checked> Défilement automatique</label>
+        <label class="check"><input type="checkbox" id="log-errors"> Erreurs et avertissements</label>
+        <span class="spacer"></span>
+        <button class="btn small" type="button" id="log-copy"><svg><use href="icons.svg#copy"/></svg>Copier</button>
+      </div>
+      <p class="note" id="log-note" hidden></p>
+      <pre class="log" id="log" tabindex="0"></pre>
+    </section>
+
+    <section class="pane" id="pane-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+      <p class="note" id="history-empty" hidden>Aucun changement d’état enregistré pour l’instant.</p>
+      <ol class="timeline" id="history"></ol>
+    </section>
+
+    <section class="pane" id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+    </section>
+
+    <section class="pane" id="pane-info" role="tabpanel" aria-labelledby="tab-info" hidden>
+      <dl class="info" id="info"></dl>
+    </section>
+  </dialog>
+
+  <!-- Paramètres -->
+  <dialog class="modal settings" id="settings" aria-labelledby="settings-heading">
+    <nav class="settings-nav" aria-label="Sections des paramètres">
+      <h2>Paramètres</h2>
+      <button class="nav-item" type="button" data-section="account" hidden><svg><use href="icons.svg#user"/></svg>Mon compte</button>
+      <button class="nav-item" type="button" data-section="general"><svg><use href="icons.svg#sliders-horizontal"/></svg>Général</button>
+      <button class="nav-item" type="button" data-section="appearance"><svg><use href="icons.svg#sun"/></svg>Apparence</button>
+      <button class="nav-item" type="button" data-section="config"><svg><use href="icons.svg#file-cog"/></svg>Configuration</button>
+      <button class="nav-item" type="button" data-section="security"><svg><use href="icons.svg#shield-check"/></svg>Sécurité</button>
+      <button class="nav-item" type="button" data-section="members" hidden><svg><use href="icons.svg#users"/></svg>Membres</button>
+      <button class="nav-item" type="button" data-section="instance"><svg><use href="icons.svg#power"/></svg>Servynex</button>
+      <button class="nav-item" type="button" data-section="keys"><svg><use href="icons.svg#keyboard"/></svg>Raccourcis</button>
+    </nav>
+    <div class="settings-main">
+      <header class="modal-head">
+        <h2 id="settings-heading">Général</h2>
+        <button class="icon-btn" type="button" data-close title="Fermer (Échap)"><svg><use href="icons.svg#x"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <section data-section="general">
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Démarrer Servynex avec Windows</p>
+              <p class="setting-desc" id="autostart-desc">Tâche planifiée « Servynex » : Servynex se lance sans fenêtre à l’ouverture de session et se relance s’il plante.</p>
+            </div>
+            <input class="switch" type="checkbox" role="switch" id="set-autostart" aria-label="Démarrer Servynex avec Windows" disabled>
+          </div>
+          <div class="setting stack">
+            <div class="setting-text">
+              <p class="setting-label">Projets lancés au démarrage</p>
+              <p class="setting-desc">Servynex les lance une fois par démarrage du PC, dès qu’il est lui-même démarré.</p>
+            </div>
+            <div class="sub-list" id="set-projects"></div>
+            <p class="hint warn" id="set-projects-warn" hidden>Servynex ne démarre pas avec Windows : ces projets ne seront lancés qu’à son prochain démarrage. Activer « Démarrer Servynex avec Windows » ci-dessus.</p>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Présentation</p>
+              <p class="setting-desc">Revoir l’écran d’accueil et ses réglages de départ.</p>
+            </div>
+            <button class="btn" type="button" id="replay-onboarding">Revoir</button>
+          </div>
+        </section>
+
+        <section data-section="appearance" hidden>
+          <div class="setting stack">
+            <div class="setting-text">
+              <p class="setting-label">Thème</p>
+              <p class="setting-desc">« Système » suit le mode clair ou sombre de Windows.</p>
+            </div>
+            <div class="choices theme-choices" role="radiogroup" aria-label="Thème" id="set-theme">
+        <button class="choice" type="button" role="radio" data-value="system"><span class="preview p-system"></span>Système</button>
+        <button class="choice" type="button" role="radio" data-value="light"><span class="preview p-light"><span class="bar"></span><span class="bar short"></span></span>Clair</button>
+        <button class="choice" type="button" role="radio" data-value="dark"><span class="preview p-dark"><span class="bar"></span><span class="bar short"></span></span>Sombre</button>
+        <button class="choice" type="button" role="radio" data-value="solarized-light"><span class="preview p-sol-light"><span class="bar"></span><span class="bar short"></span></span>Solarized clair</button>
+        <button class="choice" type="button" role="radio" data-value="solarized-dark"><span class="preview p-sol-dark"><span class="bar"></span><span class="bar short"></span></span>Solarized sombre</button>
+      </div>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Affichage des projets</p>
+              <p class="setting-desc">La liste montre tout d’un coup d’œil ; l’orbite est une vue plus visuelle.</p>
+            </div>
+            <div class="segmented" role="radiogroup" aria-label="Affichage des projets" id="set-layout">
+              <button type="button" role="radio" data-value="list"><svg><use href="icons.svg#list"/></svg>Liste</button>
+              <button type="button" role="radio" data-value="orbit"><svg><use href="icons.svg#orbit"/></svg>Orbite</button>
+            </div>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Animation de l’orbite</p>
+              <p class="setting-desc">Les projets en ligne tournent autour de Servynex. Toujours immobile si Windows réduit les animations.</p>
+            </div>
+            <input class="switch" type="checkbox" role="switch" id="set-motion" aria-label="Animation de l’orbite">
+          </div>
+        </section>
+
+        <section data-section="config" hidden>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Fichier des projets</p>
+              <p class="setting-desc">Commande, dossier, variables d’environnement et dépendances se modifient uniquement dans ce fichier.</p>
+              <code class="path" id="config-path"></code>
+            </div>
+            <div class="setting-actions">
+              <button class="btn" type="button" id="open-config"><svg><use href="icons.svg#file-text"/></svg>Modifier</button>
+              <button class="btn" type="button" id="reload-config"><svg><use href="icons.svg#refresh-cw"/></svg>Relire</button>
+            </div>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Journal de Servynex</p>
+              <p class="setting-desc">Actions et changements d’état (logs/servynex.log).</p>
+            </div>
+            <button class="btn" type="button" id="open-instance-log"><svg><use href="icons.svg#scroll-text"/></svg>Ouvrir</button>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Dossier de Servynex</p>
+              <code class="path" id="instance-dir"></code>
+            </div>
+            <button class="btn" type="button" id="open-instance-dir"><svg><use href="icons.svg#folder-open"/></svg>Ouvrir</button>
+          </div>
+        </section>
+
+        <section data-section="account" hidden id="account-body"></section>
+        <section data-section="security" hidden id="security-body"></section>
+        <section data-section="members" hidden id="members-body"></section>
+
+        <section data-section="instance" hidden>
+          <dl class="info instance-info" id="instance-info"></dl>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Nom de l’instance</p>
+              <p class="setting-desc">Affiché dans la barre latérale et sur la page de connexion. Utile quand on a plusieurs instances de Servynex.</p>
+            </div>
+            <form class="inline-form" id="instance-form">
+              <input class="input" id="instance-name" maxlength="40" placeholder="Servynex" aria-label="Nom de l’instance">
+              <button class="btn" type="submit">Enregistrer</button>
+            </form>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <p class="setting-label">Redémarrer Servynex</p>
+              <p class="setting-desc" id="restart-desc">Les projets lancés continuent de tourner et sont repris au redémarrage.</p>
+            </div>
+            <button class="btn danger" type="button" id="restart-instance"><svg><use href="icons.svg#power"/></svg>Redémarrer</button>
+          </div>
+        </section>
+
+        <section data-section="keys" hidden>
+          <dl class="keys">
+            <dt>Rechercher un projet</dt><dd><kbd>/</kbd></dd>
+            <dt>Démarrer ou ouvrir le projet n°1 à 9</dt><dd><kbd>1</kbd>…<kbd>9</kbd></dd>
+            <dt>Ouvrir les paramètres</dt><dd><kbd>,</kbd></dd>
+            <dt>Passer de la liste à l’orbite</dt><dd><kbd>V</kbd></dd>
+            <dt>Mettre l’orbite en pause</dt><dd><kbd>P</kbd></dd>
+            <dt>Lancer le premier résultat de la recherche</dt><dd><kbd>Entrée</kbd></dd>
+            <dt>Fermer un volet ou une fenêtre</dt><dd><kbd>Échap</kbd></dd>
+          </dl>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Présentation au premier lancement -->
+  <dialog class="modal onboarding" id="onboarding" aria-labelledby="ob-title-1">
+    <section class="ob-step" data-step="1">
+      <svg class="ob-logo" viewBox="0 0 32 32"><use href="icons.svg#servynex-logo"/></svg>
+      <div>
+        <h2 id="ob-title-1">Bienvenue dans Servynex</h2>
+        <p class="ob-lead">Le tableau de bord de vos projets locaux : les lancer, les suivre et les arrêter depuis une seule page.</p>
+      </div>
+      <ul class="features">
+        <li><span class="f-icon"><svg><use href="icons.svg#play"/></svg></span><div><strong>Lancer et ouvrir</strong><p>Un clic démarre le projet, avec ses dépendances, et ouvre son adresse dès qu’il répond.</p></div></li>
+        <li><span class="f-icon"><svg><use href="icons.svg#activity"/></svg></span><div><strong>Suivre</strong><p>Journal en direct, historique des arrêts et état Git de chaque projet.</p></div></li>
+        <li><span class="f-icon"><svg><use href="icons.svg#network"/></svg></span><div><strong>Garder la main sur le réseau</strong><p>Ports en écoute, projets exposés, alerte sur les réseaux publics.</p></div></li>
+      </ul>
+    </section>
+    <section class="ob-step" data-step="2" hidden>
+      <div>
+        <p class="ob-kicker">Étape 1 sur 3</p>
+        <h2 id="ob-title-2">Démarrage</h2>
+        <p class="ob-lead">Choisissez ce qui se lance tout seul quand vous allumez le PC. Tout reste modifiable dans les Paramètres.</p>
+      </div>
+      <label class="setting-line">
+        <span><strong>Démarrer Servynex avec Windows</strong><span class="hint" id="ob-autostart-hint">Sans fenêtre, à l’ouverture de session. Sans droits administrateur.</span></span>
+        <input class="switch" type="checkbox" role="switch" id="ob-autostart" disabled>
+      </label>
+      <div>
+        <p class="setting-label ob-sub">Projets à lancer au démarrage</p>
+        <div class="sub-list" id="ob-projects"></div>
+      </div>
+    </section>
+    <section class="ob-step" data-step="3" hidden>
+      <div>
+        <p class="ob-kicker">Étape 2 sur 3</p>
+        <h2 id="ob-title-3">Affichage</h2>
+      </div>
+      <span class="choice-label">Thème</span>
+<div class="choices theme-choices" role="radiogroup" aria-label="Thème" id="ob-theme">
+        <button class="choice" type="button" role="radio" data-value="system"><span class="preview p-system"></span>Système</button>
+        <button class="choice" type="button" role="radio" data-value="light"><span class="preview p-light"><span class="bar"></span><span class="bar short"></span></span>Clair</button>
+        <button class="choice" type="button" role="radio" data-value="dark"><span class="preview p-dark"><span class="bar"></span><span class="bar short"></span></span>Sombre</button>
+        <button class="choice" type="button" role="radio" data-value="solarized-light"><span class="preview p-sol-light"><span class="bar"></span><span class="bar short"></span></span>Solarized clair</button>
+        <button class="choice" type="button" role="radio" data-value="solarized-dark"><span class="preview p-sol-dark"><span class="bar"></span><span class="bar short"></span></span>Solarized sombre</button>
+      </div>
+      <span class="choice-label">Vue des projets</span>
+      <div class="choices" role="radiogroup" aria-label="Vue des projets" id="ob-layout">
+        <button class="choice" type="button" role="radio" data-value="list"><span class="preview p-list"><span class="bar"></span><span class="bar"></span><span class="bar short"></span></span><span>Liste<small>Recommandée : tout se lit d’un coup d’œil.</small></span></button>
+        <button class="choice" type="button" role="radio" data-value="orbit"><span class="preview p-orbit"><span class="pdot a"></span><span class="pdot b"></span></span><span>Orbite<small>Les projets en ligne tournent autour de Servynex.</small></span></button>
+      </div>
+    </section>
+    <section class="ob-step" data-step="4" hidden>
+      <div>
+        <p class="ob-kicker">Étape 3 sur 3</p>
+        <h2 id="ob-title-4">C’est prêt</h2>
+        <p class="ob-lead">Quelques repères pour commencer.</p>
+      </div>
+      <ul class="tips">
+        <li><svg><use href="icons.svg#layout-grid"/></svg><span><strong>Un clic sur un projet</strong> ouvre son volet : journal en direct, historique, réglages et infos.</span></li>
+        <li><svg><use href="icons.svg#ellipsis"/></svg><span><strong>Le bouton …</strong> d’une ligne regroupe les autres actions : dossier, VS Code, terminal.</span></li>
+        <li><svg><use href="icons.svg#settings"/></svg><span><strong>Paramètres</strong>, en bas à gauche : démarrage, thème, fichier projects.json et redémarrage de Servynex.</span></li>
+        <li><svg><use href="icons.svg#keyboard"/></svg><span><strong>Raccourcis</strong> : <kbd>/</kbd> pour rechercher, <kbd>1</kbd>…<kbd>9</kbd> pour démarrer ou ouvrir un projet, <kbd>,</kbd> pour les paramètres.</span></li>
+      </ul>
+    </section>
+    <footer class="ob-foot">
+      <div class="ob-dots" id="ob-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <span class="spacer"></span>
+      <button class="btn ghost" type="button" id="ob-skip">Passer</button>
+      <button class="btn" type="button" id="ob-back">Retour</button>
+      <button class="btn primary" type="button" id="ob-next">Continuer</button>
+    </footer>
+  </dialog>
+
+  <!-- Ajout d'un projet -->
+  <dialog class="modal add-dialog" id="add-dialog" aria-labelledby="add-title">
+    <header class="modal-head">
+      <h2 id="add-title">Nouveau projet</h2>
+      <button class="icon-btn" type="button" data-close title="Fermer (Échap)"><svg><use href="icons.svg#x"/></svg></button>
+    </header>
+    <div class="modal-body" id="add-body"></div>
+  </dialog>
+
+  <!-- Confirmation -->
+  <dialog class="modal confirm" id="confirm" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <header class="modal-head"><h2 id="confirm-title"></h2></header>
+      <div class="modal-body"><p></p></div>
+      <footer class="modal-foot">
+        <button class="btn" value="cancel">Annuler</button>
+        <button class="btn primary" value="ok"></button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <template id="row-tpl">
+    <div class="row" role="listitem" tabindex="0">
+      <div class="cell-project">
+        <span class="tile" aria-hidden="true"></span>
+        <div class="name-block">
+          <p class="name"><span class="name-text"></span></p>
+          <p class="desc"></p>
+        </div>
+      </div>
+      <div class="cell-status"><span class="status"><i class="dot"></i><span class="status-text"></span></span></div>
+      <div class="cell-addr"><span class="mono"></span></div>
+      <div class="cell-git"></div>
+      <div class="cell-actions">
+        <button class="icon-btn" type="button" data-act="restart" title="Redémarrer"><svg><use href="icons.svg#rotate-cw"/></svg></button>
+        <button class="icon-btn" type="button" data-act="stop" title="Arrêter"><svg><use href="icons.svg#square"/></svg></button>
+        <button class="btn" type="button" data-act="main"></button>
+        <button class="icon-btn" type="button" data-act="menu" title="Plus d’actions" aria-haspopup="menu"><svg><use href="icons.svg#ellipsis"/></svg></button>
+      </div>
+    </div>
+  </template>
+</body>
+</html>

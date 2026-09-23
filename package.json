@@ -1,0 +1,18 @@
+{
+  "name": "servynex",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Tableau de bord local : lance, surveille et arrête vos projets de développement",
+  "license": "MIT",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "auth": "node scripts/auth.js",
+    "autostart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1"
+  }
+}

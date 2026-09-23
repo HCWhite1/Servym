@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Démarrage…</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
+  <script type="module" src="js/wait.js"></script>
+</head>
+<body class="wait">
+  <main class="card wait-box">
+    <div class="wait-top">
+      <span class="tile lg" id="tile" aria-hidden="true"></span>
+      <div>
+        <h1 id="name">Démarrage…</h1>
+        <p class="status" id="status" data-state="starting"><i class="dot"></i><span id="status-text">Connexion à Servynex…</span></p>
+      </div>
+      <span class="spinner" id="spinner" aria-hidden="true"></span>
+    </div>
+    <p class="note" id="hint">Cet onglet s’ouvrira sur le projet dès qu’il répond.</p>
+    <p class="alert error mono" id="error" hidden></p>
+    <pre class="log" id="log" hidden></pre>
+    <p><a class="btn" href="/">Retour à Servynex</a></p>
+  </main>
+</body>
+</html>
