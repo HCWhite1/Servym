@@ -1,5 +1,6 @@
 // Présentation au premier lancement : accueil, démarrage automatique, affichage,
 // repères. Chaque choix s'applique tout de suite ; « Passer » garde l'existant.
+import { t } from './i18n.js';
 import { api, can, store } from './lib.js';
 import { loadAutostart, projectSwitches, setInstanceAutostart, setProjectAutostart, setTheme } from './settings.js';
 
@@ -58,9 +59,9 @@ export async function open() {
   if (enabled !== null) {
     input.checked = enabled;
     input.disabled = !can('instance');
-    if (!can('instance')) $('#ob-autostart-hint').textContent = 'Réglé par un administrateur.';
+    if (!can('instance')) $('#ob-autostart-hint').textContent = t('ob.byAdmin');
   } else {
-    $('#ob-autostart-hint').textContent = 'État de la tâche planifiée illisible : réglable plus tard avec autostart.bat.';
+    $('#ob-autostart-hint').textContent = t('ob.taskUnreadable');
   }
 }
 
@@ -69,13 +70,13 @@ function go(n) {
   steps.forEach((s, i) => {
     s.hidden = i !== step;
     const kicker = s.querySelector('.ob-kicker');
-    if (kicker) kicker.textContent = `Étape ${i} sur ${steps.length - 1}`;
+    if (kicker) kicker.textContent = t('ob.step', { n: i, total: steps.length - 1 });
   });
   dialog.setAttribute('aria-labelledby', steps[step].querySelector('h2').id || 'ob-title-1');
   [...$('#ob-dots').children].forEach((dot, i) => dot.classList.toggle('on', i === step));
   $('#ob-back').hidden = step === 0;
   $('#ob-skip').hidden = step === steps.length - 1;
-  $('#ob-next').textContent = step === 0 ? 'Commencer' : step === steps.length - 1 ? 'Terminer' : 'Continuer';
+  $('#ob-next').textContent = step === 0 ? t('ob.start') : step === steps.length - 1 ? t('ob.finish') : t('ob.next');
 }
 
 async function finish() {

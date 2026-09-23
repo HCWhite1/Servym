@@ -1,4 +1,5 @@
 // Page Activité : changements d'état de tous les projets (lus dans servynex.log), groupés par jour.
+import { lang, t } from './i18n.js';
 import { api, h, initials, tile } from './lib.js';
 import { transition } from './panel.js';
 
@@ -22,7 +23,7 @@ export function init(hs) {
 export function build() {
   const value = select.value;
   select.replaceChildren(
-    h('option', { value: '', text: 'Tous les projets' }),
+    h('option', { value: '', text: t('activity.allProjects') }),
     ...handlers.all().filter((p) => p.type !== 'file').map((p) => h('option', { value: p.id, text: p.name })));
   select.value = handlers.get(value) ? value : '';
 }
@@ -55,14 +56,14 @@ async function load() {
   render();
 }
 
-const dayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-const timeFormat = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const dayFormat = new Intl.DateTimeFormat(lang, { weekday: 'long', day: 'numeric', month: 'long' });
+const timeFormat = new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit' });
 
 function dayLabel(date) {
   const start = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const diff = Math.round((start(new Date()) - start(date)) / 86_400_000);
-  if (diff === 0) return 'Aujourd’hui';
-  if (diff === 1) return 'Hier';
+  if (diff === 0) return t('activity.today');
+  if (diff === 1) return t('activity.yesterday');
   const text = dayFormat.format(date);
   return text[0].toUpperCase() + text.slice(1);
 }
@@ -78,7 +79,7 @@ function render() {
     && (!failures || ['failed', 'conflict'].includes(e.to))
     && (steps || !['starting', 'stopping'].includes(e.to)));
   if (!list.length) {
-    $('#activity').replaceChildren(h('div', { class: 'card empty', text: entries.length ? 'Aucun évènement pour ce filtre.' : 'Aucune activité enregistrée pour l’instant.' }));
+    $('#activity').replaceChildren(h('div', { class: 'card empty', text: entries.length ? t('activity.noMatch') : t('activity.none') }));
     return;
   }
   const groups = new Map();
@@ -97,10 +98,10 @@ function item(e) {
   const p = handlers.get(e.id);
   const date = new Date(e.at);
   const who = p
-    ? h('button', { class: 'who', type: 'button', title: `Ouvrir ${p.name}` }, tile(p, 'sm'), p.name)
+    ? h('button', { class: 'who', type: 'button', title: t('activity.open', { name: p.name }) }, tile(p, 'sm'), p.name)
     : h('span', { class: 'who', text: e.id });
   if (p) who.addEventListener('click', () => handlers.openPanel(p.id, 'history'));
-  const time = h('time', { datetime: e.at, title: date.toLocaleString('fr-FR'), text: timeFormat.format(date) });
+  const time = h('time', { datetime: e.at, title: date.toLocaleString(lang), text: timeFormat.format(date) });
   if (e.kind === 'audit') {
     return h('li', { class: 'audit' }, time,
       h('span', { class: 'what' }, e.id ? who : null, auditLine(e)));

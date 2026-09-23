@@ -1,5 +1,6 @@
 // Page Réseau : réseaux connectés, ports en écoute sur ce PC (projets de Servynex et
 // reste de la machine), et détection d'un projet exposé sur un réseau public.
+import { t, tn } from './i18n.js';
 import { api, exposure, h, icon, tile, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -18,7 +19,7 @@ export function init(hs) {
 }
 
 export function show() {
-  if (!data) $('#ports-rows').replaceChildren(h('tr', {}, h('td', { colspan: '5', text: 'Lecture des ports…' })));
+  if (!data) $('#ports-rows').replaceChildren(h('tr', {}, h('td', { colspan: '5', text: t('network.loading') })));
   load();
 }
 
@@ -44,7 +45,7 @@ function render() {
   const all = $('#ports-dynamic').checked;
   const rows = data.ports.filter((r) => all || r.port < DYNAMIC || r.project);
   const exposed = rows.filter((r) => r.exposed).length;
-  $('#ports-summary').textContent = `${rows.length} port${rows.length > 1 ? 's' : ''} en écoute · ${exposed} joignable${exposed > 1 ? 's' : ''} depuis le réseau`;
+  $('#ports-summary').textContent = `${tn('network.listening', rows.length)} · ${tn('network.reachable', exposed)}`;
   $('#networks').replaceChildren(...networkCards());
   $('#ports-rows').replaceChildren(...rows.map(row));
 }
@@ -56,31 +57,28 @@ function row(r) {
     : p ? h('span', { class: 'owner' }, tile(p, 'sm'), p.name) : '';
   return h('tr', { class: r.exposed ? 'exposed' : '' },
     h('td', { class: 'num', text: String(r.port) }),
-    h('td', {}, h('span', { class: 'mono', text: r.addresses.join(', ') }), r.exposed ? h('span', { class: 'badge warn', text: 'Réseau' }) : null),
+    h('td', {}, h('span', { class: 'mono', text: r.addresses.join(', ') }), r.exposed ? h('span', { class: 'badge warn', text: t('badge.network') }) : null),
     h('td', { text: r.process ?? '?' }),
     h('td', { class: 'num', text: String(r.pid) }),
     h('td', {}, owner));
 }
-
-// Profil Windows du réseau (code renvoyé par le serveur).
-const CATEGORY = { public: 'public', private: 'privé', domain: 'domaine' };
 
 function networkCards() {
   const cards = networks.map((n) => {
     const pub = n.category === 'public';
     return h('div', { class: 'card net-card' },
       h('h3', {}, icon(/wi-?fi|wlan|sans fil/i.test(n.interface) ? 'radio-tower' : 'network'), n.name,
-        h('span', { class: `badge${pub ? ' warn' : ''}`, text: `Réseau ${CATEGORY[n.category] ?? n.category}` })),
+        h('span', { class: `badge${pub ? ' warn' : ''}`, text: t(`network.category.${n.category}`) })),
       h('p', { text: n.interface }),
-      pub ? h('p', { class: 'hint warn', text: 'Non déclaré de confiance dans Windows : un projet exposé y est joignable par tous.' }) : null);
+      pub ? h('p', { class: 'hint warn', text: t('network.publicWarn') }) : null);
   });
   const lan = data?.lan ?? [];
   if (lan.length) {
     cards.push(h('div', { class: 'card net-card' },
-      h('h3', {}, icon('globe'), 'Adresses de ce PC'),
+      h('h3', {}, icon('globe'), t('network.addresses')),
       ...lan.map((a) => h('p', {}, h('span', { class: 'mono', text: a.address }), ` · ${a.name}`))));
   }
-  if (!cards.length) cards.push(h('div', { class: 'card net-card' }, h('p', { text: 'Aucun réseau connecté.' })));
+  if (!cards.length) cards.push(h('div', { class: 'card net-card' }, h('p', { text: t('network.none') })));
   return cards;
 }
 

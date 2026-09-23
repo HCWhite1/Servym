@@ -1,13 +1,15 @@
 // Accès à l'API et petites fonctions partagées.
+import { lang, t } from './i18n.js';
 
 export async function api(path, { method = 'GET', body } = {}) {
-  const headers = { 'X-Servynex-Request': '1' };
+  // Accept-Language : les messages d'erreur du serveur arrivent dans la langue de la page.
+  const headers = { 'X-Servynex-Request': '1', 'Accept-Language': lang };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(`/api/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
   // Session absente, expirée ou verrouillée : l'écran de connexion prend la main (auth.js).
   if (data.auth && !path.startsWith('auth/')) dispatchEvent(new CustomEvent('servynex:auth', { detail: data }));
-  if (!res.ok) throw Object.assign(new Error(data.error ?? `Erreur ${res.status}`), { status: res.status, auth: data.auth });
+  if (!res.ok) throw Object.assign(new Error(data.error ?? t('error.status', { status: res.status })), { status: res.status, auth: data.auth });
   return data;
 }
 
@@ -22,15 +24,10 @@ export function can(permission) {
   return !session.enabled || Boolean(perms && (perms.includes('admin') || perms.includes(permission)));
 }
 
-export const PERMISSION_LABELS = {
-  view: ['Voir', 'Projets, journaux, réseau et activité.'],
-  operate: ['Piloter', 'Démarrer, arrêter, redémarrer et ouvrir les projets.'],
-  edit: ['Modifier les projets', 'Nom, port, dépendances, adresse, vérification, ordre de la liste…'],
-  commands: ['Commandes', 'Commande, dossier, environnement, exposition, ajout et suppression de projets. Équivaut à un accès complet à la machine.'],
-  instance: ['Servynex', 'Redémarrer Servynex, démarrage avec Windows, nom de l’instance.'],
-  admin: ['Administration', 'Comptes, invitations et sécurité. Donne toutes les permissions.'],
-};
-export const ROLE_LABELS = { admin: 'Administrateur', editor: 'Éditeur', operator: 'Opérateur', readonly: 'Lecture seule', custom: 'Personnalisé' };
+// Permission → [nom, description].
+export const PERMISSION_LABELS = Object.fromEntries(['view', 'operate', 'edit', 'commands', 'instance', 'admin']
+  .map((p) => [p, [t(`perm.${p}`), t(`perm.${p}.desc`)]]));
+export const ROLE_LABELS = Object.fromEntries(['admin', 'editor', 'operator', 'readonly', 'custom'].map((r) => [r, t(`roleLabel.${r}`)]));
 export const ROLE_PERMISSIONS = { readonly: ['view'], operator: ['view', 'operate'], editor: ['view', 'operate', 'edit'], admin: ['view', 'operate', 'edit', 'commands', 'instance', 'admin'] };
 
 export function initials(user) {
@@ -42,15 +39,8 @@ export const act = (id, action) => api(`projects/${encodeURIComponent(id)}/${act
 
 // ---- États ----
 
-export const STATE_LABELS = {
-  stopped: 'Arrêté',
-  starting: 'Démarrage…',
-  running: 'En ligne',
-  stopping: 'Arrêt…',
-  failed: 'En échec',
-  conflict: 'Port occupé',
-  file: 'Fichier local',
-};
+export const STATE_LABELS = Object.fromEntries(['stopped', 'starting', 'running', 'stopping', 'failed', 'conflict', 'file']
+  .map((s) => [s, t(`state.${s}`)]));
 
 export function statusText(p) {
   if (p.detail) return p.detail;
@@ -72,32 +62,32 @@ export function exposure(p) {
 
 // Adresse affichée : localhost:3400, 0.0.0.0:3100 si exposé, ou le fichier ouvert.
 export function addressOf(p) {
-  if (p.type === 'file') return { text: p.open ?? 'fichier', exposed: false };
+  if (p.type === 'file') return { text: p.open ?? t('common.file'), exposed: false };
   const net = exposure(p);
   return { text: net.exposed ? net.address : `localhost:${p.activePort ?? p.port}`, exposed: net.exposed };
 }
 
 // Action principale d'un projet : libellé, icône, style (primary : à faire).
 export function primaryOf(p) {
-  if (p.type === 'file') return { label: 'Ouvrir', icon: 'external-link' };
+  if (p.type === 'file') return { label: t('common.open'), icon: 'external-link' };
   if (p.service) {
-    if (p.state === 'stopped' || p.state === 'failed') return { label: 'Démarrer', icon: 'play', primary: true };
-    if (p.state === 'running') return { label: 'En marche', hidden: true };
+    if (p.state === 'stopped' || p.state === 'failed') return { label: t('action.start'), icon: 'play', primary: true };
+    if (p.state === 'running') return { label: t('action.running'), hidden: true };
     return { label: STATE_LABELS[p.state] ?? '…', disabled: true };
   }
   switch (p.state) {
-    case 'running': return { label: 'Ouvrir', icon: 'external-link', disabled: !p.url };
-    case 'starting': return { label: 'Démarrage…', icon: 'external-link' };
-    case 'stopping': return { label: 'Arrêt…', disabled: true };
-    case 'failed': return { label: 'Relancer', icon: 'rotate-cw', primary: true };
-    case 'conflict': return { label: 'Voir le journal', icon: 'scroll-text' };
-    default: return { label: 'Démarrer', icon: 'play', primary: true };
+    case 'running': return { label: t('common.open'), icon: 'external-link', disabled: !p.url };
+    case 'starting': return { label: STATE_LABELS.starting, icon: 'external-link' };
+    case 'stopping': return { label: STATE_LABELS.stopping, disabled: true };
+    case 'failed': return { label: t('action.relaunch'), icon: 'rotate-cw', primary: true };
+    case 'conflict': return { label: t('action.viewLog'), icon: 'scroll-text' };
+    default: return { label: t('action.start'), icon: 'play', primary: true };
   }
 }
 
 // ---- Temps ----
 
-const rtf = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
+const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
 const STEPS = [[60, 'second'], [60, 'minute'], [24, 'hour'], [30, 'day'], [12, 'month'], [Infinity, 'year']];
 
 export function ago(ms) {
@@ -110,35 +100,35 @@ export function ago(ms) {
 
 export function uptime(ms) {
   const min = Math.floor((Date.now() - ms) / 60000);
-  if (min < 1) return 'moins d’une minute';
-  if (min < 60) return `${min} min`;
+  if (min < 1) return t('time.underMinute');
+  if (min < 60) return t('time.minutes', { n: min });
   const h = Math.floor(min / 60);
-  return h < 24 ? `${h} h ${String(min % 60).padStart(2, '0')}` : `${Math.floor(h / 24)} j ${h % 24} h`;
+  return h < 24 ? t('time.hoursMinutes', { h, m: String(min % 60).padStart(2, '0') }) : t('time.daysHours', { d: Math.floor(h / 24), h: h % 24 });
 }
 
 export function gitSummary(g) {
   if (!g) return null;
-  if (!g.repo) return { branch: null, text: 'Non versionné', dirty: false };
+  if (!g.repo) return { branch: null, text: t('git.none'), dirty: false };
   const bits = [];
-  if (g.changes) bits.push(`${g.changes} modif.`);
+  if (g.changes) bits.push(t('git.changes', { n: g.changes }));
   if (g.ahead) bits.push(`↑${g.ahead}`);
   if (g.behind) bits.push(`↓${g.behind}`);
-  return { branch: g.branch ?? 'détachée', text: bits.join(' · '), dirty: g.changes > 0 };
+  return { branch: g.branch ?? t('git.detached'), text: bits.join(' · '), dirty: g.changes > 0 };
 }
 
 // ---- Ressources ----
 
-const decimal = new Intl.NumberFormat('fr', { maximumFractionDigits: 1 });
+const decimal = new Intl.NumberFormat(lang, { maximumFractionDigits: 1 });
 
 // Part du processeur de toute la machine : une décimale sous 10 %.
 export function formatCpu(cpu) {
   if (cpu === null || cpu === undefined) return '—';
-  return `${decimal.format(cpu < 10 ? cpu : Math.round(cpu))} %`;
+  return `${decimal.format(cpu < 10 ? cpu : Math.round(cpu))}\u00a0%`;
 }
 
 export function formatBytes(bytes) {
   const mb = bytes / 1048576;
-  return mb < 1000 ? `${Math.round(mb)} Mo` : `${decimal.format(mb / 1024)} Go`;
+  return mb < 1000 ? t('unit.mb', { n: Math.round(mb) }) : t('unit.gb', { n: decimal.format(mb / 1024) });
 }
 
 // ---- DOM ----
@@ -199,7 +189,7 @@ export function toast(message, type = 'info') {
 }
 
 // Fenêtre de confirmation (remplace confirm()) : renvoie true si l'utilisateur confirme.
-export function confirmDialog({ title, body, confirm = 'Confirmer', danger = false }) {
+export function confirmDialog({ title, body, confirm = t('common.confirm'), danger = false }) {
   const dialog = document.getElementById('confirm');
   dialog.querySelector('h2').textContent = title;
   dialog.querySelector('.modal-body p').textContent = body;
@@ -213,7 +203,7 @@ export function confirmDialog({ title, body, confirm = 'Confirmer', danger = fal
 }
 
 // Fenêtre qui demande un ou plusieurs champs ; renvoie les valeurs, ou null si annulée.
-export function ask({ title, body, fields, confirm = 'Valider', danger = false, submit, valid = null }) {
+export function ask({ title, body, fields, confirm = t('common.ok'), danger = false, submit, valid = null }) {
   const inputs = fields.map((f) => ({ ...f, el: h('input', { class: 'input', type: f.type ?? 'text', autocomplete: f.autocomplete ?? 'off', placeholder: f.placeholder ?? '' }) }));
   const error = h('p', { class: 'hint warn', hidden: true });
   const ok = h('button', { class: `btn ${danger ? 'danger-fill' : 'primary'}`, type: 'submit', text: confirm });
@@ -222,7 +212,7 @@ export function ask({ title, body, fields, confirm = 'Valider', danger = false, 
   const check = () => (ok.disabled = Boolean(valid && !valid(values())));
   for (const f of inputs) f.el.addEventListener('input', check);
   check();
-  const cancel = h('button', { class: 'btn', type: 'button', text: 'Annuler' });
+  const cancel = h('button', { class: 'btn', type: 'button', text: t('common.cancel') });
   const form = h('form', { class: 'form' },
     body ? h('p', { class: 'muted', text: body }) : null,
     ...inputs.map((f) => h('label', { class: 'field' }, h('span', { text: f.label }), f.el)),

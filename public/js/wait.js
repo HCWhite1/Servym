@@ -1,15 +1,17 @@
 // Onglet d'attente : ouvert au clic sur « Démarrer », il suit le démarrage et
 // redirige vers le projet dès qu'il répond.
+import { t, translate } from './i18n.js';
 import { api, fillTile, safeUrl, statusText } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
+translate();
 const id = new URLSearchParams(location.search).get('id');
 let finished = false;
 
 async function showFailure(p) {
   $('#spinner').hidden = true;
   $('#hint').hidden = true;
-  $('#error').textContent = p.error ?? 'Le projet s’est arrêté.';
+  $('#error').textContent = p.error ?? t('wait.stopped');
   $('#error').hidden = false;
   const { lines } = await api(`projects/${encodeURIComponent(id)}/logs?tail`).catch(() => ({ lines: [] }));
   if (lines.length) {
@@ -41,9 +43,9 @@ const events = new EventSource('/api/events');
 events.addEventListener('snapshot', (e) => {
   const p = JSON.parse(e.data).find((x) => x.id === id);
   if (p) render(p);
-  else $('#status-text').textContent = 'Projet inconnu';
+  else $('#status-text').textContent = t('wait.unknown');
 });
 events.addEventListener('state', (e) => render(JSON.parse(e.data)));
 events.addEventListener('error', () => {
-  if (!finished) $('#status-text').textContent = 'Servynex injoignable, nouvelle tentative…';
+  if (!finished) $('#status-text').textContent = t('wait.retry');
 });

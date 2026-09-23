@@ -2,18 +2,11 @@
 // Chaque champ porte la clé de projects.json qu'il modifie (data-key) ; à
 // l'enregistrement d'un projet existant, seules les clés touchées sont envoyées,
 // pour ne jamais renvoyer une valeur périmée (projet modifié ailleurs entre-temps).
+import { t } from './i18n.js';
 import { PROJECT_ICONS, api, can, h, icon, toast } from './lib.js';
 
-const TYPES = [
-  ['process', 'Programme', 'Servynex lance une commande : node, npm, php, python…'],
-  ['static', 'Site statique', 'Servynex sert lui-même les fichiers d’un dossier sur un port.'],
-  ['file', 'Fichier', 'Ouvert dans le navigateur, sans serveur (page HTML locale).'],
-];
-const HOST_CONTROLS = [
-  ['env', 'Le projet lit les variables PORT et HOST'],
-  ['args', 'Servynex passe l’adresse dans les arguments ({host})'],
-  ['local', 'Le projet écoute toujours sur ce PC seulement'],
-];
+const TYPES = ['process', 'static', 'file'].map((v) => [v, t(`form.type.${v}`), t(`form.type.${v}.desc`)]);
+const HOST_CONTROLS = ['env', 'args', 'local'].map((v) => [v, t(`form.host.${v}`)]);
 const COLORS = ['#38bdf8', '#8b5cf6', '#14b8a6', '#f43f5e', '#f97316', '#ec4899', '#22c55e', '#eab308', '#60a5fa'];
 // Champs de l'interface → clé de projects.json.
 const KEY_OF = { healthKind: 'health', healthPath: 'health', healthExpect: 'health', stopCmd: 'stop', stopArgs: 'stop' };
@@ -36,14 +29,14 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
 
   const input = (name, attrs = {}) => h('input', { name, ...attrs });
   const area = (name, attrs = {}) => h('textarea', { name, rows: '3', spellcheck: 'false', ...attrs });
-  const picker = h('div', { class: 'icon-picker', role: 'radiogroup', 'aria-label': 'Icône' });
-  const typeGroup = h('div', { class: 'type-choices', role: 'radiogroup', 'aria-label': 'Type de projet' },
+  const picker = h('div', { class: 'icon-picker', role: 'radiogroup', 'aria-label': t('form.icon') });
+  const typeGroup = h('div', { class: 'type-choices', role: 'radiogroup', 'aria-label': t('form.typeLabel') },
     ...TYPES.map(([value, label, desc]) => h('button', { type: 'button', role: 'radio', class: 'choice', dataset: { value } }, h('span', { text: label }), h('small', { text: desc }))));
   const requiresList = h('div', { class: 'sub-list' });
   const portHint = h('small', { class: 'field-hint' });
   const exposeHint = h('span', { class: 'hint' });
   const message = h('p', { class: 'hint', role: 'status' });
-  const findPort = h('button', { class: 'btn', type: 'button', text: 'Trouver un port libre' });
+  const findPort = h('button', { class: 'btn', type: 'button', text: t('form.findPort') });
   const submit = h('button', { class: 'btn primary', type: 'submit', text: submitLabel });
   const notice = h('p', { class: 'alert', hidden: true });
 
@@ -51,56 +44,56 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
 
   form.append(
     notice,
-    section('Général', 'first',
+    section(t('settings.general'), 'first',
       h('div', { class: 'form-row' },
-        field('Nom', input('name', { maxlength: '40', required: true, placeholder: 'Mon projet' }), null, 'grow'),
-        field('Couleur', input('color', { type: 'color' }))),
-      field('Description', input('desc', { maxlength: '160', placeholder: 'Ce que fait le projet, en une phrase' })),
-      field('Étiquettes', input('tags', { placeholder: 'Express, SQLite' }), 'Séparées par des virgules, 6 au plus.'),
-      h('div', { class: 'field' }, h('span', { text: 'Icône' }), picker)),
-    section('Type', '', typeGroup),
-    section('Lancement', '',
-      field('Dossier', input('cwd', { placeholder: 'C:/MesProjets/mon-projet', spellcheck: 'false' }), 'Chemin complet. La commande est lancée depuis ce dossier.'),
+        field(t('col.name'), input('name', { maxlength: '40', required: true, placeholder: t('form.namePlaceholder') }), null, 'grow'),
+        field(t('form.color'), input('color', { type: 'color' }))),
+      field(t('form.desc'), input('desc', { maxlength: '160', placeholder: t('form.descPlaceholder') })),
+      field(t('info.tags'), input('tags', { placeholder: 'Express, SQLite' }), t('form.tagsHint')),
+      h('div', { class: 'field' }, h('span', { text: t('form.icon') }), picker)),
+    section(t('form.typeSection'), '', typeGroup),
+    section(t('form.launch'), '',
+      field(t('info.folder'), input('cwd', { placeholder: t('form.cwdPlaceholder'), spellcheck: 'false' }), t('form.cwdHint')),
       h('div', { class: 'only-process' },
-        field('Commande', input('cmd', { placeholder: 'node', spellcheck: 'false' }), 'Programme lancé : node, npm, php, python, symfony, ou le chemin complet d’un .exe.'),
-        field('Arguments', area('args', { placeholder: 'server.js' }), 'Un argument par ligne. {port}, {host} et {servynex} sont remplacés au lancement.')),
+        field(t('info.command'), input('cmd', { placeholder: 'node', spellcheck: 'false' }), t('form.cmdHint')),
+        field(t('form.args'), area('args', { placeholder: 'server.js' }), t('form.argsHint'))),
       h('div', { class: 'only-file' },
-        field('Fichier à ouvrir', input('open', { placeholder: 'index.html', spellcheck: 'false' }), 'Chemin relatif au dossier.')),
+        field(t('form.open'), input('open', { placeholder: 'index.html', spellcheck: 'false' }), t('form.openHint'))),
       h('div', { class: 'not-file form-row' },
-        field('Port', input('port', { type: 'number', min: '1', max: '65535' }), null, 'narrow'),
+        field(t('network.col.port'), input('port', { type: 'number', min: '1', max: '65535' }), null, 'narrow'),
         findPort),
       h('div', { class: 'not-file' }, portHint),
       h('div', { class: 'only-process' },
-        field('Adresse d’écoute', h('select', { name: 'hostControl', class: 'select' }, ...HOST_CONTROLS.map(([v, l]) => h('option', { value: v, text: l }))))),
+        field(t('form.hostControl'), h('select', { name: 'hostControl', class: 'select' }, ...HOST_CONTROLS.map(([v, l]) => h('option', { value: v, text: l }))))),
       h('label', { class: 'setting-line not-file' },
-        h('span', {}, h('strong', { text: 'Exposer sur le réseau local' }), exposeHint),
+        h('span', {}, h('strong', { text: t('form.expose') }), exposeHint),
         input('expose', { type: 'checkbox', role: 'switch', class: 'switch' })),
       h('div', { class: 'only-process' },
-        field('Variables d’environnement', area('env', { placeholder: 'NODE_ENV=production' }), 'Une par ligne, NOM=valeur. PORT et HOST sont fixés par Servynex.'))),
-    section('Ouverture et vérification', 'not-file',
-      field('Adresse ouverte', input('url', { placeholder: 'http://localhost:{port}', spellcheck: 'false' }), 'Ouverte par le bouton « Ouvrir ». Laisser vide s’il n’y a rien à ouvrir (base de données…).'),
+        field(t('form.env'), area('env', { placeholder: 'NODE_ENV=production' }), t('form.envHint')))),
+    section(t('form.openCheck'), 'not-file',
+      field(t('form.url'), input('url', { placeholder: 'http://localhost:{port}', spellcheck: 'false' }), t('form.urlHint')),
       h('div', { class: 'form-row' },
-        field('Vérifier que le projet répond', h('select', { name: 'healthKind', class: 'select' },
-          h('option', { value: 'http', text: 'Une page web répond' }),
-          h('option', { value: 'tcp', text: 'Le port est ouvert' })), null, 'grow'),
-        field('Délai max. au démarrage (s)', input('startTimeout', { type: 'number', min: '1', max: '600', placeholder: '60' }), null, 'narrow')),
+        field(t('form.health'), h('select', { name: 'healthKind', class: 'select' },
+          h('option', { value: 'http', text: t('form.healthHttp') }),
+          h('option', { value: 'tcp', text: t('form.healthTcp') })), null, 'grow'),
+        field(t('form.timeout'), input('startTimeout', { type: 'number', min: '1', max: '600', placeholder: '60' }), null, 'narrow')),
       h('div', { class: 'form-row health-http' },
-        field('Page vérifiée', input('healthPath', { placeholder: '/', spellcheck: 'false' }), null, 'narrow'),
-        field('Texte attendu dans la page', input('healthExpect', { placeholder: '<title>Mon projet', spellcheck: 'false' }), 'Facultatif : distingue le projet d’un autre site qui occuperait le port.', 'grow'))),
-    section('Dépendances', 'not-file',
-      h('div', { class: 'field' }, h('span', { text: 'Démarrer d’abord' }), requiresList,
-        h('small', { class: 'field-hint', text: 'Lancés automatiquement avant ce projet, et arrêtés avec lui s’ils ne servent plus à rien d’autre.' })),
+        field(t('form.healthPath'), input('healthPath', { placeholder: '/', spellcheck: 'false' }), null, 'narrow'),
+        field(t('form.healthExpect'), input('healthExpect', { placeholder: t('form.expectPlaceholder'), spellcheck: 'false' }), t('form.healthExpectHint'), 'grow'))),
+    section(t('form.requires'), 'not-file',
+      h('div', { class: 'field' }, h('span', { text: t('form.requiresFirst') }), requiresList,
+        h('small', { class: 'field-hint', text: t('form.requiresHint') })),
       h('label', { class: 'setting-line' },
-        h('span', {}, h('strong', { text: 'C’est un service' }), h('span', { class: 'hint', text: 'Base de données, outil : rangé dans « Services », et en lune dans l’orbite.' })),
+        h('span', {}, h('strong', { text: t('form.service') }), h('span', { class: 'hint', text: t('form.serviceHint') })),
         input('service', { type: 'checkbox', role: 'switch', class: 'switch' })),
       h('label', { class: 'setting-line' },
-        h('span', {}, h('strong', { text: 'Lancer au démarrage du PC' }), h('span', { class: 'hint', text: 'Une fois par démarrage, si Servynex démarre avec Windows.' })),
+        h('span', {}, h('strong', { text: t('form.autostart') }), h('span', { class: 'hint', text: t('form.autostartHint') })),
         input('autostart', { type: 'checkbox', role: 'switch', class: 'switch' }))),
     h('details', { class: 'form-section only-process' },
-      h('summary', { text: 'Arrêt propre (facultatif)' }),
-      h('p', { class: 'hint', text: 'Commande lancée pour arrêter le projet proprement (mysqladmin shutdown…). Sans elle, ou si elle ne suffit pas, Servynex arrête le processus de force.' }),
-      field('Commande d’arrêt', input('stopCmd', { spellcheck: 'false' })),
-      field('Arguments', area('stopArgs'), 'Un argument par ligne.')),
+      h('summary', { text: t('form.stop') }),
+      h('p', { class: 'hint', text: t('form.stopHint') }),
+      field(t('form.stopCmd'), input('stopCmd', { spellcheck: 'false' })),
+      field(t('form.args'), area('stopArgs'), t('form.stopArgsHint'))),
     h('div', { class: 'form-foot' }, message, submit),
   );
 
@@ -115,14 +108,14 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
       ? others.map((x) => h('label', { class: 'sub-item' },
         h('input', { type: 'checkbox', class: 'check-input', name: 'requires', value: x.id, checked: selected.includes(x.id) }),
         h('span', { text: x.name })))
-      : [h('p', { class: 'sub-item hint', text: 'Aucun autre projet à démarrer.' })]));
+      : [h('p', { class: 'sub-item hint', text: t('form.noOther') })]));
   }
 
   function renderPicker(color, current, name) {
     picker.style.setProperty('--c', color);
     const known = PROJECT_ICONS.includes(current);
     const initial = ((name ?? '').trim()[0] ?? '?').toUpperCase();
-    const options = [[known ? 'initial' : current ?? 'initial', h('span', { text: initial }), 'Initiale du nom'], ...PROJECT_ICONS.map((n) => [n, icon(n), n])];
+    const options = [[known ? 'initial' : current ?? 'initial', h('span', { text: initial }), t('form.initial')], ...PROJECT_ICONS.map((n) => [n, icon(n), n])];
     picker.replaceChildren(...options.map(([value, content, title]) =>
       h('button', { type: 'button', role: 'radio', title, 'aria-label': title, dataset: { value } }, content)));
     pickIcon(current ?? 'initial');
@@ -194,8 +187,8 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
     submit.hidden = !edit;
     notice.hidden = edit && commands;
     notice.textContent = !edit
-      ? 'Lecture seule : votre compte ne peut pas modifier les projets.'
-      : 'Dossier, commande, arguments, environnement, arrêt et exposition demandent la permission « Commandes ».';
+      ? t('form.readOnly')
+      : t('form.needsCommands');
   }
 
   // Le projet a changé ailleurs (fichier relu, autre onglet) : on réaffiche s'il
@@ -209,7 +202,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
     }
     if (!dirty.size) return fill(p);
     project = p;
-    message.textContent = 'Ce projet vient d’être modifié ailleurs : seuls les champs que vous avez changés seront enregistrés.';
+    message.textContent = t('form.changedElsewhere');
     message.className = 'hint warn';
   }
 
@@ -247,7 +240,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
     const env = {};
     for (const line of lines(el.env.value)) {
       const i = line.indexOf('=');
-      if (i < 1) throw new Error(`Variable d’environnement sans « = » : ${line}`);
+      if (i < 1) throw new Error(t('form.envNoEquals', { line }));
       env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     }
     return {
@@ -277,7 +270,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
 
   function reachableAt(port) {
     const urls = (handlers.instance().lan ?? []).map((a) => `http://${a.address}:${port}`);
-    return urls.length ? `, par exemple ${urls.join(', ')}` : '';
+    return urls.length ? t('expose.forExample', { urls: urls.join(', ') }) : '';
   }
 
   function hints() {
@@ -289,14 +282,14 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
     const expose = el.expose.checked;
     const hostControl = form.dataset.type === 'static' ? 'internal' : el.hostControl.value;
     if (s.fixedPort) hint(portHint, s.fixedPort);
-    else if (p?.activePort && p.activePort !== port) hint(portHint, `Tourne encore sur le port ${p.activePort} : redémarrer le projet pour appliquer.`, 'warn');
-    else if (hostControl === 'env') hint(portHint, 'Transmis par la variable PORT : le projet doit la lire.');
-    else hint(portHint, 'Utilisé quand Servynex lance le projet.');
+    else if (p?.activePort && p.activePort !== port) hint(portHint, t('form.portStillRunning', { port: p.activePort }), 'warn');
+    else if (hostControl === 'env') hint(portHint, t('form.portEnv'));
+    else hint(portHint, t('form.portUsed'));
     el.expose.disabled = hostControl === 'local' || !can('commands');
-    if (hostControl === 'local') hint(exposeHint, 'Le projet n’écoute que sur ce PC, quel que soit ce réglage.');
-    else if (p?.activeHost && (p.activeHost === '0.0.0.0') !== expose) hint(exposeHint, 'Redémarrer le projet pour appliquer.', 'warn');
-    else if (expose) hint(exposeHint, `Écoute sur 0.0.0.0:${port || '…'} : joignable par toute machine du réseau${reachableAt(port)}, si le pare-feu Windows le permet. À réserver aux réseaux de confiance.`, 'warn');
-    else hint(exposeHint, 'Écoute sur 127.0.0.1 : seul ce PC peut l’ouvrir.');
+    if (hostControl === 'local') hint(exposeHint, t('form.exposeLocal'));
+    else if (p?.activeHost && (p.activeHost === '0.0.0.0') !== expose) hint(exposeHint, t('form.restartToApply'), 'warn');
+    else if (expose) hint(exposeHint, t('form.exposeOn', { port: port || '…', reachable: reachableAt(port) }), 'warn');
+    else hint(exposeHint, t('form.exposeOff'));
   }
 
   // ---- Évènements ----
@@ -335,20 +328,20 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!val('name')) return hint(message, 'Le nom est obligatoire.', 'warn');
+    if (!val('name')) return hint(message, t('form.nameRequired'), 'warn');
     let body;
     try {
       body = project ? patch() : values();
     } catch (err) {
       return hint(message, err.message, 'warn');
     }
-    if (project && !Object.keys(body).length) return hint(message, 'Rien à enregistrer.');
+    if (project && !Object.keys(body).length) return hint(message, t('form.nothing'));
     submit.disabled = true;
     try {
       const result = await onSubmit(body, project);
       const relaunch = project && project.state === 'running' && project.managed && Object.keys(body).some((k) => LAUNCH_KEYS.includes(k));
       dirty.clear();
-      hint(message, relaunch ? 'Enregistré. Redémarrer le projet pour appliquer.' : 'Enregistré.', 'ok');
+      hint(message, relaunch ? t('form.savedRestart') : t('form.saved'), 'ok');
       return result;
     } catch (err) {
       hint(message, err.message, 'warn');

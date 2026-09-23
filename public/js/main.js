@@ -1,6 +1,7 @@
 // Page principale : navigation, liste des projets (ou orbite), état en direct, raccourcis.
 import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, formatBytes, formatCpu, gitSummary, h, icon, initials, isExternal, primaryOf, safeUrl, session, statusText, store, toast } from './lib.js';
 import { gate, lockNow, logout } from './auth.js';
+import { choice, setChoice, t, tn, translate } from './i18n.js';
 import * as activity from './activity.js';
 import * as menu from './menu.js';
 import * as network from './network.js';
@@ -32,18 +33,18 @@ async function run(p, action, button) {
   if (action === 'stop' && users.length) {
     const names = users.map((x) => x.name).join(', ');
     const ok = await confirmDialog({
-      title: `Arrêter ${p.name} ?`,
-      body: `${names} ${users.length > 1 ? 'en ont' : 'en a'} besoin et ne fonctionnera plus correctement sans lui.`,
-      confirm: 'Arrêter quand même',
+      title: t('confirm.stop.title', { name: p.name }),
+      body: tn('confirm.stopUsed.body', users.length, { names }),
+      confirm: t('confirm.stopUsed.ok'),
       danger: true,
     });
     if (!ok) return;
   } else if ((action === 'stop' || action === 'restart') && isExternal(p)) {
     const stop = action === 'stop';
     const ok = await confirmDialog({
-      title: `${stop ? 'Arrêter' : 'Redémarrer'} ${p.name} ?`,
-      body: `${p.name} a été lancé en dehors de Servynex (tâche planifiée, fichier .bat…). Servynex retrouvera son processus par le port ${p.activePort ?? p.port}.`,
-      confirm: stop ? 'Arrêter' : 'Redémarrer',
+      title: t(stop ? 'confirm.stop.title' : 'confirm.restart.title', { name: p.name }),
+      body: t('confirm.external.body', { name: p.name, port: p.activePort ?? p.port }),
+      confirm: t(stop ? 'action.stop' : 'action.restart'),
       danger: stop,
     });
     if (!ok) return;
@@ -61,27 +62,27 @@ async function run(p, action, button) {
 // Supprimer : confirmation par le mot de passe du compte (protection active),
 // sinon en retapant le nom exact du projet. Le serveur arrête le projet d'abord.
 async function removeProject(p) {
-  if (!can('commands')) return toast('Supprimer un projet demande la permission « Commandes ».', 'error');
+  if (!can('commands')) return toast(t('delete.needsCommands'), 'error');
   const users = [...projects.values()].filter((x) => x.requires.includes(p.id)).map((x) => x.name);
   const running = ['running', 'starting'].includes(p.state);
   const body = [
-    running && (p.managed || p.type === 'static') ? 'Il sera d’abord arrêté.' : null,
-    running && isExternal(p) ? 'Lancé en dehors de Servynex, il continuera de tourner.' : null,
-    `Il sera retiré de projects.json${users.length ? ` et des dépendances de ${users.join(', ')}` : ''}. Ses journaux sont conservés.`,
+    running && (p.managed || p.type === 'static') ? t('delete.stoppedFirst') : null,
+    running && isExternal(p) ? t('delete.external') : null,
+    users.length ? t('delete.removedWithUsers', { names: users.join(', ') }) : t('delete.removed'),
   ].filter(Boolean).join(' ');
   const field = session.enabled
-    ? { name: 'password', label: 'Votre mot de passe', type: 'password', autocomplete: 'current-password' }
-    : { name: 'confirm', label: `Tapez « ${p.name} » pour confirmer`, placeholder: p.name };
+    ? { name: 'password', label: t('delete.password'), type: 'password', autocomplete: 'current-password' }
+    : { name: 'confirm', label: t('delete.typeName', { name: p.name }), placeholder: p.name };
   const done = await ask({
-    title: `Supprimer ${p.name} ?`,
+    title: t('delete.title', { name: p.name }),
     body,
     fields: [field],
-    confirm: 'Supprimer',
+    confirm: t('action.delete'),
     danger: true,
     valid: (v) => (session.enabled ? v.password.length > 0 : v.confirm === p.name),
     submit: (v) => api(`projects/${encodeURIComponent(p.id)}`, { method: 'DELETE', body: v }),
   });
-  if (done) toast(`${p.name} supprimé`);
+  if (done) toast(t('delete.done', { name: p.name }));
 }
 
 // L'action principale demande la permission « Piloter », sauf ouvrir l'adresse
@@ -90,7 +91,7 @@ const needsOperate = (p) => !((p.state === 'running' && p.type !== 'file' && !p.
 
 async function primary(p, button) {
   if (!p) return;
-  if (needsOperate(p) && !can('operate')) return toast('Votre compte ne peut pas démarrer ni ouvrir ce projet.', 'error');
+  if (needsOperate(p) && !can('operate')) return toast(t('project.cannotOperate'), 'error');
   if (p.type === 'file') return run(p, 'open');
   const url = safeUrl(p.url);
   if (p.state === 'running') {
@@ -163,7 +164,7 @@ export const handlers = {
 
 const lanTitle = (p) => {
   const urls = (instance.lan ?? []).map((a) => `http://${a.address}:${p.activePort ?? p.port}`);
-  return `Joignable depuis le réseau${urls.length ? ` : ${urls.join(', ')}` : ''}`;
+  return urls.length ? t('project.reachableAt', { urls: urls.join(', ') }) : t('project.reachable');
 };
 
 function fillMain(button, p) {
@@ -191,11 +192,11 @@ function fillResources(row, p) {
   const cell = row.querySelector('.cell-res');
   const s = ['running', 'starting', 'stopping'].includes(p.state) ? stats.get(p.id) : null;
   if (!s) cell.replaceChildren();
-  else if (s.inProcess) cell.replaceChildren(h('span', { class: 'faint', text: 'intégré' }));
+  else if (s.inProcess) cell.replaceChildren(h('span', { class: 'faint', text: t('res.builtIn') }));
   else cell.replaceChildren(h('span', { class: 'cpu', text: formatCpu(s.cpu) }), h('span', { text: formatBytes(s.memory) }));
   cell.title = !s ? '' : s.inProcess
-    ? 'Site servi par Servynex lui-même : compté dans ses propres ressources'
-    : `Processeur (part de toute la machine) et mémoire, ${s.processes} processus`;
+    ? t('res.builtInHint')
+    : tn('res.hint', s.processes);
 }
 
 function statsChanged() {
@@ -216,8 +217,8 @@ function updateRow(p) {
   const name = row.querySelector('.name');
   name.querySelector('.name-text').textContent = p.name;
   for (const badge of name.querySelectorAll('.badge')) badge.remove();
-  if (isExternal(p)) name.append(h('span', { class: 'badge', title: 'Lancé en dehors de Servynex (tâche planifiée, .bat…)', text: 'Externe' }));
-  if (p.autostart) name.append(h('span', { class: 'badge', title: 'Lancé au démarrage du PC', text: 'Auto' }));
+  if (isExternal(p)) name.append(h('span', { class: 'badge', title: t('badge.externalHint'), text: t('badge.external') }));
+  if (p.autostart) name.append(h('span', { class: 'badge', title: t('badge.autoHint'), text: t('badge.auto') }));
   const desc = row.querySelector('.desc');
   desc.textContent = p.desc;
   desc.title = p.desc;
@@ -231,7 +232,7 @@ function updateRow(p) {
   cell.classList.toggle('exposed', addr.exposed);
   cell.querySelector('.mono').textContent = addr.text;
   cell.querySelector('.badge')?.remove();
-  if (addr.exposed) cell.append(h('span', { class: 'badge warn', text: 'Réseau' }));
+  if (addr.exposed) cell.append(h('span', { class: 'badge warn', text: t('badge.network') }));
   cell.title = addr.exposed ? lanTitle(p) : '';
 
   const g = gitSummary(git[p.id]);
@@ -276,8 +277,8 @@ function build() {
   $('#no-projects').hidden = !empty;
   $('#no-projects [data-add]').hidden = !can('commands');
   $('#no-projects p').textContent = can('commands')
-    ? 'Ajoutez un site, une application ou un service (base de données…) : Servynex pourra le lancer, le surveiller et l’arrêter.'
-    : 'Aucun projet n’a encore été ajouté. Un compte avec la permission « Commandes » peut en ajouter.';
+    ? t('projects.emptyText')
+    : t('projects.emptyReadonly');
   $('#apps').closest('.group').hidden = empty;
   if (empty && prefs.layout === 'orbit') setLayout('list');
   updateSummary();
@@ -290,12 +291,12 @@ function updateSummary() {
   const list = [...projects.values()].filter((p) => p.type !== 'file');
   const up = list.filter((p) => p.state === 'running').length;
   const failed = list.filter((p) => ['failed', 'conflict'].includes(p.state)).length;
-  const parts = [`${up} en ligne sur ${list.length}`];
-  if (failed) parts.push(`${failed} en échec`);
-  $('#summary').textContent = projects.size ? parts.join(' · ') : 'Aucun projet';
+  const parts = [t('summary.online', { up, total: list.length })];
+  if (failed) parts.push(t('summary.failed', { n: failed }));
+  $('#summary').textContent = projects.size ? parts.join(' · ') : t('summary.none');
   $('#nav-count').textContent = list.length ? `${up}/${list.length}` : '';
   orbit.summary(up, list.length);
-  document.title = up ? `Servynex · ${up} en ligne` : 'Servynex';
+  document.title = up ? t('summary.title', { n: up }) : 'Servynex';
 }
 
 function matches(p, query) {
@@ -397,21 +398,24 @@ document.addEventListener('dragend', () => {
 function renderBanners() {
   const list = [];
   if (instance.configError) {
-    const edit = h('button', { class: 'alert-action', type: 'button', text: 'Modifier projects.json' });
+    const edit = h('button', { class: 'alert-action', type: 'button', text: t('banner.editConfig') });
     edit.addEventListener('click', () => api('instance/config', { method: 'POST' }).catch((err) => toast(err.message, 'error')));
     list.push(h('div', { class: 'alert error', role: 'alert' }, icon('triangle-alert'),
-      h('span', { text: `projects.json contient une erreur, la dernière configuration valide reste utilisée. ${instance.configError}` }), edit));
+      h('span', { text: t('banner.configError', { error: instance.configError }) }), edit));
   }
   if (!connected) {
-    list.push(h('div', { class: 'alert error', role: 'alert' }, icon('triangle-alert'), h('span', { text: 'Servynex ne répond plus. Nouvelle tentative en cours…' })));
+    list.push(h('div', { class: 'alert error', role: 'alert' }, icon('triangle-alert'), h('span', { text: t('banner.lost') })));
   }
   const pub = network.publicExposure();
   if (pub) {
     const names = pub.projects.map((p) => p.name).join(', ');
     list.push(h('div', { class: 'alert warn', role: 'alert' },
       icon('triangle-alert'),
-      h('span', { text: `${names} ${pub.projects.length > 1 ? 'sont exposés' : 'est exposé'} alors que ${pub.networks.length > 1 ? 'les réseaux' : 'le réseau'} ${pub.networks.map((n) => `« ${n.name} »`).join(', ')} ${pub.networks.length > 1 ? 'sont publics' : 'est public'} : toute machine connectée peut s’y connecter si le pare-feu Windows l’autorise.` }),
-      h('a', { class: 'alert-action', href: '#network', text: 'Voir le réseau' })));
+      h('span', { text: t('banner.public', {
+        exposed: tn('banner.exposed', pub.projects.length, { names }),
+        onPublic: tn('banner.onPublic', pub.networks.length, { networks: pub.networks.map((n) => t('common.quoted', { text: n.name })).join(', ') }),
+      }) }),
+      h('a', { class: 'alert-action', href: '#network', text: t('banner.seeNetwork') })));
   }
   const banners = $('#banners');
   const moved = banners.childElementCount !== list.length;
@@ -420,7 +424,7 @@ function renderBanners() {
   $('#nav-net-alert').hidden = !pub;
   const conn = $('#conn');
   conn.dataset.state = connected ? 'ok' : 'lost';
-  $('#conn-text').textContent = connected ? `Connecté · v${instance.version ?? ''}` : 'Servynex injoignable';
+  $('#conn-text').textContent = connected ? t('conn.version', { version: instance.version ?? '' }) : t('conn.lost');
 }
 
 // ---- Vues ----
@@ -545,20 +549,20 @@ $('#open-settings').addEventListener('click', () => settings.open());
 const addDialog = $('#add-dialog');
 const addForm = createForm({
   handlers,
-  submitLabel: 'Ajouter le projet',
+  submitLabel: t('add.submit'),
   onSubmit: async (body) => {
     if (body.expose) {
       const ok = await confirmDialog({
-        title: `Exposer ${body.name} sur le réseau ?`,
-        body: `Il écoutera sur 0.0.0.0:${body.port} : toute machine du réseau actuel pourra s’y connecter.`,
-        confirm: 'Exposer',
+        title: t('expose.title', { name: body.name }),
+        body: t('expose.bodyNew', { port: body.port }),
+        confirm: t('expose.ok'),
         danger: true,
       });
-      if (!ok) throw new Error('Rien n’a été ajouté.');
+      if (!ok) throw new Error(t('add.cancelled'));
     }
     const created = await api('projects', { method: 'POST', body });
     addDialog.close();
-    toast(`${created.name} ajouté`);
+    toast(t('add.done', { name: created.name }));
     // Le nouveau projet arrive par le flux d'évènements ; on ouvre son volet dès qu'il est là.
     for (let i = 0; i < 30 && !projects.has(created.id); i++) await new Promise((r) => setTimeout(r, 100));
     panel.open(created.id, 'info');
@@ -570,7 +574,7 @@ addDialog.addEventListener('click', (e) => {
 });
 
 function openAdd() {
-  if (!can('commands')) return toast('Ajouter un projet demande la permission « Commandes ».', 'error');
+  if (!can('commands')) return toast(t('add.needsCommands'), 'error');
   addForm.fill(null);
   addDialog.showModal();
   addForm.element.elements.name.focus();
@@ -616,6 +620,11 @@ document.addEventListener('servynex:user', renderUser);
 // Préférences du compte (thème, vue, animation) : elles priment sur celles du navigateur.
 function applyUserPrefs() {
   const p = session.user?.prefs ?? {};
+  // Langue du compte, choisie sur un autre navigateur : la page se recharge dans cette langue.
+  if (p.lang && p.lang !== choice()) {
+    setChoice(p.lang);
+    location.reload();
+  }
   if (p.theme) {
     store.set('theme', p.theme);
     applyTheme(p.theme);
@@ -627,6 +636,7 @@ function applyUserPrefs() {
 // ---- Démarrage ----
 
 // Protection active sans session : l'écran de connexion s'affiche et rien d'autre ne se charge.
+translate();
 await gate();
 applyUserPrefs();
 for (const module of [panel, menu, orbit, network, activity, settings, onboarding]) module.init(handlers);

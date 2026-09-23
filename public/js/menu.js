@@ -1,4 +1,5 @@
 // Menu « … » d'une ligne : toutes les actions d'un projet (popover natif).
+import { t } from './i18n.js';
 import { can, canRestart, canStop, h, icon, primaryOf } from './lib.js';
 
 const menu = document.getElementById('row-menu');
@@ -69,24 +70,24 @@ function render(p) {
   const operate = can('operate');
   const viewOnly = p.state === 'running' && !file && !p.service;
   if (!main.hidden && (operate || viewOnly)) items.push(item(main.label, main.icon ?? 'play', () => handlers.primary(p), { disabled: main.disabled }));
-  if (operate && !file && canRestart(p)) items.push(item('Redémarrer', 'rotate-cw', () => handlers.run(p, 'restart')));
-  if (operate && !file && canStop(p)) items.push(item('Arrêter', 'square', () => handlers.run(p, 'stop'), { danger: true }));
+  if (operate && !file && canRestart(p)) items.push(item(t('action.restart'), 'rotate-cw', () => handlers.run(p, 'restart')));
+  if (operate && !file && canStop(p)) items.push(item(t('action.stop'), 'square', () => handlers.run(p, 'stop'), { danger: true }));
   if (items.length) items.push(h('hr'));
   if (!file) {
-    items.push(item('Journal', 'scroll-text', () => handlers.openPanel(p.id, 'logs')));
-    items.push(item('Historique', 'history', () => handlers.openPanel(p.id, 'history')));
+    items.push(item(t('panel.logs'), 'scroll-text', () => handlers.openPanel(p.id, 'logs')));
+    items.push(item(t('panel.history'), 'history', () => handlers.openPanel(p.id, 'history')));
   }
-  items.push(item('Réglages', 'sliders-horizontal', () => handlers.openPanel(p.id, 'settings')));
-  items.push(item('Infos', 'info', () => handlers.openPanel(p.id, 'info')));
+  items.push(item(t('panel.settings'), 'sliders-horizontal', () => handlers.openPanel(p.id, 'settings')));
+  items.push(item(t('panel.info'), 'info', () => handlers.openPanel(p.id, 'info')));
   if (operate) {
     items.push(h('hr'));
-    items.push(item('Ouvrir le dossier', 'folder-open', () => handlers.run(p, 'folder')));
-    if (tools.code) items.push(item('Ouvrir dans VS Code', 'code-xml', () => handlers.run(p, 'code')));
-    items.push(item(`Ouvrir ${tools.terminal ?? 'un terminal'}`, 'square-terminal', () => handlers.run(p, 'terminal')));
+    items.push(item(t('action.folder'), 'folder-open', () => handlers.run(p, 'folder')));
+    if (tools.code) items.push(item(t('action.code'), 'code-xml', () => handlers.run(p, 'code')));
+    items.push(item(tools.terminal ? t('menu.openTerminal', { terminal: tools.terminal }) : t('menu.openATerminal'), 'square-terminal', () => handlers.run(p, 'terminal')));
   }
   if (can('commands')) {
     items.push(h('hr'));
-    items.push(item('Supprimer…', 'trash-2', () => handlers.remove(p), { danger: true }));
+    items.push(item(t('menu.delete'), 'trash-2', () => handlers.remove(p), { danger: true }));
   }
   menu.replaceChildren(...items);
 }

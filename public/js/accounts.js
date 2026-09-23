@@ -1,9 +1,10 @@
 // Paramètres › Mon compte, Sécurité, Membres (comptes et protection par mot de passe).
 import { showKeyDialog, logout } from './auth.js';
+import { t } from './i18n.js';
 import { PERMISSION_LABELS, ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, h, icon, initials, session, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
-const LOCKS = [[0, 'Jamais'], [120, '2 min'], [300, '5 min'], [900, '15 min'], [1800, '30 min'], [3600, '1 h']];
+const LOCKS = [[0, t('lock.never')], [120, '2 min'], [300, '5 min'], [900, '15 min'], [1800, '30 min'], [3600, '1 h']];
 const isAdmin = () => session.user?.permissions.includes('admin');
 
 // ---- Petits composants ----
@@ -33,19 +34,19 @@ function button(text, iconName, onClick, cls = 'btn') {
   return b;
 }
 
-const passwordFields = (first = 'Mot de passe') => [
+const passwordFields = (first = t('account.password')) => [
   { name: 'password', label: first, type: 'password', autocomplete: 'new-password' },
-  { name: 'confirm', label: 'Confirmer', type: 'password', autocomplete: 'new-password' },
+  { name: 'confirm', label: t('common.confirm'), type: 'password', autocomplete: 'new-password' },
 ];
 function checkPair({ password, confirm }) {
-  if (password.length < 8) throw new Error('Mot de passe trop court : 8 caractères au moins.');
-  if (password !== confirm) throw new Error('Les deux mots de passe ne correspondent pas.');
+  if (password.length < 8) throw new Error(t('account.passwordShort'));
+  if (password !== confirm) throw new Error(t('account.passwordMismatch'));
 }
 
 // Cases à cocher des permissions, avec les rôles tout prêts au-dessus.
 function permissionPicker(initial) {
   const boxes = new Map();
-  const warn = h('p', { class: 'hint warn', text: 'Commandes : ce compte pourra faire exécuter n’importe quoi à la machine de Servynex.', hidden: true });
+  const warn = h('p', { class: 'hint warn', text: t('members.commandsWarn'), hidden: true });
   const sync = (changed) => {
     const on = (p) => boxes.get(p).checked;
     // Permissions liées : commandes ⇒ modifier ⇒ piloter ; administration ⇒ tout.
@@ -79,7 +80,7 @@ function permissionPicker(initial) {
 function permissionsDialog({ title, initial, confirm }) {
   const picker = permissionPicker(initial);
   const ok = h('button', { class: 'btn primary', type: 'button', text: confirm });
-  const cancel = h('button', { class: 'btn', type: 'button', text: 'Annuler' });
+  const cancel = h('button', { class: 'btn', type: 'button', text: t('common.cancel') });
   const dialog = h('dialog', { class: 'modal perm-dialog' },
     h('header', { class: 'modal-head' }, h('h2', { text: title })),
     h('div', { class: 'modal-body' }, picker.element),
@@ -110,56 +111,56 @@ export async function renderAccount() {
   const body = $('#account-body');
   const user = session.user;
   if (!user) return body.replaceChildren();
-  const name = input({ value: user.name, maxlength: '60', 'aria-label': 'Nom affiché' });
+  const name = input({ value: user.name, maxlength: '60', 'aria-label': t('account.displayName') });
   const sessionsList = h('div', { class: 'sub-list' });
   body.replaceChildren(
     h('div', { class: 'account-head' },
       h('span', { class: 'avatar lg', text: initials(user) }),
       h('div', {}, h('p', { class: 'setting-label', text: user.name }), h('p', { class: 'setting-desc', text: `${user.username} · ${ROLE_LABELS[user.role] ?? user.role}` }))),
-    setting('Nom affiché', 'Visible dans la barre latérale et le journal d’audit.',
-      h('div', { class: 'inline-form' }, name, button('Enregistrer', null, async () => {
+    setting(t('account.displayName'), t('account.displayNameDesc'),
+      h('div', { class: 'inline-form' }, name, button(t('common.save'), null, async () => {
         const res = await api('auth/me', { method: 'PATCH', body: { name: name.value } });
         Object.assign(session.user, res.user);
         document.dispatchEvent(new CustomEvent('servynex:user'));
-        toast('Nom enregistré');
+        toast(t('settings.nameSaved'));
       }))),
-    setting('Mot de passe', 'Changer le mot de passe ferme vos autres sessions.', button('Changer', 'key-round', async () => {
+    setting(t('account.password'), t('account.passwordDesc'), button(t('account.change'), 'key-round', async () => {
       const res = await ask({
-        title: 'Changer le mot de passe',
-        fields: [{ name: 'current', label: 'Mot de passe actuel', type: 'password', autocomplete: 'current-password' }, ...passwordFields('Nouveau mot de passe')],
-        confirm: 'Changer',
+        title: t('account.changePassword'),
+        fields: [{ name: 'current', label: t('account.currentPassword'), type: 'password', autocomplete: 'current-password' }, ...passwordFields(t('account.newPassword'))],
+        confirm: t('account.change'),
         submit: async (v) => {
           checkPair(v);
           return api('auth/me/password', { method: 'POST', body: { current: v.current, password: v.password } });
         },
       });
-      if (res) toast(res.closed ? `Mot de passe changé, ${res.closed} autre(s) session(s) fermée(s)` : 'Mot de passe changé');
+      if (res) toast(res.closed ? t('account.passwordChangedClosed', { n: res.closed }) : t('account.passwordChanged'));
       renderAccount();
     })),
-    setting('Clé de secours', 'Sert à choisir un nouveau mot de passe si vous l’oubliez. En générer une nouvelle rend l’ancienne inutilisable.', button('Nouvelle clé', 'key-round', async () => {
+    setting(t('account.recoveryKey'), t('account.recoveryKeyDesc'), button(t('account.newKey'), 'key-round', async () => {
       const res = await ask({
-        title: 'Nouvelle clé de secours',
-        body: 'Confirmez avec votre mot de passe.',
-        fields: [{ name: 'password', label: 'Mot de passe', type: 'password', autocomplete: 'current-password' }],
-        confirm: 'Générer',
+        title: t('account.newRecoveryKey'),
+        body: t('account.confirmWithPassword'),
+        fields: [{ name: 'password', label: t('account.password'), type: 'password', autocomplete: 'current-password' }],
+        confirm: t('account.generate'),
         submit: (v) => api('auth/me/recovery', { method: 'POST', body: v }),
       });
-      if (res) await showKeyDialog(res.recovery, 'Nouvelle clé de secours');
+      if (res) await showKeyDialog(res.recovery, t('account.newRecoveryKey'));
     })),
     h('div', { class: 'setting stack' },
-      h('div', { class: 'setting-text' }, h('p', { class: 'setting-label', text: 'Sessions ouvertes' }), h('p', { class: 'setting-desc', text: 'Navigateurs connectés à votre compte.' })),
+      h('div', { class: 'setting-text' }, h('p', { class: 'setting-label', text: t('account.sessions') }), h('p', { class: 'setting-desc', text: t('account.sessionsDesc') })),
       sessionsList,
-      h('div', { class: 'setting-actions' }, button('Déconnecter les autres sessions', null, async () => {
+      h('div', { class: 'setting-actions' }, button(t('account.signOutOthers'), null, async () => {
         const res = await api('auth/me/sessions/others', { method: 'POST' });
-        toast(`${res.closed} session(s) fermée(s)`);
+        toast(t('account.sessionsClosed', { n: res.closed }));
         renderAccount();
-      }), button('Se déconnecter', 'log-out', () => logout(), 'btn danger'))),
+      }), button(t('user.logout'), 'log-out', () => logout(), 'btn danger'))),
   );
   const { sessions } = await api('auth/me/sessions').catch(() => ({ sessions: [] }));
   sessionsList.replaceChildren(...sessions.map((s) => h('div', { class: 'sub-item' },
     icon('monitor'),
-    h('span', {}, h('strong', { text: s.agent }), h('small', { class: 'block muted', text: `${s.ip.replace('::ffff:', '')} · active ${ago(s.lastSeen)}${s.remember ? ' · rester connecté' : ''}` })),
-    s.current ? h('span', { class: 'badge ok', text: 'Cette session' }) : button('Déconnecter', null, async () => {
+    h('span', {}, h('strong', { text: s.agent }), h('small', { class: 'block muted', text: [s.ip.replace('::ffff:', ''), t('account.sessionActive', { ago: ago(s.lastSeen) }), s.remember ? t('account.remember') : null].filter(Boolean).join(' · ') })),
+    s.current ? h('span', { class: 'badge ok', text: t('account.thisSession') }) : button(t('account.signOut'), null, async () => {
       await api(`auth/me/sessions/${s.id}`, { method: 'DELETE' });
       renderAccount();
     }, 'btn small'))));
@@ -175,26 +176,26 @@ export async function renderSecurity() {
     body.replaceChildren(
       h('div', { class: 'empty-state security-empty' },
         icon('shield-check'),
-        h('h3', { text: 'Accès libre' }),
-        h('p', { text: 'Toute personne qui ouvre Servynex a tous les droits. C’est normal en local, sur votre PC. Pour une instance partagée ou accessible à distance, activez la protection par mot de passe.' }),
-        reactivate ? h('p', { class: 'hint', text: 'Des comptes existent déjà : la réactivation demande les identifiants d’un administrateur.' }) : null,
-        button(reactivate ? 'Réactiver la protection' : 'Activer la protection', 'lock', async () => {
+        h('h3', { text: t('security.open') }),
+        h('p', { text: t('security.openDesc') }),
+        reactivate ? h('p', { class: 'hint', text: t('security.accountsExist') }) : null,
+        button(reactivate ? t('security.reactivate') : t('security.activate'), 'lock', async () => {
           const res = reactivate
             ? await ask({
-              title: 'Réactiver la protection',
-              fields: [{ name: 'username', label: 'Administrateur', autocomplete: 'username' }, { name: 'password', label: 'Mot de passe', type: 'password', autocomplete: 'current-password' }],
-              confirm: 'Réactiver',
+              title: t('security.reactivate'),
+              fields: [{ name: 'username', label: t('roleLabel.admin'), autocomplete: 'username' }, { name: 'password', label: t('account.password'), type: 'password', autocomplete: 'current-password' }],
+              confirm: t('security.reactivateOk'),
               submit: (v) => api('auth/enable', { method: 'POST', body: v }),
             })
             : await ask({
-              title: 'Créer le compte administrateur',
-              body: 'Ce compte aura tous les droits. D’autres comptes pourront être invités ensuite dans Paramètres › Membres.',
+              title: t('security.createAdmin'),
+              body: t('security.createAdminDesc'),
               fields: [
-                { name: 'username', label: 'Nom d’utilisateur', autocomplete: 'username', placeholder: 'minuscules, chiffres, - . _' },
-                { name: 'name', label: 'Nom affiché (facultatif)', autocomplete: 'name' },
+                { name: 'username', label: t('account.username'), autocomplete: 'username', placeholder: t('account.usernamePlaceholder') },
+                { name: 'name', label: t('account.displayNameOptional'), autocomplete: 'name' },
                 ...passwordFields(),
               ],
-              confirm: 'Activer la protection',
+              confirm: t('security.activate'),
               submit: async (v) => {
                 checkPair(v);
                 return api('auth/setup', { method: 'POST', body: { username: v.username, name: v.name, password: v.password } });
@@ -207,15 +208,15 @@ export async function renderSecurity() {
     return;
   }
   if (!isAdmin()) {
-    body.replaceChildren(setting('Protection par mot de passe', 'Active. Réglée par un administrateur.', h('span', { class: 'badge ok', text: 'Active' })));
+    body.replaceChildren(setting(t('security.protection'), t('security.activeByAdmin'), h('span', { class: 'badge ok', text: t('security.on') })));
     return;
   }
-  const lock = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Verrouillage' }, ...LOCKS.map(([value, label]) => {
+  const lock = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': t('security.lock') }, ...LOCKS.map(([value, label]) => {
     const b = h('button', { type: 'button', role: 'radio', 'aria-checked': String(value === status.lockAfter), text: label });
     b.addEventListener('click', async () => {
       try {
         await api('auth/settings', { method: 'PATCH', body: { lockAfter: value } });
-        toast(value ? `Verrouillage après ${label} d’inactivité (au prochain chargement de chaque page)` : 'Verrouillage désactivé');
+        toast(value ? t('security.lockSet', { delay: label }) : t('security.lockOff'));
         renderSecurity();
       } catch (err) {
         toast(err.message, 'error');
@@ -224,18 +225,18 @@ export async function renderSecurity() {
     return b;
   }));
   body.replaceChildren(
-    setting('Protection par mot de passe', 'Seule la page de connexion répond tant qu’on n’est pas connecté.', h('span', { class: 'badge ok', text: 'Active' })),
+    setting(t('security.protection'), t('security.onDesc'), h('span', { class: 'badge ok', text: t('security.on') })),
     h('div', { class: 'setting stack' },
       h('div', { class: 'setting-text' },
-        h('p', { class: 'setting-label', text: 'Verrouillage après inactivité' }),
-        h('p', { class: 'setting-desc', text: 'Pour tous les comptes. Sans souris ni clavier sur la page pendant ce temps, la session se verrouille et le mot de passe est redemandé.' })),
+        h('p', { class: 'setting-label', text: t('security.lockAfter') }),
+        h('p', { class: 'setting-desc', text: t('security.lockAfterDesc') })),
       lock),
-    setting('Désactiver la protection', 'Servynex redevient accessible sans connexion. Les comptes sont conservés pour une réactivation.', button('Désactiver', null, async () => {
+    setting(t('security.disable'), t('security.disableDesc'), button(t('security.disableOk'), null, async () => {
       const res = await ask({
-        title: 'Désactiver la protection ?',
-        body: 'Toute personne qui ouvre Servynex aura de nouveau tous les droits. Confirmez avec votre mot de passe.',
-        fields: [{ name: 'password', label: 'Mot de passe', type: 'password', autocomplete: 'current-password' }],
-        confirm: 'Désactiver',
+        title: t('security.disableTitle'),
+        body: t('security.disableBody'),
+        fields: [{ name: 'password', label: t('account.password'), type: 'password', autocomplete: 'current-password' }],
+        confirm: t('security.disableOk'),
         danger: true,
         submit: (v) => api('auth/disable', { method: 'POST', body: v }),
       });
@@ -253,62 +254,62 @@ export async function renderMembers() {
   const row = (u) => {
     const me = u.id === session.user.id;
     const actions = h('div', { class: 'btn-row' },
-      button('Permissions', null, async () => {
-        const perms = await permissionsDialog({ title: `Permissions de ${u.name}`, initial: u.permissions, confirm: 'Enregistrer' });
+      button(t('members.permissions'), null, async () => {
+        const perms = await permissionsDialog({ title: t('members.permissionsOf', { name: u.name }), initial: u.permissions, confirm: t('common.save') });
         if (!perms) return;
         await api(`auth/users/${u.id}`, { method: 'PATCH', body: { permissions: perms } });
-        toast('Permissions enregistrées');
+        toast(t('members.permissionsSaved'));
         renderMembers();
       }, 'btn small'),
-      me ? null : button('Code', 'key-round', async () => {
+      me ? null : button(t('members.code'), 'key-round', async () => {
         const { code } = await api(`auth/users/${u.id}/reset`, { method: 'POST' });
         await confirmDialog({
-          title: `Code de réinitialisation pour ${u.username}`,
-          body: `${code}\n\nValable 15 minutes. À saisir sur la page de connexion : « Mot de passe oublié ? » › « J’ai un code ». Ses sessions seront fermées.`,
-          confirm: 'Fermer',
+          title: t('members.resetTitle', { username: u.username }),
+          body: t('members.resetBody', { code }),
+          confirm: t('common.closeOk'),
         });
       }, 'btn small'),
       me ? null : button('', 'x', async () => {
-        const ok = await confirmDialog({ title: `Supprimer le compte ${u.username} ?`, body: 'Ses sessions sont fermées. Ses actions restent dans le journal d’audit.', confirm: 'Supprimer', danger: true });
+        const ok = await confirmDialog({ title: t('members.deleteTitle', { username: u.username }), body: t('members.deleteBody'), confirm: t('action.delete'), danger: true });
         if (!ok) return;
         await api(`auth/users/${u.id}`, { method: 'DELETE' });
         renderMembers();
       }, 'icon-btn'));
     return h('div', { class: 'sub-item member' },
       h('span', { class: 'avatar', text: initials(u) }),
-      h('span', {}, h('strong', { text: u.name }), h('small', { class: 'block muted', text: `${u.username}${me ? ' · vous' : ''}` })),
+      h('span', {}, h('strong', { text: u.name }), h('small', { class: 'block muted', text: me ? t('members.you', { username: u.username }) : u.username })),
       h('span', { class: `badge${u.role === 'admin' ? ' ok' : ''}`, text: ROLE_LABELS[u.role] ?? u.role }),
       actions);
   };
   const inviteRow = (i) => h('div', { class: 'sub-item' },
     icon('link'),
-    h('span', {}, h('strong', { text: ROLE_LABELS[i.role] ?? i.role }), h('small', { class: 'block muted', text: `par ${i.createdBy} · expire ${ago(i.expiresAt)}` })),
-    button('Révoquer', null, async () => {
+    h('span', {}, h('strong', { text: ROLE_LABELS[i.role] ?? i.role }), h('small', { class: 'block muted', text: t('members.inviteBy', { user: i.createdBy, expires: ago(i.expiresAt) }) })),
+    button(t('members.revoke'), null, async () => {
       await api(`auth/invites/${i.id}`, { method: 'DELETE' });
       renderMembers();
     }, 'btn small'));
   body.replaceChildren(...[
     h('div', { class: 'setting stack' },
       h('div', { class: 'setting-head' },
-        h('div', { class: 'setting-text' }, h('p', { class: 'setting-label', text: `Comptes (${users.length})` }), h('p', { class: 'setting-desc', text: 'Le dernier administrateur ne peut être ni supprimé ni rétrogradé.' })),
-        button('Inviter', 'user-plus', invite, 'btn primary')),
+        h('div', { class: 'setting-text' }, h('p', { class: 'setting-label', text: t('members.accounts', { n: users.length }) }), h('p', { class: 'setting-desc', text: t('members.lastAdmin') })),
+        button(t('members.invite'), 'user-plus', invite, 'btn primary')),
       h('div', { class: 'sub-list' }, ...users.map(row))),
     invites.length ? h('div', { class: 'setting stack' },
-      h('div', { class: 'setting-text' }, h('p', { class: 'setting-label', text: 'Invitations en attente' })),
+      h('div', { class: 'setting-text' }, h('p', { class: 'setting-label', text: t('members.pending') })),
       h('div', { class: 'sub-list' }, ...invites.map(inviteRow))) : null,
   ].filter(Boolean));
 }
 
 async function invite() {
-  const perms = await permissionsDialog({ title: 'Inviter un membre', initial: ROLE_PERMISSIONS.operator, confirm: 'Créer le lien' });
+  const perms = await permissionsDialog({ title: t('members.inviteTitle'), initial: ROLE_PERMISSIONS.operator, confirm: t('members.createLink') });
   if (!perms) return;
   const { token } = await api('auth/invites', { method: 'POST', body: { permissions: perms } });
   const url = `${location.origin}/?invite=${token}`;
   await navigator.clipboard.writeText(url).catch(() => {});
   await confirmDialog({
-    title: `Lien d’invitation (${ROLE_LABELS[roleOf(perms)]})`,
-    body: `${url}\n\nCopié dans le presse-papiers. Valable 48 heures, pour une seule personne : elle choisira elle-même son nom d’utilisateur et son mot de passe.`,
-    confirm: 'Fermer',
+    title: t('members.linkTitle', { role: ROLE_LABELS[roleOf(perms)] }),
+    body: t('members.linkBody', { url }),
+    confirm: t('common.closeOk'),
   });
   renderMembers();
 }

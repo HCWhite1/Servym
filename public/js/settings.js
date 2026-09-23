@@ -1,10 +1,14 @@
 // Paramètres : démarrage, apparence, fichier de configuration, Servynex, raccourcis.
 import { renderAccount, renderMembers, renderSecurity } from './accounts.js';
+import { choice, setChoice, t } from './i18n.js';
 import { api, applyTheme, can, confirmDialog, h, session, store, tile, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
 const dialog = $('#settings');
-const TITLES = { account: 'Mon compte', general: 'Général', appearance: 'Apparence', config: 'Configuration', security: 'Sécurité', members: 'Membres', instance: 'Servynex', keys: 'Raccourcis clavier' };
+const TITLES = {
+  account: t('user.account'), general: t('settings.general'), appearance: t('settings.appearance'), config: t('settings.config'),
+  security: t('settings.security'), members: t('settings.members'), instance: 'Servynex', keys: t('settings.keysTitle'),
+};
 const RENDER = { account: renderAccount, security: renderSecurity, members: renderMembers };
 
 let handlers;
@@ -21,6 +25,8 @@ export function init(hs) {
   $('#set-projects').addEventListener('change', (e) => setProjectAutostart(e.target.dataset.id, e.target.checked, e.target));
   radio('#set-theme', setTheme);
   radio('#set-layout', (value) => handlers.setLayout(value));
+  $('#set-lang').value = choice();
+  $('#set-lang').addEventListener('change', (e) => setLang(e.target.value));
   $('#set-motion').addEventListener('change', (e) => handlers.setMotion(e.target.checked));
   $('#open-config').addEventListener('click', () => instanceAction('config'));
   $('#open-instance-log').addEventListener('click', () => instanceAction('log'));
@@ -33,7 +39,7 @@ export function init(hs) {
       const { name } = await api('instance', { method: 'PATCH', body: { name: $('#instance-name').value.trim() || null } });
       handlers.instance().name = name;
       document.dispatchEvent(new CustomEvent('servynex:user'));
-      toast('Nom enregistré');
+      toast(t('settings.nameSaved'));
     } catch (err) {
       toast(err.message, 'error');
     }
@@ -83,10 +89,11 @@ function applyPermissions() {
     node.disabled = !can(perm) || node.disabled;
     if (!can(perm)) node.title = why;
   };
-  off('#open-config', 'commands', 'Permission « Commandes » nécessaire');
-  off('#reload-config', 'edit', 'Permission « Modifier les projets » nécessaire');
-  off('#open-instance-log', 'instance', 'Permission « Servynex » nécessaire');
-  off('#open-instance-dir', 'instance', 'Permission « Servynex » nécessaire');
+  const needs = (perm) => t('settings.needsPermission', { permission: t(`perm.${perm}`) });
+  off('#open-config', 'commands', needs('commands'));
+  off('#reload-config', 'edit', needs('edit'));
+  off('#open-instance-log', 'instance', needs('instance'));
+  off('#open-instance-dir', 'instance', needs('instance'));
   $('#instance-name').disabled = !can('instance');
   $('#instance-form button').disabled = !can('instance');
   for (const input of document.querySelectorAll('#set-projects input')) input.disabled = !can('edit');
@@ -108,6 +115,14 @@ export function setTheme(value) {
 }
 
 // Préférences enregistrées avec le compte quand la protection est active.
+// Nouvelle langue : gardée dans le navigateur et dans le compte, puis la page se
+// recharge (les textes sont posés une fois, au chargement).
+async function setLang(value) {
+  setChoice(value);
+  if (session.user) await api('auth/me', { method: 'PATCH', body: { prefs: { lang: value } } }).catch(() => {});
+  location.reload();
+}
+
 export function savePref(prefs) {
   if (!session.user) return;
   Object.assign(session.user.prefs, prefs);
@@ -125,7 +140,7 @@ export async function loadAutostart() {
     $('#set-projects-warn').hidden = enabled;
     return enabled;
   } catch (err) {
-    $('#autostart-desc').textContent = `État de la tâche planifiée illisible : ${err.message}`;
+    $('#autostart-desc').textContent = t('settings.autostartUnreadable', { error: err.message });
     return null;
   }
 }
@@ -134,7 +149,7 @@ export async function setInstanceAutostart(on, input) {
   if (input) input.disabled = true;
   try {
     const { enabled } = await api('autostart', { method: 'PUT', body: { enabled: on } });
-    toast(enabled ? 'Servynex démarrera avec Windows.' : 'Servynex ne démarrera plus avec Windows.');
+    toast(t(enabled ? 'settings.autostartOn' : 'settings.autostartOff'));
     for (const node of document.querySelectorAll('#set-autostart, #ob-autostart')) node.checked = enabled;
     $('#set-projects-warn').hidden = enabled;
     return enabled;
@@ -168,7 +183,7 @@ export function projectSwitches() {
     h('label', { class: 'sub-item' },
       tile(p, 'sm'),
       h('span', { text: p.name }),
-      h('input', { class: 'switch', type: 'checkbox', role: 'switch', 'aria-label': `Lancer ${p.name} au démarrage`, dataset: { id: p.id }, checked: p.autostart })));
+      h('input', { class: 'switch', type: 'checkbox', role: 'switch', 'aria-label': t('settings.bootProject', { name: p.name }), dataset: { id: p.id }, checked: p.autostart })));
 }
 
 export function build() {
@@ -192,7 +207,7 @@ async function instanceAction(action) {
 async function reloadConfig() {
   try {
     await api('reload', { method: 'POST' });
-    toast('projects.json relu');
+    toast(t('settings.reloaded'));
     handlers.refreshGit();
   } catch (err) {
     toast(err.message, 'error');
@@ -206,25 +221,25 @@ function fillInstance() {
   $('#instance-dir').textContent = info.dir ?? '';
   const rows = [
     ['Version', info.version ?? '—'],
-    ['Adresse', `http://localhost:${info.port}`],
+    [t('col.address'), `http://localhost:${info.port}`],
     ['Node.js', info.node ?? '—'],
-    ['Lancement', info.restartable ? 'Tâche planifiée « Servynex » (sans fenêtre)' : 'À la main (npm start)'],
-    ['Outils', [handlers.tools().code ? 'VS Code' : null, handlers.tools().terminal].filter(Boolean).join(', ')],
+    [t('info.launch'), info.restartable ? t('settings.launchTask') : t('settings.launchHand')],
+    [t('settings.tools'), [handlers.tools().code ? 'VS Code' : null, handlers.tools().terminal].filter(Boolean).join(', ')],
   ];
   $('#instance-info').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })]));
   $('#restart-instance').disabled = !info.restartable || !can('instance');
   $('#restart-desc').textContent = info.restartable
-    ? 'Les projets lancés continuent de tourner et sont repris au redémarrage.'
-    : 'Indisponible : Servynex a été lancé à la main (npm start). Le relancer depuis son terminal.';
+    ? t('settings.restartDesc')
+    : t('settings.restartUnavailable');
 }
 
 // Les projets continuent de tourner et sont repris. La page attend que l'ancien
 // Servynex soit tombé puis que le nouveau réponde, et se recharge (l'interface a pu changer).
 async function restartInstance() {
   const ok = await confirmDialog({
-    title: 'Redémarrer Servynex ?',
-    body: 'Les projets lancés continuent de tourner et seront repris. La page se rechargera toute seule.',
-    confirm: 'Redémarrer',
+    title: t('settings.restartTitle'),
+    body: t('settings.restartBody'),
+    confirm: t('action.restart'),
   });
   if (!ok) return;
   const button = $('#restart-instance');
@@ -235,7 +250,7 @@ async function restartInstance() {
     button.disabled = false;
     return toast(err.message, 'error');
   }
-  toast('Redémarrage de Servynex…');
+  toast(t('settings.restarting'));
   const up = () => fetch('/api/projects', { cache: 'no-store' }).then((r) => r.ok, () => false);
   const until = async (want, ms) => {
     for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 400))) {
@@ -245,5 +260,5 @@ async function restartInstance() {
   };
   await until(false, 5_000);
   if (await until(true, 30_000)) location.reload();
-  else toast('Servynex ne répond pas après 30 s : voir logs/servynex.log.', 'error');
+  else toast(t('settings.restartTimeout'), 'error');
 }

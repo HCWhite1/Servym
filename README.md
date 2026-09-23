@@ -1,157 +1,183 @@
 # Servynex
 
-Tableau de bord local pour lancer, surveiller et arrêter vos projets de développement : applications Node, PHP ou Python, sites statiques, bases de données. Une page web sur http://localhost:9000, sans dépendance npm.
+**English** · [Français](README.fr.md)
 
-- Lancer un projet (et ses dépendances) en un clic, ouvrir son adresse dès qu'il répond.
-- Journal en direct, historique des démarrages et des plantages, état Git.
-- Ports en écoute sur la machine, projets exposés sur le réseau, alerte sur les réseaux publics.
-- Démarrage avec Windows, projets lancés au démarrage du PC.
+A local dashboard to start, watch and stop your development projects: Node, PHP or Python applications, static sites, databases. One web page on http://localhost:9000, no npm dependencies.
 
-## Prérequis
+- Start a project (and its dependencies) in one click, open its address as soon as it answers.
+- Live log, start and crash history, Git status, CPU and memory.
+- Listening ports on the machine, projects exposed on the network, warning on public networks.
+- Start with Windows, projects started when the PC boots.
+- Optional accounts, interface in English and French.
 
-- **Windows 10 ou 11** (la version Linux est prévue, voir « Limites »).
-- **Node.js 22 ou plus.**
+## Requirements
 
-## Installation
+- **Windows 10 or 11** (a Linux version is planned, see "Limits").
+- **Node.js 22 or later.**
+
+## Install
 
 ```
-git clone <adresse du dépôt> servynex
+git clone <repository address> servynex
 cd servynex
 npm start
 ```
 
-Ouvrir http://localhost:9000 : une présentation propose de démarrer Servynex avec Windows, puis le bouton **Ajouter** crée un premier projet.
+Open http://localhost:9000: a short introduction offers to start Servynex with Windows, then the **Add** button creates a first project.
 
-- **Démarrage avec Windows** : Paramètres › Général, ou `autostart.bat` puis `ON` / `OFF`. Crée la tâche planifiée « Servynex » (sans droits administrateur) : Servynex démarre sans fenêtre à l'ouverture de session (`scripts/start-hidden.vbs`) et se relance s'il plante (il abandonne après 5 plantages rapides de suite).
-- **Redémarrer Servynex** : Paramètres › Servynex. Les projets lancés continuent de tourner et sont repris. Disponible seulement sous la tâche planifiée : lancé par `npm start`, Servynex se relance depuis son terminal.
-- **Tests** : `npm test`.
+- **Start with Windows**: Settings › General, or `autostart.bat` then `ON` / `OFF`. Creates the "Servynex" scheduled task (no administrator rights): Servynex starts without a window when you sign in (`scripts/start-hidden.vbs`) and restarts if it crashes (it gives up after 5 quick crashes in a row).
+- **Restart Servynex**: Settings › Servynex. Running projects keep running and are picked up again. Only available under the scheduled task: started with `npm start`, Servynex is restarted from its terminal.
+- **Tests**: `npm test`.
 
-## Projets
+## Projects
 
-Tout se règle depuis l'interface : bouton **Ajouter**, puis l'onglet **Réglages** du volet d'un projet (clic sur sa ligne). La configuration est enregistrée dans `projects.json`, à la racine. Ce fichier est personnel et n'est pas versionné ; `projects.example.json` montre un exemple de chaque type de projet. Sans `projects.json`, Servynex démarre avec une liste vide. **Supprimer** : Réglages du volet (en bas) ou menu « … » de la ligne ; le projet est arrêté d'abord, retiré des dépendances des autres, ses journaux sont gardés. Confirmation par le mot de passe du compte si la protection est active, sinon en retapant le nom du projet. **Réordonner** : glisser la poignée à gauche d'une ligne, ou flèches haut et bas quand elle a le focus. La section `instance` règle Servynex lui-même : `port` (9000 par défaut), `name`, le nom affiché de l'instance, et `lang` (`"fr"` ou `"en"`), la langue des journaux et des messages du serveur (par défaut : la variable `SERVYNEX_LANG`, sinon la langue du système).
+Everything is set from the interface: the **Add** button, then the **Settings** tab of a project's panel (click its row).
 
-Le fichier peut aussi se modifier à la main (Paramètres › Configuration › Modifier, puis Relire). Une modification faite à la main n'est jamais écrasée par l'interface : chaque enregistrement repart du fichier tel qu'il est sur le disque. Si le fichier devient invalide, Servynex continue avec la dernière configuration valide (`runtime/projects.valid.json`) et affiche l'erreur.
+- **Delete**: at the bottom of the panel's Settings, or from the row's "…" menu. The project is stopped first and removed from other projects' dependencies; its logs are kept. Confirmed with the account password if protection is on, otherwise by typing the project name.
+- **Reorder**: drag the handle on the left of a row, or use the up and down arrows when it has focus.
 
-| Champ | Rôle |
+The configuration is saved in `projects.json`, at the root. This file is personal and not versioned; `projects.example.json` shows an example of each project type. Without `projects.json`, Servynex starts with an empty list.
+
+The file can also be edited by hand (Settings › Configuration › Edit, then Reload). A hand edit is never overwritten by the interface: each save starts again from the file as it is on disk. If the file becomes invalid, Servynex keeps going with the last valid configuration (`runtime/projects.valid.json`) and shows the error.
+
+The `instance` section sets up Servynex itself:
+
+| Field | Role |
 | --- | --- |
-| `id` | Identifiant (lettres minuscules, chiffres, tirets), tiré du nom à l'ajout. Nomme le journal : il ne change plus ensuite. |
-| `name`, `desc`, `tags`, `icon`, `color` | Affichage. `icon` : nom d'une icône de `public/icons.svg` (Lucide, `book-open`…) ; toute autre valeur affiche l'initiale du nom. |
-| `type` | Absent : programme lancé par une commande. `"static"` : Servynex sert lui-même les fichiers de `cwd` sur `port`. `"file"` : page ouverte dans le navigateur, sans serveur (`open`). |
-| `cwd` | Dossier du projet (chemin absolu). |
-| `cmd`, `args` | Commande de lancement et ses arguments. `{port}`, `{host}` et `{servynex}` sont remplacés. Les arguments passent par `cmd.exe` : `" % & \| < > ^ ( )` et les retours à la ligne y sont refusés. |
-| `env` | Variables d'environnement ajoutées au lancement. `PORT` et `HOST` restent fixés par Servynex. |
-| `port` | Port du projet, transmis dans la variable `PORT`. Deux projets ne peuvent pas avoir le même. |
-| `hostControl` | `env` : le projet lit `HOST`. `args` : l'adresse passe par `{host}`. `local` : le projet écoute toujours en local. |
-| `expose` | `false` : écoute sur 127.0.0.1. `true` : sur tout le réseau (confirmation demandée dans l'interface). |
-| `url` | Adresse ouverte par « Ouvrir » (`http://localhost:{port}`). |
-| `health` | Contrôle « le projet répond » : `{ "path": "/", "expect": "<title>Mon site" }` (page web, texte attendu facultatif) ou `{ "type": "tcp" }` (port ouvert). |
-| `startTimeout` | Secondes accordées au démarrage (60 par défaut). |
-| `requires` | Projets à démarrer avant celui-ci. Démarrés pour lui, ils s'arrêtent avec lui s'ils ne servent plus à aucun autre projet en marche. Les dépendances en boucle sont refusées. |
-| `service` | Rangé dans « Services » (base de données, outil) et dessiné en lune dans la vue orbite. |
-| `stop` | Commande d'arrêt propre, essayée avant l'arrêt forcé : `{ "cmd": "mysqladmin", "args": ["shutdown"] }`. |
-| `autostart` | Lancé une fois par démarrage du PC (un projet arrêté à la main ne revient pas si Servynex redémarre). |
-| `fixedPort` | Texte qui explique pourquoi le port ne doit pas changer ; l'interface le verrouille. Fichier seulement. |
-| `open` | Pour `type: "file"` : fichier à ouvrir, relatif à `cwd`. |
+| `port` | Port of the page (9000 by default). |
+| `name` | Instance name shown in the sidebar and on the sign-in page. |
+| `lang` | `"en"` or `"fr"`: language of logs and server messages. Default: the `SERVYNEX_LANG` variable, otherwise the system language. |
 
-## Fonctionnement
+Each project:
 
-- **Lancement** : `src/launch.ps1` démarre le projet dans une console cachée (`Start-Process`). Le projet sort ainsi du « job » de Servynex : il continue de tourner quand Servynex redémarre, et ses sous-processus n'ouvrent aucune fenêtre. Au redémarrage, Servynex reprend les projets listés dans `runtime/pids.json`.
-- **Statut** : `stopped`, `starting`, `running`, `stopping`, `failed` ou `conflict` (le port répond, mais ce n'est pas le bon site). Un projet arrêté est sondé toutes les 3 s, un projet en ligne toutes les 15 s.
-- **Lancé ailleurs** : un projet qui répond sans avoir été lancé par Servynex (tâche planifiée, fichier `.bat`) est affiché « externe ». Pour l'arrêter, il faut confirmer : Servynex retrouve alors son PID par le port. Un processus lancé en administrateur ne peut pas être arrêté par Servynex.
-- **Projet qui se relance lui-même** : s'il quitte avec le code 0 et relance une instance qui garde la même sortie, Servynex attend 30 s, retrouve le nouveau PID par le port et continue de le suivre.
-- **Arrêt** : commande `stop` si le projet en déclare une, sinon `taskkill /T /F` sur tout l'arbre de processus. Arrêter un projet dont d'autres projets en marche dépendent demande une confirmation.
-- **Retirer un projet** qui tourne est refusé : il faut l'arrêter d'abord, sinon il continuerait sans surveillance.
-- **Historique** : chaque changement d'état est écrit dans `logs/servynex.log` ; l'onglet « Historique » d'un projet et la page « Activité » le relisent.
-- **Réseau** : la page « Réseau » liste tout ce qui écoute sur la machine (netstat + tasklist), rattaché aux projets, avec les adresses du PC et le profil (public / privé) de chaque réseau.
+| Field | Role |
+| --- | --- |
+| `id` | Identifier (lowercase letters, digits, hyphens), derived from the name when added. It names the log, so it never changes afterwards. |
+| `name`, `desc`, `tags`, `icon`, `color` | Display. `icon`: name of an icon in `public/icons.svg` (Lucide, `book-open`…); any other value shows the first letter of the name. |
+| `type` | Absent: a program started by a command. `"static"`: Servynex itself serves the files of `cwd` on `port`. `"file"`: a page opened in the browser, without a server (`open`). |
+| `cwd` | Project folder (absolute path). |
+| `cmd`, `args` | Start command and its arguments. `{port}`, `{host}` and `{servynex}` are replaced. Arguments go through `cmd.exe`: `" % & \| < > ^ ( )` and line breaks are refused. |
+| `env` | Environment variables added at launch. `PORT` and `HOST` stay set by Servynex. |
+| `port` | Project port, passed in the `PORT` variable. Two projects cannot share one. |
+| `hostControl` | `env`: the project reads `HOST`. `args`: the address goes through `{host}`. `local`: the project always listens locally. |
+| `expose` | `false`: listens on 127.0.0.1. `true`: on the whole network (the interface asks for confirmation). |
+| `url` | Address opened by "Open" (`http://localhost:{port}`). |
+| `health` | "The project answers" check: `{ "path": "/", "expect": "<title>My site" }` (web page, optional expected text) or `{ "type": "tcp" }` (open port). |
+| `startTimeout` | Seconds allowed to start (60 by default). |
+| `requires` | Projects to start before this one. Started for it, they stop with it if no other running project uses them. Dependency loops are refused. |
+| `service` | Listed under "Services" (database, tool) and drawn as a moon in the orbit view. |
+| `stop` | Clean stop command, tried before a forced stop: `{ "cmd": "mysqladmin", "args": ["shutdown"] }`. |
+| `autostart` | Started once per PC boot (a project stopped by hand does not come back if Servynex restarts). |
+| `fixedPort` | Text explaining why the port must not change; the interface locks it. File only. |
+| `open` | For `type: "file"`: file to open, relative to `cwd`. |
 
-Journaux : `logs/servynex.log` (le précédent passe dans `logs/servynex.prev.log` au-delà de 1 Mo) et `logs/<id>.log` pour chaque projet (lancement précédent dans `logs/<id>.prev.log`).
+## How it works
 
-## Comptes (facultatif)
+- **Launch**: `src/launch.ps1` starts the project in a hidden console (`Start-Process`). The project thus leaves Servynex's "job": it keeps running when Servynex restarts, and its child processes open no window. On restart, Servynex picks up the projects listed in `runtime/pids.json`.
+- **Status**: `stopped`, `starting`, `running`, `stopping`, `failed` or `conflict` (the port answers, but it is not the right site). A stopped project is probed every 3 s, a running one every 15 s.
+- **Started elsewhere**: a project that answers without having been started by Servynex (scheduled task, `.bat` file) is shown as "external". Stopping it needs a confirmation: Servynex then finds its PID through the port. A process started as administrator cannot be stopped by Servynex.
+- **Project that restarts itself**: if it exits with code 0 and starts a new instance that keeps the same output, Servynex waits 30 s, finds the new PID through the port and keeps following it.
+- **Stop**: the `stop` command if the project declares one, otherwise `taskkill /T /F` on the whole process tree. Stopping a project that other running projects depend on asks for confirmation.
+- **Removing a project** from `projects.json` while it runs is refused: stop it first, or it would keep running unwatched.
+- **CPU and memory**: the whole process tree of a project is counted (`cmd.exe`, then `node` and its children), plus the process listening on its port. CPU is a share of the whole machine, as in the Task Manager. Sampled every 5 s, only while a page is visible and a project runs; one PowerShell stays open for these samples and closes after a minute without requests.
+- **History**: every state change is written to `logs/servynex.log`; a project's "History" tab and the "Activity" page read it back.
+- **Network**: the "Network" page lists everything listening on the machine (netstat + tasklist), matched to projects, with the PC's addresses and the profile (public / private) of each network.
 
-Par défaut, pas d'authentification : usage local, par une seule personne. Paramètres › Sécurité › **Activer la protection** crée un compte administrateur ; dès lors, seule la page de connexion répond tant qu'on n'est pas connecté (liste, journaux, ports et actions compris).
+Logs: `logs/servynex.log` (the previous one moves to `logs/servynex.prev.log` beyond 1 MB) and `logs/<id>.log` for each project (previous run in `logs/<id>.prev.log`).
 
-- **Permissions**, cochables compte par compte, avec quatre rôles tout prêts :
+## Languages
 
-  | Permission | Lecture seule | Opérateur | Éditeur | Administrateur |
+The interface exists in English and French: the browser language is picked automatically, and Settings › Appearance › Language sets one (kept by the browser, and by the account if protection is on). Server error messages follow the page language. Logs, history and live states ("Waiting for MySQL…") use the server language: `instance.lang`, otherwise `SERVYNEX_LANG`, otherwise the system language.
+
+Texts: `public/locales/` (interface) and `src/locales/` (server), one file per language, under keys; `npm test` checks that every language has the same keys and the same parameters.
+
+## Accounts (optional)
+
+No authentication by default: local use, by one person. Settings › Security › **Turn on protection** creates an administrator account; from then on, only the sign-in page answers until you sign in (list, logs, ports and actions included).
+
+- **Permissions**, checkable account by account, with four ready-made roles:
+
+  | Permission | Read-only | Operator | Editor | Administrator |
   | --- | --- | --- | --- | --- |
-  | Voir (projets, journaux, réseau, activité) | oui | oui | oui | oui |
-  | Piloter (démarrer, arrêter, ouvrir) | | oui | oui | oui |
-  | Modifier les projets (nom, port, dépendances, ordre…) | | | oui | oui |
-  | Commandes (commande, dossier, environnement, exposition, ajout, suppression) | | | au choix | oui |
-  | Servynex (redémarrage, démarrage avec Windows, nom de l'instance) | | | au choix | oui |
-  | Administration (comptes, invitations, sécurité) | | | | oui |
+  | View (projects, logs, network, activity) | yes | yes | yes | yes |
+  | Operate (start, stop, open) | | yes | yes | yes |
+  | Edit projects (name, port, dependencies, order…) | | | yes | yes |
+  | Commands (command, folder, environment, exposure, add, delete) | | | optional | yes |
+  | Servynex (restart, start with Windows, instance name) | | | optional | yes |
+  | Administration (accounts, invitations, security) | | | | yes |
 
-  « Commandes » équivaut à un accès complet à la machine. Le dernier administrateur ne peut être ni supprimé ni rétrogradé.
-- **Membres** : invitation par lien (48 h, un seul usage) ; l'invité choisit son nom d'utilisateur et son mot de passe.
-- **Sessions** : cookie `HttpOnly`, `SameSite=Strict`. « Rester connecté » : 30 jours ; sinon jusqu'à la fermeture du navigateur (et 12 h sans activité au plus). Mon compte liste les sessions ouvertes ; changer de mot de passe ferme les autres.
-- **Verrouillage après inactivité** (2 min à 1 h, réglé par un administrateur pour tous) : sans souris ni clavier sur la page, le mot de passe est redemandé.
-- **Mots de passe** : 8 caractères au moins, hachés par scrypt dans `runtime/auth.json` (jamais versionné). 5 essais ratés : attente croissante.
-- **Mot de passe oublié** : la **clé de secours** du compte (affichée une seule fois, à usage unique), ou un **code de 15 minutes** donné par un administrateur (Membres › Code) ou obtenu sur la machine :
+  "Commands" amounts to full access to the machine. The last administrator can be neither deleted nor demoted.
+- **Members**: invitation by link (48 h, single use); the invited person picks their username and password.
+- **Sessions**: `HttpOnly`, `SameSite=Strict` cookie. "Stay signed in": 30 days; otherwise until the browser closes (and 12 h without activity at most). My account lists open sessions; changing the password closes the others.
+- **Lock after inactivity** (2 min to 1 h, set by an administrator for everyone): with no mouse or keyboard on the page, the password is asked again.
+- **Passwords**: 8 characters at least, hashed with scrypt in `runtime/auth.json` (never versioned). 5 failed attempts: increasing wait.
+- **Forgot password**: the account's **recovery key** (shown once, single use), or a **15-minute code** given by an administrator (Members › Code) or obtained on the machine:
 
   ```
   npm run auth -- list
-  npm run auth -- reset-password <nom>
+  npm run auth -- reset-password <name>
   ```
 
-  Les sessions du compte sont alors fermées. Dernier recours : supprimer `runtime/auth.json` retire la protection et tous les comptes.
-- **Journal d'audit** : connexions, échecs, réglages modifiés, actions (« démarré par alice ») dans l'Activité.
-- **Limite en local** : les navigateurs envoient le cookie de session à tout ce qui tourne sur `localhost`, quel que soit le port ; vos autres projets locaux le reçoivent donc. Sur un serveur, donnez à Servynex son propre nom de domaine.
+  The account's sessions are then closed. Last resort: deleting `runtime/auth.json` removes the protection and every account.
+- **Audit log**: sign-ins, failures, changed settings, actions ("started by alice") in Activity.
+- **Local limit**: browsers send the session cookie to everything running on `localhost`, whatever the port; your other local projects therefore receive it. On a server, give Servynex its own domain name.
 
-## Sécurité
+## Security
 
-Servynex exécute des commandes : c'est son métier, et toute la sécurité consiste à ce que seules les personnes autorisées puissent les lui demander.
+Servynex runs commands: that is its job, and all of its security is about making sure only authorized people can ask it to.
 
-- écoute sur 127.0.0.1 seulement ;
-- en-tête `Host` vérifié (bloque le DNS rebinding) ;
-- écritures en POST, PATCH ou PUT avec l'en-tête `X-Servynex-Request` et un contrôle de l'`Origin` (bloque le CSRF : une page tierce ne peut pas poser cet en-tête) ; même en-tête exigé sur les GET qui font travailler la machine (`free-port`, `git`, `ports`, `network`, `autostart`) ;
-- CSP stricte, aucun script inline ; seul `public/` est servi ;
-- commandes et arguments validés : aucun métacaractère de `cmd.exe`.
+- listens on 127.0.0.1 only;
+- `Host` header checked (blocks DNS rebinding);
+- writes use POST, PATCH, PUT or DELETE with the `X-Servynex-Request` header and an `Origin` check (blocks CSRF: a third-party page cannot set this header); the same header is required on GETs that make the machine work (`free-port`, `git`, `ports`, `network`, `autostart`, `stats`);
+- strict CSP, no inline script; only `public/` is served;
+- commands and arguments validated: no `cmd.exe` metacharacters.
 
-Servynex n'écoute qu'en local, avec ou sans comptes. L'accès distant (écoute sur le réseau, HTTPS) viendra plus tard, et exigera la protection par mot de passe.
+Servynex only listens locally, with or without accounts. Remote access (listening on the network, HTTPS) will come later, and will require password protection.
 
 ## API
 
-| Méthode | Route | |
+| Method | Route | |
 | --- | --- | --- |
-| GET | `/api/projects` | configuration et état |
-| POST | `/api/projects` | ajoute un projet (mêmes champs que `projects.json`, `id` facultatif) |
-| PATCH | `/api/projects/:id` | modifie un projet (`null` retire un champ facultatif) |
-| DELETE | `/api/projects/:id` | supprime un projet : `{ "password": "…" }` si la protection est active, sinon `{ "confirm": "<nom exact>" }` ; arrêté d'abord, retiré des `requires` des autres, journaux gardés |
-| PUT | `/api/projects` | nouvel ordre : `{ "order": ["id", …] }`, chaque projet une fois |
-| GET | `/api/stats` | processeur (part de toute la machine) et mémoire de chaque projet en marche, arborescence de processus comprise ; relevé partagé, au plus un toutes les 2 s |
-| GET | `/api/events` | flux SSE : `snapshot`, `state` à chaque changement, `instance` (erreur de configuration) |
+| GET | `/api/projects` | configuration and state |
+| POST | `/api/projects` | adds a project (same fields as `projects.json`, `id` optional) |
+| PUT | `/api/projects` | new order: `{ "order": ["id", …] }`, each project once |
+| PATCH | `/api/projects/:id` | changes a project (`null` removes an optional field) |
+| DELETE | `/api/projects/:id` | deletes a project: `{ "password": "…" }` if protection is on, otherwise `{ "confirm": "<exact name>" }`; stopped first, removed from the others' `requires`, logs kept |
+| GET | `/api/stats` | CPU and memory of each running project; shared sample, at most one every 2 s |
+| GET | `/api/events` | SSE stream: `snapshot`, `state` on every change, `instance` (configuration error) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |
-| POST | `/api/projects/:id/open` | ouvre le fichier d'un projet « file » |
-| POST | `/api/projects/:id/folder` · `code` · `terminal` | Explorateur, VS Code, Windows Terminal |
-| GET | `/api/projects/:id/logs` | journal en SSE (`?tail` : 30 dernières lignes en JSON) |
-| GET | `/api/projects/:id/history` | changements d'état, du plus récent au plus ancien |
-| GET | `/api/history` | changements d'état de tous les projets |
-| GET | `/api/git` | branche, modifications, dernier commit de chaque projet |
-| GET | `/api/free-port?from=3500` | premier port libre |
-| GET | `/api/ports` | ports en écoute sur la machine, programmes, projets, réseaux |
-| GET | `/api/network` | adresses du PC et profil des réseaux connectés |
-| GET · PUT | `/api/autostart` | tâche planifiée « Servynex » : `{ "enabled": true }` la crée, `false` la supprime |
-| POST | `/api/reload` | relit `projects.json` |
-| POST | `/api/instance/config` · `log` · `folder` | ouvre `projects.json` ou `servynex.log` (VS Code, Bloc-notes à défaut), ou le dossier de Servynex |
-| POST | `/api/instance/onboarded` | présentation vue (`runtime/ui.json`) |
-| POST | `/api/restart` | redémarre Servynex (409 s'il n'est pas lancé par `start-hidden.vbs`) |
-| PATCH | `/api/instance` | nom de l'instance |
-| … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (nom, préférences, mot de passe, clé, sessions), `users`, `invites`, `settings`, `disable` |
+| POST | `/api/projects/:id/open` | opens the file of a "file" project |
+| POST | `/api/projects/:id/folder` · `code` · `terminal` | File Explorer, VS Code, Windows Terminal |
+| GET | `/api/projects/:id/logs` | log as SSE (`?tail`: last 30 lines as JSON) |
+| GET | `/api/projects/:id/history` | state changes, newest first |
+| GET | `/api/history` | state changes of every project |
+| GET | `/api/git` | branch, changes, last commit of each project |
+| GET | `/api/free-port?from=3500` | first free port |
+| GET | `/api/ports` | listening ports on the machine, programs, projects, networks |
+| GET | `/api/network` | the PC's addresses and the profile of connected networks |
+| GET · PUT | `/api/autostart` | "Servynex" scheduled task: `{ "enabled": true }` creates it, `false` deletes it |
+| POST | `/api/reload` | reloads `projects.json` |
+| POST | `/api/instance/config` · `log` · `folder` | opens `projects.json` or `servynex.log` (VS Code, Notepad otherwise), or the Servynex folder |
+| POST | `/api/instance/onboarded` | introduction seen (`runtime/ui.json`) |
+| POST | `/api/restart` | restarts Servynex (409 if it was not started by `start-hidden.vbs`) |
+| PATCH | `/api/instance` | instance name |
+| … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (name, preferences, password, key, sessions), `users`, `invites`, `settings`, `disable` |
+
+Error messages (`{ "error": "…" }`) use the language of the `Accept-Language` header, otherwise the server language.
 
 ## Interface
 
-- **Projets** : liste par défaut ; **Orbite** en option (Servynex au centre, les projets en ligne tournent, un service requis est une lune de l'application qui en dépend, un projet exposé porte un halo en pointillés).
-- **Ressources** : processeur et mémoire de chaque projet en marche, dans la liste et en courbes (5 dernières minutes) dans l'onglet Infos du volet. Toute l'arborescence de processus est comptée (`cmd.exe`, puis `node` et ses enfants). Relevé toutes les 5 s, seulement quand la page est visible et qu'un projet tourne ; un PowerShell reste ouvert pour ces relevés et se ferme après une minute sans demande.
-- **Activité**, **Réseau**, **Paramètres** (démarrage, thème — système, clair, sombre, Solarized clair ou sombre —, `projects.json`, redémarrage de Servynex, raccourcis).
-- Raccourcis : `1`–`9` démarrer ou ouvrir un projet · `/` rechercher · `,` paramètres · `V` liste ou orbite · `P` pause de l'orbite · `Échap` fermer.
-- Icônes : [Lucide](https://lucide.dev) (licence ISC). Polices : Inter et JetBrains Mono (licence OFL), servies localement. Textes des licences : `THIRD-PARTY-NOTICES.md`.
+- **Projects**: list by default; **Orbit** as an option (Servynex in the middle, online projects circle around it, a required service is a moon of the application that depends on it, an exposed project has a dotted halo).
+- **Resources**: CPU and memory in the list, and as charts (last 5 minutes) in the panel's Info tab.
+- **Activity**, **Network**, **Settings** (startup, language, theme — system, light, dark, Solarized light or dark —, `projects.json`, restarting Servynex, shortcuts).
+- Shortcuts: `1`–`9` start or open a project · `/` search · `,` settings · `V` list or orbit · `P` pause the orbit · `Esc` close.
+- Icons: [Lucide](https://lucide.dev) (ISC license). Fonts: Inter and JetBrains Mono (OFL license), served locally. License texts: `THIRD-PARTY-NOTICES.md`.
 
-## Limites
+## Limits
 
-- **Windows uniquement** pour l'instant : lancement (`launch.ps1`, `cmd.exe`), arrêt (`taskkill`), ports (`netstat`, `tasklist`), profils réseau et démarrage automatique (tâche planifiée) sont propres à Windows.
-- **Local uniquement** : pas encore d'accès distant ni de pilotage d'une autre machine.
-- Interface en français.
+- **Windows only** for now: launch (`launch.ps1`, `cmd.exe`), stop (`taskkill`), ports (`netstat`, `tasklist`), CPU and memory (`sample.ps1`), network profiles and autostart (scheduled task) are Windows-specific.
+- **Local only**: no remote access or control of another machine yet.
 
-## Licence
+## License
 
-MIT, voir `LICENSE`.
+MIT, see `LICENSE`.

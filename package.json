@@ -2,7 +2,7 @@
   "name": "servynex",
   "version": "2.0.0",
   "private": true,
-  "description": "Tableau de bord local : lance, surveille et arrête vos projets de développement",
+  "description": "Local dashboard to start, watch and stop your development projects",
   "license": "MIT",
   "type": "module",
   "main": "server.js",

@@ -1,6 +1,7 @@
 // Écrans d'authentification (connexion, session verrouillée, mot de passe oublié,
 // invitation) et verrouillage après inactivité. Protection désactivée : rien de
 // tout cela ne s'affiche.
+import { t } from './i18n.js';
 import { ROLE_LABELS, api, h, icon, initials, session, toast } from './lib.js';
 
 const screen = document.getElementById('auth-screen');
@@ -62,40 +63,40 @@ function onSubmit(form, error, action) {
 }
 
 function checkPasswords(a, b) {
-  if (a.value.length < 8) throw new Error('Mot de passe trop court : 8 caractères au moins.');
-  if (a.value !== b.value) throw new Error('Les deux mots de passe ne correspondent pas.');
+  if (a.value.length < 8) throw new Error(t('account.passwordShort'));
+  if (a.value !== b.value) throw new Error(t('account.passwordMismatch'));
 }
 
 // ---- Écrans ----
 
 function showLogin() {
-  const [userField, user] = field('Nom d’utilisateur', { name: 'username', autocomplete: 'username', autocapitalize: 'none', required: true });
-  const [passField, pass] = field('Mot de passe', { name: 'password', type: 'password', autocomplete: 'current-password', required: true });
+  const [userField, user] = field(t('account.username'), { name: 'username', autocomplete: 'username', autocapitalize: 'none', required: true });
+  const [passField, pass] = field(t('account.password'), { name: 'password', type: 'password', autocomplete: 'current-password', required: true });
   const remember = h('input', { type: 'checkbox', name: 'remember' });
   const error = errorLine();
   const form = h('form', { class: 'auth-form' },
     userField, passField,
-    h('label', { class: 'check' }, remember, 'Rester connecté (30 jours)'),
+    h('label', { class: 'check' }, remember, t('login.remember')),
     error,
-    h('button', { class: 'btn primary auth-submit', type: 'submit', text: 'Se connecter' }));
+    h('button', { class: 'btn primary auth-submit', type: 'submit', text: t('login.submit') }));
   onSubmit(form, error, async () => {
     await api('auth/login', { method: 'POST', body: { username: user.value, password: pass.value, remember: remember.checked } });
     location.replace('/');
   });
-  card('Connexion', null, form, h('div', { class: 'auth-links' }, link('Mot de passe oublié ?', showForgot)));
+  card(t('login.title'), null, form, h('div', { class: 'auth-links' }, link(t('login.forgot'), showForgot)));
 }
 
 function showLocked() {
   const user = session.user;
-  const [passField, pass] = field('Mot de passe', { name: 'password', type: 'password', autocomplete: 'current-password', required: true });
+  const [passField, pass] = field(t('account.password'), { name: 'password', type: 'password', autocomplete: 'current-password', required: true });
   const error = errorLine();
-  const form = h('form', { class: 'auth-form' }, passField, error, h('button', { class: 'btn primary auth-submit', type: 'submit', text: 'Déverrouiller' }));
+  const form = h('form', { class: 'auth-form' }, passField, error, h('button', { class: 'btn primary auth-submit', type: 'submit', text: t('locked.submit') }));
   onSubmit(form, error, async () => {
     await api('auth/unlock', { method: 'POST', body: { password: pass.value } });
     location.reload();
   });
-  const box = card('Session verrouillée', user ? `${user.name} · ${user.username}` : null, form,
-    h('div', { class: 'auth-links' }, link('Changer de compte', () => logout())));
+  const box = card(t('locked.title'), user ? `${user.name} · ${user.username}` : null, form,
+    h('div', { class: 'auth-links' }, link(t('locked.switch'), () => logout())));
   box.querySelector('h1').before(h('span', { class: 'avatar lg', text: initials(user) }));
 }
 
@@ -105,58 +106,58 @@ function showForgot() {
     b.addEventListener('click', onClick);
     return b;
   };
-  card('Mot de passe oublié', 'Deux façons de choisir un nouveau mot de passe :',
+  card(t('forgot.title'), t('forgot.lead'),
     h('div', { class: 'auth-options' },
-      option('J’ai ma clé de secours', 'La clé de 20 caractères affichée à la création du compte.', () => showReset('recover')),
-      option('J’ai un code', 'Un code de 15 minutes donné par un administrateur, ou obtenu sur la machine de Servynex.', () => showReset('reset'))),
+      option(t('forgot.withKey'), t('forgot.withKeyDesc'), () => showReset('recover')),
+      option(t('forgot.withCode'), t('forgot.withCodeDesc'), () => showReset('reset'))),
     h('div', { class: 'auth-help' },
-      h('p', { text: 'Sans clé : un administrateur peut créer un code depuis Paramètres › Membres. Sinon, sur la machine qui héberge Servynex, lancez :' }),
-      h('pre', {}, h('code', { text: 'npm run auth -- reset-password <nom>' }))),
-    h('div', { class: 'auth-links' }, link('Retour à la connexion', showLogin)));
+      h('p', { text: t('forgot.help') }),
+      h('pre', {}, h('code', { text: t('forgot.command') }))),
+    h('div', { class: 'auth-links' }, link(t('forgot.back'), showLogin)));
 }
 
 function showReset(kind) {
-  const [userField, user] = field('Nom d’utilisateur', { autocomplete: 'username', autocapitalize: 'none', required: true });
+  const [userField, user] = field(t('account.username'), { autocomplete: 'username', autocapitalize: 'none', required: true });
   const [secretField, secret] = kind === 'recover'
-    ? field('Clé de secours', { placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX', autocomplete: 'off', spellcheck: 'false', required: true })
-    : field('Code', { placeholder: 'XXXX-XXXX', autocomplete: 'one-time-code', spellcheck: 'false', required: true });
-  const [p1Field, p1] = field('Nouveau mot de passe', { type: 'password', autocomplete: 'new-password', required: true });
-  const [p2Field, p2] = field('Confirmer', { type: 'password', autocomplete: 'new-password', required: true });
+    ? field(t('account.recoveryKey'), { placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX', autocomplete: 'off', spellcheck: 'false', required: true })
+    : field(t('members.code'), { placeholder: 'XXXX-XXXX', autocomplete: 'one-time-code', spellcheck: 'false', required: true });
+  const [p1Field, p1] = field(t('account.newPassword'), { type: 'password', autocomplete: 'new-password', required: true });
+  const [p2Field, p2] = field(t('common.confirm'), { type: 'password', autocomplete: 'new-password', required: true });
   const error = errorLine();
   const form = h('form', { class: 'auth-form' }, userField, secretField, p1Field, p2Field, error,
-    h('button', { class: 'btn primary auth-submit', type: 'submit', text: 'Changer le mot de passe' }));
+    h('button', { class: 'btn primary auth-submit', type: 'submit', text: t('account.changePassword') }));
   onSubmit(form, error, async () => {
     checkPasswords(p1, p2);
     const body = { username: user.value, password: p1.value, [kind === 'recover' ? 'key' : 'code']: secret.value };
     const res = await api(`auth/${kind}`, { method: 'POST', body });
-    if (res.recovery) await showKeyInScreen(res.recovery, 'Votre clé de secours a servi : voici la nouvelle.');
+    if (res.recovery) await showKeyInScreen(res.recovery, t('reset.newKey'));
     location.replace('/');
   });
-  card(kind === 'recover' ? 'Clé de secours' : 'Code de réinitialisation', 'Toutes les sessions ouvertes de ce compte seront fermées.', form,
-    h('div', { class: 'auth-links' }, link('Retour', showForgot)));
+  card(kind === 'recover' ? t('account.recoveryKey') : t('reset.codeTitle'), t('reset.lead'), form,
+    h('div', { class: 'auth-links' }, link(t('ob.back'), showForgot)));
 }
 
 async function showInvite(token) {
   const info = await api(`auth/invite/${encodeURIComponent(token)}`).catch(() => ({ valid: false }));
   if (!info.valid) {
-    card('Invitation expirée', 'Ce lien n’est plus valable (48 heures, un seul usage). Demandez-en un nouveau à un administrateur.',
-      h('div', { class: 'auth-links' }, link('Aller à la connexion', () => location.replace('/'))));
+    card(t('invite.expired'), t('invite.expiredDesc'),
+      h('div', { class: 'auth-links' }, link(t('invite.goToLogin'), () => location.replace('/'))));
     return;
   }
-  const [userField, user] = field('Nom d’utilisateur', { autocomplete: 'username', autocapitalize: 'none', placeholder: 'minuscules, chiffres, - . _', required: true });
-  const [nameField, name] = field('Nom affiché', { autocomplete: 'name', placeholder: 'Facultatif' });
-  const [p1Field, p1] = field('Mot de passe', { type: 'password', autocomplete: 'new-password', required: true });
-  const [p2Field, p2] = field('Confirmer', { type: 'password', autocomplete: 'new-password', required: true });
+  const [userField, user] = field(t('account.username'), { autocomplete: 'username', autocapitalize: 'none', placeholder: t('account.usernamePlaceholder'), required: true });
+  const [nameField, name] = field(t('account.displayName'), { autocomplete: 'name', placeholder: t('invite.optional') });
+  const [p1Field, p1] = field(t('account.password'), { type: 'password', autocomplete: 'new-password', required: true });
+  const [p2Field, p2] = field(t('common.confirm'), { type: 'password', autocomplete: 'new-password', required: true });
   const error = errorLine();
   const form = h('form', { class: 'auth-form' }, userField, nameField, p1Field, p2Field, error,
-    h('button', { class: 'btn primary auth-submit', type: 'submit', text: 'Créer mon compte' }));
+    h('button', { class: 'btn primary auth-submit', type: 'submit', text: t('invite.submit') }));
   onSubmit(form, error, async () => {
     checkPasswords(p1, p2);
     const res = await api('auth/invite', { method: 'POST', body: { token, username: user.value, name: name.value, password: p1.value } });
     await showKeyInScreen(res.recovery);
     location.replace('/');
   });
-  card(`Rejoindre ${instanceName}`, `Vous êtes invité avec le rôle « ${ROLE_LABELS[info.role] ?? info.role} ».`, form);
+  card(t('invite.title', { name: instanceName }), t('invite.lead', { role: ROLE_LABELS[info.role] ?? info.role }), form);
 }
 
 // ---- Clé de secours ----
@@ -164,28 +165,28 @@ async function showInvite(token) {
 // Bloc qui affiche une clé une seule fois ; « Continuer » n'est actif qu'une fois
 // la case cochée.
 export function keyBlock(key, onDone) {
-  const copy = h('button', { class: 'btn small', type: 'button' }, icon('copy'), 'Copier');
+  const copy = h('button', { class: 'btn small', type: 'button' }, icon('copy'), t('common.copy'));
   copy.addEventListener('click', async () => {
     await navigator.clipboard.writeText(key).catch(() => {});
-    toast('Clé copiée');
+    toast(t('key.copied'));
   });
   const ok = h('input', { type: 'checkbox' });
-  const done = h('button', { class: 'btn primary', type: 'button', text: 'Continuer', disabled: true });
+  const done = h('button', { class: 'btn primary', type: 'button', text: t('ob.next'), disabled: true });
   ok.addEventListener('change', () => (done.disabled = !ok.checked));
   done.addEventListener('click', onDone);
   return h('div', { class: 'key-block' },
     h('div', { class: 'key-value' }, h('code', { text: key }), copy),
-    h('p', { class: 'hint', text: 'Elle permet de choisir un nouveau mot de passe si vous l’oubliez. Elle ne sera plus jamais affichée : notez-la dans un gestionnaire de mots de passe ou sur papier.' }),
-    h('label', { class: 'check' }, ok, 'Je l’ai notée en lieu sûr'),
+    h('p', { class: 'hint', text: t('key.hint') }),
+    h('label', { class: 'check' }, ok, t('key.noted')),
     done);
 }
 
-function showKeyInScreen(key, lead = 'Notez-la maintenant : elle ne sera plus affichée.') {
-  return new Promise((resolve) => card('Votre clé de secours', lead, keyBlock(key, resolve)));
+function showKeyInScreen(key, lead = t('key.lead')) {
+  return new Promise((resolve) => card(t('key.title'), lead, keyBlock(key, resolve)));
 }
 
 // Même chose dans une fenêtre, depuis les Paramètres.
-export function showKeyDialog(key, title = 'Votre clé de secours') {
+export function showKeyDialog(key, title = t('key.title')) {
   const dialog = h('dialog', { class: 'modal key-dialog' },
     h('header', { class: 'modal-head' }, h('h2', { text: title })));
   return new Promise((resolve) => {
@@ -244,7 +245,7 @@ export async function gate() {
     return forever();
   }
   if (status.error) {
-    card('Comptes illisibles', status.error, h('p', { class: 'hint', text: 'Corrigez le fichier, ou supprimez-le sur la machine pour retirer la protection et tous les comptes.' }));
+    card(t('auth.brokenTitle'), status.error, h('p', { class: 'hint', text: t('auth.brokenHint') }));
     return forever();
   }
   if (status.enabled && !status.user) {

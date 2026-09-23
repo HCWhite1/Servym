@@ -1,6 +1,7 @@
 // Vue « orbite » : Servynex au centre, chaque application sur son anneau.
 // Seuls les projets en ligne tournent ; un service requis (MySQL) est une lune de
 // l'application qui en dépend ; un projet exposé sur le réseau porte un halo.
+import { t } from './i18n.js';
 import { addressOf, glyph, h, icon, primaryOf, statusText, tile } from './lib.js';
 
 const root = document.getElementById('orbit-view');
@@ -137,14 +138,14 @@ export function update(p) {
 }
 
 export function summary(up, total) {
-  sunCount?.replaceChildren(`${up}/${total} en ligne`);
+  sunCount?.replaceChildren(t('orbit.online', { up, total }));
 }
 
 export function setMotion(on) {
   if (!stage) return;
   stage.classList.toggle('still', !on);
   motionButton.replaceChildren(icon(on ? 'pause' : 'play'));
-  motionButton.title = on ? 'Mettre l’orbite en pause (P)' : 'Relancer l’orbite (P)';
+  motionButton.title = on ? t('orbit.pause') : t('orbit.play');
   motionButton.setAttribute('aria-label', motionButton.title);
 }
 
@@ -159,20 +160,20 @@ function renderCard() {
   if (!p) {
     const item = (cls, text) => h('li', {}, h('i', { class: cls }), text);
     card.replaceChildren(
-      h('p', { class: 'legend-title', text: 'Lecture' }),
+      h('p', { class: 'legend-title', text: t('orbit.legend') }),
       h('ul', { class: 'legend' },
-        item('l-run', 'En ligne : la planète tourne'),
-        item('l-off', 'Arrêté : la planète reste immobile'),
-        item('l-exp', 'Halo en pointillés : exposé sur le réseau'),
-        item('l-moon', 'Lune : service requis par le projet')),
-      h('p', { class: 'hint legend-hint', text: 'Cliquer sur une planète pour ses actions, double-cliquer pour son volet.' }));
+        item('l-run', t('orbit.run')),
+        item('l-off', t('orbit.off')),
+        item('l-exp', t('orbit.exposed')),
+        item('l-moon', t('orbit.moon'))),
+      h('p', { class: 'hint legend-hint', text: t('orbit.hint') }));
     return;
   }
   const addr = addressOf(p);
   const main = primaryOf(p);
   const mainButton = h('button', { class: `btn small${main.primary ? ' primary' : ''}`, type: 'button', disabled: main.disabled, hidden: main.hidden }, main.icon ? icon(main.icon) : null, main.label);
   mainButton.addEventListener('click', () => handlers.primary(p, mainButton));
-  const details = h('button', { class: 'btn small', type: 'button' }, icon('scroll-text'), 'Détails');
+  const details = h('button', { class: 'btn small', type: 'button' }, icon('scroll-text'), t('orbit.details'));
   details.addEventListener('click', () => handlers.openPanel(p.id));
   card.replaceChildren(
     h('div', { class: 'card-top' },
