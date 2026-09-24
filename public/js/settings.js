@@ -22,6 +22,18 @@ export function init(hs) {
   for (const button of dialog.querySelectorAll('.settings-nav [data-section]')) {
     button.addEventListener('click', () => showSection(button.dataset.section));
   }
+  // Flèches haut et bas (Début, Fin) dans la liste des sections : la section
+  // précédente ou suivante s'affiche aussitôt ; au bout, retour au début.
+  $('.settings-nav').addEventListener('keydown', (e) => {
+    const items = [...dialog.querySelectorAll('.settings-nav [data-section]')].filter((b) => !b.hidden);
+    const i = items.indexOf(e.target);
+    if (i < 0) return;
+    const next = { ArrowDown: items[(i + 1) % items.length], ArrowUp: items.at(i - 1), Home: items[0], End: items.at(-1) }[e.key];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+    showSection(next.dataset.section);
+  });
   $('#set-autostart').addEventListener('change', (e) => setInstanceAutostart(e.target.checked, e.target));
   $('#set-projects').addEventListener('change', (e) => setProjectAutostart(e.target.dataset.id, e.target.checked, e.target));
   radio('#set-theme', setTheme);
