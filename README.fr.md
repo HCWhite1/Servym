@@ -79,6 +79,7 @@ Chaque projet :
 | `service` | Rangé dans « Services » (base de données, outil) et dessiné en lune dans la vue orbite. |
 | `stop` | Commande d'arrêt propre, essayée avant l'arrêt forcé : `{ "cmd": "mysqladmin", "args": ["shutdown"] }`. |
 | `autostart` | Lancé une fois par démarrage du PC (un projet arrêté à la main ne revient pas si Servynex redémarre). |
+| `restartOnCrash` | Relancé s'il plante (programme seulement, voir « Relance automatique »). |
 | `fixedPort` | Texte qui explique pourquoi le port ne doit pas changer ; l'interface le verrouille. Fichier seulement. |
 | `open` | Pour `type: "file"` : fichier à ouvrir, relatif à `cwd`. |
 
@@ -88,6 +89,7 @@ Chaque projet :
 - **Statut** : `stopped`, `starting`, `running`, `stopping`, `failed` ou `conflict` (le port répond, mais ce n'est pas le bon site). Un projet arrêté est sondé toutes les 3 s, un projet en ligne toutes les 15 s.
 - **Lancé ailleurs** : un projet qui répond sans avoir été lancé par Servynex (tâche planifiée, fichier `.bat`) est affiché « externe ». Pour l'arrêter, il faut confirmer : Servynex retrouve alors son PID par le port. Un processus lancé en administrateur ne peut pas être arrêté par Servynex.
 - **Projet qui se relance lui-même** : s'il quitte avec le code 0 et relance une instance qui garde la même sortie, Servynex attend 30 s, retrouve le nouveau PID par le port et continue de le suivre.
+- **Relance automatique** (`restartOnCrash`, Réglages du projet, désactivée par défaut) : un projet en ligne qui plante (code de sortie autre que 0) est relancé après 2 s, puis 10 s, puis 30 s. S'il plante encore après ces 3 relances en 5 minutes, abandon : le projet reste en échec, et une notification l'annonce si elles sont activées ; seul l'abandon en envoie une. Jamais après un échec au lancement (port pris, commande introuvable…) ni après un arrêt demandé ; « Arrêter » annule une relance prévue, et un lancement à la main remet le compte à zéro. Chaque relance est inscrite à l'historique. Seuls les projets lancés par cette instance de Servynex sont concernés (après un redémarrage de Servynex, le code de sortie des projets repris n'est pas connu).
 - **Arrêt** : commande `stop` si le projet en déclare une, sinon `taskkill /T /F` sur tout l'arbre de processus. Arrêter un projet dont d'autres projets en marche dépendent demande une confirmation.
 - **Retirer un projet** de `projects.json` pendant qu'il tourne est refusé : il faut l'arrêter d'abord, sinon il continuerait sans surveillance.
 - **Processeur et mémoire** : toute l'arborescence de processus d'un projet est comptée (`cmd.exe`, puis `node` et ses enfants), ainsi que le processus qui écoute sur son port. Le processeur est une part de toute la machine, comme dans le Gestionnaire des tâches. Relevé toutes les 5 s, seulement quand une page est visible et qu'un projet tourne ; un PowerShell reste ouvert pour ces relevés et se ferme après une minute sans demande. Le résumé des projets affiche aussi le total de Servynex et de ses projets, chaque processus compté une fois ; son info-bulle donne Servynex seul (son propre processus, les relevés et les lanceurs des projets).

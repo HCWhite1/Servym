@@ -88,6 +88,9 @@ function checkProject(p, ids) {
   check(p.fixedPort === undefined || isText(p.fixedPort, 300), 'config.badFixedPort', where);
   check(p.autostart === undefined || typeof p.autostart === 'boolean', 'config.badAutostart', where);
   check(!(p.autostart && p.type === 'file'), 'config.fileAutostart', where);
+  // Relance après un plantage : seul un programme lancé par Servynex peut planter.
+  check(p.restartOnCrash === undefined || typeof p.restartOnCrash === 'boolean', 'config.badRestartOnCrash', where);
+  check(!(p.restartOnCrash && p.type !== undefined), 'config.restartNotProgram', where);
 }
 
 // Dépendances : projet existant, pas un fichier, pas de boucle (A attend B qui attend A).
@@ -180,7 +183,7 @@ export function saveConfig(file, config) {
 // Champs d'un projet modifiables depuis l'interface. L'identifiant ne l'est pas :
 // il nomme le journal et l'historique. La valeur null retire un champ facultatif.
 const FIELDS = ['name', 'desc', 'icon', 'color', 'tags', 'type', 'cwd', 'cmd', 'args', 'env', 'stop', 'port', 'hostControl',
-  'expose', 'url', 'health', 'startTimeout', 'open', 'requires', 'service', 'fixedPort', 'autostart'];
+  'expose', 'url', 'health', 'startTimeout', 'open', 'requires', 'service', 'fixedPort', 'autostart', 'restartOnCrash'];
 const REQUIRED = ['name', 'cwd'];
 
 function applyFields(project, patch) {
@@ -195,8 +198,8 @@ function applyFields(project, patch) {
     }
   }
   // Champs sans objet pour le type choisi : retirés plutôt que refusés.
-  if (project.type === 'file') for (const k of ['port', 'cmd', 'args', 'env', 'stop', 'hostControl', 'expose', 'url', 'health', 'startTimeout', 'autostart', 'fixedPort']) delete project[k];
-  if (project.type === 'static') for (const k of ['cmd', 'args', 'env', 'stop', 'hostControl', 'open']) delete project[k];
+  if (project.type === 'file') for (const k of ['port', 'cmd', 'args', 'env', 'stop', 'hostControl', 'expose', 'url', 'health', 'startTimeout', 'autostart', 'fixedPort', 'restartOnCrash']) delete project[k];
+  if (project.type === 'static') for (const k of ['cmd', 'args', 'env', 'stop', 'hostControl', 'open', 'restartOnCrash']) delete project[k];
   if (project.type === undefined) delete project.open;
 }
 

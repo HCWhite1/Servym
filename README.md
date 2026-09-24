@@ -79,6 +79,7 @@ Each project:
 | `service` | Listed under "Services" (database, tool) and drawn as a moon in the orbit view. |
 | `stop` | Clean stop command, tried before a forced stop: `{ "cmd": "mysqladmin", "args": ["shutdown"] }`. |
 | `autostart` | Started once per PC boot (a project stopped by hand does not come back if Servynex restarts). |
+| `restartOnCrash` | Restarted if it crashes (programs only, see "Automatic restart"). |
 | `fixedPort` | Text explaining why the port must not change; the interface locks it. File only. |
 | `open` | For `type: "file"`: file to open, relative to `cwd`. |
 
@@ -88,6 +89,7 @@ Each project:
 - **Status**: `stopped`, `starting`, `running`, `stopping`, `failed` or `conflict` (the port answers, but it is not the right site). A stopped project is probed every 3 s, a running one every 15 s.
 - **Started elsewhere**: a project that answers without having been started by Servynex (scheduled task, `.bat` file) is shown as "external". Stopping it needs a confirmation: Servynex then finds its PID through the port. A process started as administrator cannot be stopped by Servynex.
 - **Project that restarts itself**: if it exits with code 0 and starts a new instance that keeps the same output, Servynex waits 30 s, finds the new PID through the port and keeps following it.
+- **Automatic restart** (`restartOnCrash`, project Settings, off by default): an online project that crashes (exit code other than 0) is restarted after 2 s, then 10 s, then 30 s. If it crashes again after these 3 restarts within 5 minutes, Servynex gives up: the project stays failed, and a notification says so if notifications are on; only giving up sends one. Never after a failed start (port taken, command not found…) or a requested stop; "Stop" cancels a pending restart, and starting by hand resets the count. Each restart is written to the history. Only projects started by this instance of Servynex are covered (after Servynex restarts, the exit code of the projects it takes back is not known).
 - **Stop**: the `stop` command if the project declares one, otherwise `taskkill /T /F` on the whole process tree. Stopping a project that other running projects depend on asks for confirmation.
 - **Removing a project** from `projects.json` while it runs is refused: stop it first, or it would keep running unwatched.
 - **CPU and memory**: the whole process tree of a project is counted (`cmd.exe`, then `node` and its children), plus the process listening on its port. CPU is a share of the whole machine, as in the Task Manager. Sampled every 5 s, only while a page is visible and a project runs; one PowerShell stays open for these samples and closes after a minute without requests. The project summary also shows the total for Servynex and its projects, each process counted once; its tooltip gives Servynex alone (its own process, the samples and the project launchers).

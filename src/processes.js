@@ -18,6 +18,11 @@
 // - #checkedAt : date de la dernière sonde, pour la cadence (3 s arrêté, 15 s en ligne).
 // - #ticking   : anti-réentrance de tick() (une sonde lente ne se superpose pas).
 // - #statics   : fonction d'arrêt des projets « static » servis par Servynex.
+// - #watched   : PID lancés par cette instance, dont la sortie arrivera avec son code
+//                (onExit) ; #refresh() l'attend un peu avant de conclure sans lui.
+// - #retries   : relance automatique après un plantage (restartOnCrash) : dates des
+//                plantages des restartWindowMs dernières ms, minuterie de la
+//                prochaine relance, et « dependency » du lancement qui a planté.
 // - #ready     : faux jusqu'à la première sonde ; l'état trouvé au démarrage de
 //                Servynex n'est pas émis comme « transition » (historique).
 // Seuls les projets managed sont persistés dans runtime/pids.json (#savePids).
@@ -38,7 +43,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Message : clé de src/locales/<langue>.js et ses paramètres (« raw » : texte déjà traduit).
 export class HttpError extends LocalError {}
 
-const IDLE = { state: 'stopped', managed: false, pid: null, startedAt: null, exitCode: null, error: null, detail: null, activePort: null, activeHost: null, dependency: false };
+// autoRestart : 'scheduled' (relance automatique prévue) ou 'gaveUp' (abandonnée), sinon null.
+const IDLE = { state: 'stopped', managed: false, pid: null, startedAt: null, exitCode: null, error: null, detail: null, activePort: null, activeHost: null, dependency: false, autoRestart: null };
 const ACTIVE = ['running', 'starting', 'stopping'];
 
 export class Manager extends EventEmitter {
@@ -50,9 +56,11 @@ export class Manager extends EventEmitter {
   #ticking = false;
   #checkedAt = new Map();
   #relaunch = new Map(); // projets sortis proprement, peut-être en train de se relancer
+  #watched = new Set(); // PID lancés par cette instance, dont la sortie sera signalée (onExit)
+  #retries = new Map(); // relance automatique après un plantage
   #ready = false; // première sonde faite : les changements d'état sont réels
 
-  constructor({ config, logsDir, runtimeDir, tickMs = 3000, runningTickMs = 15000, startTimeoutMs = 60000, relaunchMs = 30000, bootTime = Date.now() - os.uptime() * 1000 }) {
+  constructor({ config, logsDir, runtimeDir, tickMs = 3000, runningTickMs = 15000, startTimeoutMs = 60000, relaunchMs = 30000, restartDelaysMs = [2000, 10000, 30000], restartWindowMs = 300_000, exitGraceMs = 1500, bootTime = Date.now() - os.uptime() * 1000 }) {
     super();
     this.#config = config;
     this.logsDir = logsDir;
@@ -60,6 +68,9 @@ export class Manager extends EventEmitter {
     this.bootFile = path.join(runtimeDir, 'autostart.json');
     this.bootTime = bootTime;
     this.relaunchMs = relaunchMs;
+    this.restartDelaysMs = restartDelaysMs;
+    this.restartWindowMs = restartWindowMs;
+    this.exitGraceMs = exitGraceMs;
     this.tickMs = tickMs;
     this.runningTickMs = runningTickMs;
     this.startTimeoutMs = startTimeoutMs;
@@ -87,6 +98,12 @@ export class Manager extends EventEmitter {
     this.#config = config;
     for (const id of this.#states.keys()) {
       if (!config.projects.some((p) => p.id === id)) this.#states.delete(id);
+    }
+    // Relance automatique désactivée (ou projet retiré) : celle qui était prévue n'a plus lieu.
+    for (const id of this.#retries.keys()) {
+      if (config.projects.find((p) => p.id === id)?.restartOnCrash) continue;
+      this.#cancelRestart(id);
+      if (this.state(id).autoRestart === 'scheduled') this.#set(id, { detail: null, autoRestart: null });
     }
     this.emit('config');
   }
@@ -121,6 +138,7 @@ export class Manager extends EventEmitter {
       type: p.type ?? 'process',
       service: Boolean(p.service),
       autostart: Boolean(p.autostart),
+      restartOnCrash: Boolean(p.restartOnCrash),
       port: p.port,
       expose: Boolean(p.expose),
       host: hostOf(p),
@@ -203,6 +221,7 @@ export class Manager extends EventEmitter {
 
   async close() {
     clearInterval(this.#timer);
+    for (const id of this.#retries.keys()) this.#cancelRestart(id);
     await Promise.all([...this.#statics.keys()].map((id) => this.#stopStatic(id)));
   }
 
@@ -238,7 +257,15 @@ export class Manager extends EventEmitter {
 
   async #refresh(p) {
     const st = this.state(p.id);
-    if (st.managed && !sys.isAlive(st.pid)) return this.#exited(p.id, st.pid, null);
+    if (st.managed && !sys.isAlive(st.pid)) {
+      // Lancé par cette instance : sa sortie, avec son code, arrive juste après.
+      // Sans elle, un plantage passerait pour une sortie propre (code inconnu).
+      if (this.#watched.has(st.pid)) {
+        await sleep(this.exitGraceMs);
+        if (this.state(p.id).pid !== st.pid) return;
+      }
+      return this.#exited(p.id, st.pid, null);
+    }
     const health = await this.#health(p);
     if (this.#ops.has(p.id)) return; // une action a commencé pendant le contrôle
     const relaunch = this.#relaunch.get(p.id);
@@ -260,6 +287,12 @@ export class Manager extends EventEmitter {
     } else if (health === 'mismatch') {
       this.#set(p.id, { state: 'conflict', error: tr('process.wrongService', { port: st.activePort ?? p.port, name: p.name }) });
     } else if (st.managed) {
+      // Un projet qui plante ferme son port un peu avant que sa sortie soit connue :
+      // on laisse à celle-ci le temps d'arriver (code de sortie, relance automatique).
+      if (st.state === 'running') {
+        await sleep(this.exitGraceMs);
+        if (this.#ops.has(p.id) || this.state(p.id).pid !== st.pid || !sys.isAlive(st.pid)) return;
+      }
       this.#set(p.id, { state: 'failed', error: tr('process.notResponding', { port: st.activePort ?? p.port }) });
     } else if (st.state !== 'failed') {
       this.#set(p.id, { ...IDLE, exitCode: st.exitCode });
@@ -286,16 +319,66 @@ export class Manager extends EventEmitter {
       return this.#savePids();
     }
     const expected = st.state === 'stopping' || code === 0;
+    // Plantage d'un projet en ligne : relancé si demandé. Pas après un échec au
+    // lancement (port pris, commande introuvable…) : relancer ne corrigerait rien.
+    const retry = !expected && st.state === 'running' ? this.#planRestart(id, st.dependency) : null;
     this.#set(id, {
       ...IDLE,
       state: expected ? 'stopped' : 'failed',
       exitCode: code,
       error: expected ? null : lastError(this.logFile(id)) ?? (code === null ? tr('process.unexpectedExit') : tr('process.unexpectedExitCode', { code })),
+      detail: retry?.detail ?? null,
+      autoRestart: retry?.kind ?? null,
     });
     // Mort pendant le lancement : celui-ci est fini (#waitHealthy le verra au
     // prochain tour), le projet peut être relancé tout de suite.
     if (st.state === 'starting') this.#ops.delete(id);
     this.#savePids();
+  }
+
+  // ---- Relance automatique (restartOnCrash) ----
+
+  // Prévoit la relance d'un projet qui vient de planter, avec un délai qui grandit
+  // (restartDelaysMs). Autant de relances en restartWindowMs que de délais : au
+  // plantage suivant, abandon, le projet reste en échec. → { kind, detail } ou null.
+  #planRestart(id, dependency) {
+    if (!this.#config.projects.find((p) => p.id === id)?.restartOnCrash) return null;
+    const now = Date.now();
+    const retry = this.#retries.get(id) ?? { crashes: [], timer: null };
+    retry.crashes = retry.crashes.filter((at) => now - at < this.restartWindowMs);
+    const max = this.restartDelaysMs.length;
+    if (retry.crashes.length >= max) {
+      this.#cancelRestart(id);
+      return { kind: 'gaveUp', detail: tr('process.restartGaveUp', { count: max, minutes: Math.round(this.restartWindowMs / 60000) }) };
+    }
+    retry.crashes.push(now);
+    const attempt = retry.crashes.length;
+    const delay = this.restartDelaysMs[attempt - 1];
+    clearTimeout(retry.timer);
+    retry.timer = setTimeout(() => this.#autoRestart(id, attempt, max), delay);
+    retry.timer.unref();
+    retry.dependency = dependency;
+    this.#retries.set(id, retry);
+    return { kind: 'scheduled', detail: tr('process.restartIn', { seconds: Math.ceil(delay / 1000), attempt, max }) };
+  }
+
+  // Oublie la relance prévue et les plantages comptés (lancement ou arrêt demandé, réglage retiré).
+  #cancelRestart(id) {
+    clearTimeout(this.#retries.get(id)?.timer);
+    this.#retries.delete(id);
+  }
+
+  #autoRestart(id, attempt, max) {
+    const retry = this.#retries.get(id);
+    if (!retry) return;
+    retry.timer = null;
+    if (this.state(id).autoRestart !== 'scheduled' || this.#ops.has(id)) return;
+    try {
+      this.start(id, { asDependency: retry.dependency, auto: tr('process.autoRestarted', { attempt, max }) });
+    } catch (err) {
+      this.#set(id, { detail: null, autoRestart: null });
+      this.emit('warning', `[restart] ${id} : ${err.message}`);
+    }
   }
 
   // ---- Actions ----
@@ -308,7 +391,9 @@ export class Manager extends EventEmitter {
   // Lance en arrière-plan : la promesse se termine quand le projet répond
   // (ou a échoué), mais les vérifications immédiates lèvent tout de suite.
   // asDependency : lancé pour un projet qui en dépend (voir « dependency »).
-  start(id, { asDependency = false } = {}) {
+  // auto : relance automatique après un plantage (texte affiché et inscrit à
+  // l'historique) ; un lancement demandé remet à zéro le compte des plantages.
+  start(id, { asDependency = false, auto = null } = {}) {
     const p = this.project(id);
     if (p.type === 'file') throw this.#refuse(p, 'start', 'process.why.file');
     const st = this.state(id);
@@ -316,16 +401,17 @@ export class Manager extends EventEmitter {
       throw this.#refuse(p, 'start', st.state === 'running' ? 'process.why.running' : 'process.why.busy');
     }
     this.#relaunch.delete(id);
+    if (!auto) this.#cancelRestart(id);
     const op = {};
     this.#ops.set(id, op);
-    return this.#start(p, op, asDependency)
+    return this.#start(p, op, asDependency, auto)
       .catch((err) => this.#ops.get(id) === op && this.#set(id, { state: 'failed', error: err.message, detail: null }))
       .finally(() => this.#ops.get(id) === op && this.#ops.delete(id));
   }
 
-  async #start(p, op, asDependency) {
+  async #start(p, op, asDependency, detail) {
     const aborted = () => this.#ops.get(p.id) !== op;
-    this.#set(p.id, { ...IDLE, state: 'starting', dependency: asDependency });
+    this.#set(p.id, { ...IDLE, state: 'starting', dependency: asDependency, detail });
     for (const depId of p.requires ?? []) {
       const dep = this.project(depId);
       if (this.state(depId).state === 'running') continue;
@@ -372,7 +458,14 @@ export class Manager extends EventEmitter {
     if (p.hostControl === 'env' && !p.expose) env.HOST = '127.0.0.1';
 
     // PID de la racine de l'arborescence du projet (cmd.exe sous Windows).
-    return sys.launch(argv, { cwd: p.cwd, env, log, onExit: (pid, code) => this.#exited(p.id, pid, code) });
+    const onExit = (pid, code) => {
+      this.#watched.delete(pid);
+      this.#exited(p.id, pid, code);
+    };
+    return sys.launch(argv, { cwd: p.cwd, env, log, onExit }).then((pid) => {
+      if (sys.isAlive(pid)) this.#watched.add(pid);
+      return pid;
+    });
   }
 
   async #waitHealthy(p, pid) {
@@ -397,6 +490,9 @@ export class Manager extends EventEmitter {
     if (p.type === 'file') throw this.#refuse(p, 'stop', 'process.why.noProcess');
     const st = this.state(id);
     if (this.#ops.has(id) && st.state !== 'starting') throw this.#refuse(p, 'stop', 'process.why.busy');
+    // Projet planté dont la relance est prévue : l'arrêter, c'est l'annuler.
+    this.#cancelRestart(id);
+    if (st.autoRestart === 'scheduled') return this.#set(id, { detail: null, autoRestart: null });
     if (st.state === 'stopped' || (st.state === 'failed' && !st.managed)) throw this.#refuse(p, 'stop', 'process.why.stopped');
     // Sans PID connu, le port désigne le processus : pas question de tuer un programme étranger.
     if (st.state === 'conflict' && !st.managed) throw this.#refuse(p, 'stop', 'process.why.portTaken', { port: p.port });

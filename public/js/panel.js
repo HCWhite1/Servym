@@ -337,6 +337,7 @@ async function renderInfo(p, fresh = false) {
     [t('info.started'), p.startedAt ? t('info.startedValue', { ago: ago(p.startedAt), uptime: uptime(p.startedAt) }) : '—'],
     [t('info.exitCode'), p.exitCode ?? '—'],
     [t('info.autostart'), p.autostart ? t('info.autostartYes') : t('common.no')],
+    ...(p.type === 'process' ? [[t('info.restartOnCrash'), p.restartOnCrash ? t('info.restartOnCrashYes') : t('common.no')]] : []),
     [t('info.requires'), p.requires.length ? p.requires.map((id) => handlers.get(id)?.name ?? id).join(', ') : '—'],
     [t('info.requiredBy'), handlers.all().filter((x) => x.requires.includes(p.id)).map((x) => x.name).join(', ') || '—'],
     ...(p.dependency && p.state === 'running' ? [[t('info.launch'), t('info.asDependency')]] : []),

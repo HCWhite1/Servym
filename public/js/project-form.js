@@ -88,7 +88,10 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
         input('service', { type: 'checkbox', role: 'switch', class: 'switch' })),
       h('label', { class: 'setting-line' },
         h('span', {}, h('strong', { text: t('form.autostart') }), h('span', { class: 'hint', 'data-i18n': 'form.autostartHint', text: t('form.autostartHint') })),
-        input('autostart', { type: 'checkbox', role: 'switch', class: 'switch' }))),
+        input('autostart', { type: 'checkbox', role: 'switch', class: 'switch' })),
+      h('label', { class: 'setting-line only-process' },
+        h('span', {}, h('strong', { text: t('form.restartOnCrash') }), h('span', { class: 'hint', text: t('form.restartOnCrashHint') })),
+        input('restartOnCrash', { type: 'checkbox', role: 'switch', class: 'switch' }))),
     h('details', { class: 'form-section only-process' },
       h('summary', { text: t('form.stop') }),
       h('p', { class: 'hint', text: t('form.stopHint') }),
@@ -160,6 +163,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
     renderRequires(s.requires ?? []);
     el.service.checked = Boolean(s.service);
     el.autostart.checked = Boolean(s.autostart);
+    el.restartOnCrash.checked = Boolean(s.restartOnCrash);
     el.stopCmd.value = s.stop?.cmd ?? '';
     el.stopArgs.value = (s.stop?.args ?? []).join('\n');
     form.querySelector('details').open = Boolean(s.stop);
@@ -234,6 +238,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
       requires: [...form.querySelectorAll('input[name="requires"]:checked')].map((c) => c.value),
       service: el.service.checked || null,
       autostart: el.autostart.checked || null,
+      restartOnCrash: type === 'static' ? null : el.restartOnCrash.checked || null,
     });
     if (!v.requires.length) v.requires = null;
     if (type === 'static') return v;

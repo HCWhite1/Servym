@@ -286,12 +286,14 @@ export function createApp({
   // expliquer après coup un arrêt survenu en l'absence de l'utilisateur.
   manager.on('transition', ({ id, from, to, managed, exitCode, error, detail }) => {
     const details = [];
-    if (to === 'stopping' && detail) details.push(detail);
+    // Raison d'un arrêt, relance automatique (après l'erreur si elle est prévue ou abandonnée).
+    if (['stopping', 'starting'].includes(to) && detail) details.push(detail);
     const actor = actors.get(id);
     if (actor && ['starting', 'stopping'].includes(to) && clock() - actor.at < 10_000) details.push(tr('history.by', { user: actor.user }));
     if (to === 'running' && !managed) details.push(tr('history.external'));
     if (exitCode !== null && ['stopped', 'failed'].includes(to)) details.push(tr('history.exitCode', { code: exitCode }));
     if (error) details.push(error.replace(/\s+/g, ' '));
+    if (to === 'failed' && detail) details.push(detail);
     log(`[state] ${id} ${from} → ${to}${details.length ? ` · ${details.join(' · ')}` : ''}`);
   });
 
@@ -323,14 +325,16 @@ export function createApp({
   const actors = new Map();
 
   // Notification du système quand un projet passe en échec (réglage instance.notify),
-  // pour le savoir même la page fermée. Un arrêt demandé n'en envoie pas.
+  // pour le savoir même la page fermée. Un arrêt demandé n'en envoie pas, ni un
+  // plantage que la relance automatique va réparer : seulement son abandon.
   const source = () => manager.config.instance.name ?? 'Servynex';
-  manager.on('transition', ({ id, from, to, exitCode, error }) => {
-    if (to !== 'failed' || manager.config.instance.notify !== true) return;
+  manager.on('transition', ({ id, from, to, exitCode, error, autoRestart }) => {
+    if (to !== 'failed' || autoRestart === 'scheduled' || manager.config.instance.notify !== true) return;
     const name = manager.config.projects.find((p) => p.id === id)?.name ?? id;
     const body = error ?? (exitCode !== null ? tr('history.exitCode', { code: exitCode }) : '');
+    const title = autoRestart === 'gaveUp' ? 'notify.gaveUp' : from === 'starting' ? 'notify.failedStart' : 'notify.crashed';
     Promise.resolve()
-      .then(() => notify({ title: tr(from === 'starting' ? 'notify.failedStart' : 'notify.crashed', { name }), body, source: source() }))
+      .then(() => notify({ title: tr(title, { name }), body, source: source() }))
       .catch((err) => log(`[notify] ${tr('log.notifyFailed', { error: err.message })}`));
   });
 

@@ -60,8 +60,10 @@ export function statusText(p) {
 
 export const isExternal = (p) => p.state === 'running' && !p.managed;
 
+// Relance automatique prévue après un plantage : « Arrêter » l'annule.
 export const canStop = (p) =>
-  ['running', 'starting', 'failed', 'conflict'].includes(p.state) && (p.managed || p.state === 'running' || p.state === 'starting');
+  (['running', 'starting', 'failed', 'conflict'].includes(p.state) && (p.managed || p.state === 'running' || p.state === 'starting'))
+  || p.autoRestart === 'scheduled';
 
 export const canRestart = (p) => p.state === 'running' || (p.state === 'failed' && p.managed);
 
