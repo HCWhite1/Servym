@@ -119,6 +119,7 @@ export function validate(config) {
   check(config.instance.name === undefined || isText(config.instance.name, 40), 'config.badInstanceName');
   check(config.instance.lang === undefined || LANGS.includes(config.instance.lang), 'config.badInstanceLang');
   check(config.instance.access === undefined || ACCESS.includes(config.instance.access), 'config.badInstanceAccess');
+  check(config.instance.notify === undefined || typeof config.instance.notify === 'boolean', 'config.badInstanceNotify');
   const ids = new Set();
   const ports = new Map([[config.instance.port, msg('config.instance')]]);
   for (const p of config.projects) {

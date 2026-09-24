@@ -164,6 +164,8 @@ Par défaut, Servynex n'écoute que sur ce PC. **Accès depuis le réseau privé
 | POST | `/api/restart` | redémarre Servynex (409 s'il n'est pas lancé par `start-hidden.vbs`) |
 | PATCH | `/api/instance` | nom de l'instance |
 | PUT | `/api/instance/lang` | langue du serveur : `{ "lang": "fr" }`, `"en"` ou `null` (celle du système) ; appliquée tout de suite |
+| PUT | `/api/instance/notify` | notifications du système quand un projet plante : `{ "notify": true }` ou `false` |
+| POST | `/api/instance/notify-test` | envoie une notification d'essai ; `{ "sent": false }` si le système n'en a pas |
 | PUT | `/api/instance/access` | `{ "access": "lan", "password": "…" }` ou `{ "access": "local" }` ; administrateur, appliqué au redémarrage |
 | … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (nom, préférences, mot de passe, clé, sessions, comptes liés), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
 
@@ -173,6 +175,7 @@ Les messages d'erreur (`{ "error": "…" }`) sont dans la langue de l'en-tête `
 
 - **Projets** : liste par défaut ; **Orbite** en option (Servynex au centre, les projets en ligne tournent, un service requis est une lune de l'application qui en dépend, un projet exposé porte un halo en pointillés).
 - **Ressources** : processeur et mémoire dans la liste, et en courbes (5 dernières minutes) dans l'onglet Infos du volet.
+- **Notifications du système** (désactivées par défaut, Paramètres › Général) : une notification Windows quand un projet plante ou ne démarre pas, même la page fermée. Les textes passent à PowerShell par des variables d'environnement, jamais par la ligne de commande. Sous Linux, `notify-send` s'il est installé.
 - **Activité**, **Réseau**, **Paramètres** (démarrage, langue, thème — système, clair, sombre, Solarized clair ou sombre —, `projects.json`, redémarrage de Servynex, raccourcis).
 - Raccourcis : `1`–`9` démarrer ou ouvrir un projet · `/` rechercher · `,` paramètres · `V` liste ou orbite · `P` pause de l'orbite · `Échap` fermer.
 - Icônes : [Lucide](https://lucide.dev) (licence ISC). Polices : Inter et JetBrains Mono (licence OFL), servies localement. Textes des licences : `THIRD-PARTY-NOTICES.md`.

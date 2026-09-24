@@ -28,6 +28,8 @@ export function init(hs) {
   radio('#set-layout', (value) => handlers.setLayout(value));
   radio('#set-access', setAccess);
   $('#set-server-lang').addEventListener('change', (e) => setServerLang(e.target.value));
+  $('#set-notify').addEventListener('change', (e) => setNotify(e.target.checked));
+  $('#notify-test').addEventListener('click', testNotify);
   $('#set-lang').value = choice();
   $('#set-lang').addEventListener('change', (e) => setLang(e.target.value));
   $('#set-motion').addEventListener('change', (e) => handlers.setMotion(e.target.checked));
@@ -234,6 +236,7 @@ function fillInstance() {
   $('#instance-info').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })]));
   $('#restart-instance').disabled = !info.restartable || !can('instance');
   renderAccess();
+  renderNotify();
   $('#restart-desc').textContent = info.restartable
     ? t('settings.restartDesc')
     : t('settings.restartUnavailable');
@@ -309,6 +312,40 @@ async function setServerLang(value) {
     toast(err.message, 'error');
   }
   renderServerLang();
+}
+
+// ---- Notifications du système : un projet qui plante, même la page fermée ----
+
+function renderNotify() {
+  const info = handlers.instance();
+  $('#set-notify').checked = info.notify === true;
+  $('#set-notify').disabled = !can('instance');
+  $('#notify-test').disabled = !can('instance');
+}
+
+async function setNotify(on) {
+  const info = handlers.instance();
+  try {
+    const { notify } = await api('instance/notify', { method: 'PUT', body: { notify: on } });
+    info.notify = notify;
+    toast(t(notify ? 'notify.on' : 'notify.off'));
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+  renderNotify();
+}
+
+async function testNotify() {
+  const button = $('#notify-test');
+  button.disabled = true;
+  try {
+    const { sent } = await api('instance/notify-test', { method: 'POST' });
+    toast(t(sent ? 'notify.sent' : 'notify.unsupported'), sent ? undefined : 'error');
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    button.disabled = !can('instance');
+  }
 }
 
 // Les projets continuent de tourner et sont repris. La page attend que l'ancien

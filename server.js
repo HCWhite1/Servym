@@ -9,6 +9,7 @@ import { ConfigError, createProject, DEFAULT_CONFIG, describeChanges, ROOT_DIR, 
 import { Auth, AuthError } from './src/auth.js';
 import { LANGS, LocalError, langOf, msg, serverLang, setServerLang, tr } from './src/i18n.js';
 import { followLog, history, tailLines } from './src/logs.js';
+import { notifier } from './src/notify.js';
 import { HttpError, Manager } from './src/processes.js';
 import { staticHandler } from './src/static.js';
 import { Sampler } from './src/stats.js';
@@ -89,7 +90,7 @@ function guard(req, hostAllowed) {
 
 // Permission exigée par une route de l'API (voir src/auth.js).
 const OPERATE = new Set(['start', 'stop', 'restart', 'open', 'folder', 'code', 'terminal']);
-const INSTANCE_ACTION_PERMISSION = { config: 'commands', log: 'instance', folder: 'instance', onboarded: 'view', lang: 'instance' };
+const INSTANCE_ACTION_PERMISSION = { config: 'commands', log: 'instance', folder: 'instance', onboarded: 'view', lang: 'instance', notify: 'instance', 'notify-test': 'instance' };
 function permissionFor(section, id, action, method) {
   if (method === 'GET' || method === 'HEAD') return 'view';
   if (section === 'projects' && !id && method === 'POST') return 'commands';
@@ -119,6 +120,7 @@ export function createApp({
   listening = 'local', // adresse d'écoute réelle : 'local' (127.0.0.1) ou 'lan' (0.0.0.0)
   hostnames = () => [...sys.lanAddresses().map((a) => a.address), os.hostname()], // noms de cette machine sur le réseau
   isLocalViewer = (req) => LOOPBACK_ADDRESSES.has(req.socket.remoteAddress), // la page est-elle ouverte sur cette machine ?
+  notify = notifier(), // notification du système (tests : factice)
   ...options
 } = {}) {
   // projects.json invalide au démarrage : Servynex démarre quand même, avec la
@@ -246,6 +248,18 @@ export function createApp({
   // les changements d'état qui en découlent (« démarré par alice »).
   const actors = new Map();
 
+  // Notification du système quand un projet passe en échec (réglage instance.notify),
+  // pour le savoir même la page fermée. Un arrêt demandé n'en envoie pas.
+  const source = () => manager.config.instance.name ?? 'Servynex';
+  manager.on('transition', ({ id, from, to, exitCode, error }) => {
+    if (to !== 'failed' || manager.config.instance.notify !== true) return;
+    const name = manager.config.projects.find((p) => p.id === id)?.name ?? id;
+    const body = error ?? (exitCode !== null ? tr('history.exitCode', { code: exitCode }) : '');
+    Promise.resolve()
+      .then(() => notify({ title: tr(from === 'starting' ? 'notify.failedStart' : 'notify.crashed', { name }), body, source: source() }))
+      .catch((err) => log(`[notify] ${tr('log.notifyFailed', { error: err.message })}`));
+  });
+
   manager.on('warning', (message) => log(message));
   if (configError) log(`[config] ${tr('log.degraded', { error: configError.message })}`);
   else rememberValid(initial);
@@ -364,6 +378,7 @@ export function createApp({
         viewerLocal: isLocalViewer(req),
         lang: manager.config.instance.lang ?? null, // langue choisie (null : celle du système)
         serverLang: serverLang(), // langue des journaux et des états, en ce moment
+        notify: manager.config.instance.notify === true,
         configError: configErrorIn(lang),
       };
       return send(res, 200, { instance, projects: manager.snapshot() });
@@ -415,6 +430,27 @@ export function createApp({
       applyConfig(next);
       audit('-', 'audit.serverLang', { lang: chosen ?? 'auto' });
       return send(res, 200, { lang: chosen, serverLang: serverLang() });
+    }
+    if (section === 'instance' && id === 'notify' && method === 'PUT') {
+      // Notifications du système quand un projet plante : désactivées par défaut.
+      const { notify: enabled } = await readJson(req);
+      if (typeof enabled !== 'boolean') throw new HttpError(400, 'http.badNotify');
+      const next = diskConfig();
+      if (enabled) next.instance.notify = true;
+      else delete next.instance.notify;
+      applyConfig(next);
+      audit('-', enabled ? 'audit.notifyOn' : 'audit.notifyOff');
+      return send(res, 200, { notify: enabled });
+    }
+    if (section === 'instance' && id === 'notify-test' && method === 'POST') {
+      // Essai depuis les paramètres, même désactivées. sent false : pas sur ce système.
+      let sent;
+      try {
+        sent = await notify({ title: tr('notify.testTitle'), body: tr('notify.testBody'), source: source() });
+      } catch (err) {
+        throw new HttpError(502, 'http.notifyFailed', { error: err.message });
+      }
+      return send(res, 200, { sent });
     }
     if (section === 'instance' && id === 'access' && method === 'PUT') {
       // Ouvrir au réseau : protection active et mot de passe redemandé. Revenir à ce

@@ -222,4 +222,16 @@ export default {
   'audit.addedInFile': 'Projet ajouté dans projects.json',
   'audit.changedInFile': 'Modifié dans projects.json : {changes}',
   'audit.removedInFile': 'Projet {name} retiré de projects.json',
+
+  // Notifications du système
+  'config.badInstanceNotify': 'projects.json : instance.notify doit valoir true ou false',
+  'http.badNotify': 'notify doit valoir true ou false',
+  'http.notifyFailed': 'Notification impossible : {error}',
+  'audit.notifyOn': 'Notifications du système activées',
+  'audit.notifyOff': 'Notifications du système désactivées',
+  'log.notifyFailed': 'notification impossible : {error}',
+  'notify.crashed': '{name} s\'est arrêté de façon inattendue',
+  'notify.failedStart': '{name} n\'a pas pu démarrer',
+  'notify.testTitle': 'Notifications de Servynex',
+  'notify.testBody': 'Elles s\'afficheront ainsi quand un projet plante.',
 };
