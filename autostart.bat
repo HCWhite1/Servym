@@ -35,7 +35,7 @@ if errorlevel 1 (
   goto :fin
 )
 :: Lance Servynex tout de suite s'il ne tourne pas deja.
-netstat -ano | findstr /i "LISTENING" | findstr "127.0.0.1:9000 " >nul
+netstat -ano | findstr /i "LISTENING" | findstr ":9000 " >nul
 if errorlevel 1 (
   powershell -NoProfile -Command "Start-ScheduledTask -TaskName Servynex"
   echo Servynex lance : http://localhost:9000

@@ -1,5 +1,6 @@
 // Accès à l'API et petites fonctions partagées.
 import { lang, t } from './i18n.js';
+import { projectUrl } from './urls.js';
 
 export async function api(path, { method = 'GET', body } = {}) {
   // Accept-Language : les messages d'erreur du serveur arrivent dans la langue de la page.
@@ -36,6 +37,12 @@ export function initials(user) {
   return ((words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')).toUpperCase() || '?';
 }
 
+// Qui regarde la page : local (sur la machine de Servynex) ou depuis un autre
+// appareil du réseau (main.js le règle d'après le serveur).
+export const viewer = { local: true, hostname: location.hostname };
+// Adresse à ouvrir d'ici, ou null si le projet n'est pas joignable d'ici (voir urls.js).
+export const urlOf = (p) => projectUrl(p, viewer);
+
 export const act = (id, action) => api(`projects/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
 
 // ---- États ----
@@ -70,14 +77,14 @@ export function addressOf(p) {
 
 // Action principale d'un projet : libellé, icône, style (primary : à faire).
 export function primaryOf(p) {
-  if (p.type === 'file') return { label: t('common.open'), icon: 'external-link' };
+  if (p.type === 'file') return { label: t('common.open'), icon: 'external-link', disabled: !viewer.local, title: viewer.local ? '' : t('remote.file') };
   if (p.service) {
     if (p.state === 'stopped' || p.state === 'failed') return { label: t('action.start'), icon: 'play', primary: true };
     if (p.state === 'running') return { label: t('action.running'), hidden: true };
     return { label: STATE_LABELS[p.state] ?? '…', disabled: true };
   }
   switch (p.state) {
-    case 'running': return { label: t('common.open'), icon: 'external-link', disabled: !p.url };
+    case 'running': return { label: t('common.open'), icon: 'external-link', disabled: !urlOf(p), title: p.url && !urlOf(p) ? t('remote.notExposed') : '' };
     case 'starting': return { label: STATE_LABELS.starting, icon: 'external-link' };
     case 'stopping': return { label: STATE_LABELS.stopping, disabled: true };
     case 'failed': return { label: t('action.relaunch'), icon: 'rotate-cw', primary: true };

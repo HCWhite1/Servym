@@ -46,6 +46,7 @@ La section `instance` règle Servynex lui-même :
 | --- | --- |
 | `port` | Port de la page (9000 par défaut). |
 | `name` | Nom affiché de l'instance (barre latérale, page de connexion). |
+| `access` | `"local"` (par défaut) ou `"lan"` : page ouverte aussi au réseau local (voir « Sécurité »). |
 | `lang` | `"fr"` ou `"en"` : langue des journaux et des messages du serveur. Par défaut : la variable `SERVYNEX_LANG`, sinon la langue du système. |
 
 Chaque projet :
@@ -127,13 +128,13 @@ Par défaut, pas d'authentification : usage local, par une seule personne. Param
 
 Servynex exécute des commandes : c'est son métier, et toute la sécurité consiste à ce que seules les personnes autorisées puissent les lui demander.
 
-- écoute sur 127.0.0.1 seulement ;
-- en-tête `Host` vérifié (bloque le DNS rebinding) ;
+- écoute sur 127.0.0.1 seulement, sauf accès réseau demandé (voir ci-dessous) ;
+- en-tête `Host` vérifié : `localhost`, et en accès réseau les adresses et le nom de cette machine (bloque le DNS rebinding) ;
 - écritures en POST, PATCH, PUT ou DELETE avec l'en-tête `X-Servynex-Request` et un contrôle de l'`Origin` (bloque le CSRF : une page tierce ne peut pas poser cet en-tête) ; même en-tête exigé sur les GET qui font travailler la machine (`free-port`, `git`, `ports`, `network`, `autostart`, `stats`) ;
 - CSP stricte, aucun script inline ; seul `public/` est servi ;
 - commandes et arguments validés : aucun métacaractère de `cmd.exe`.
 
-Servynex n'écoute qu'en local, avec ou sans comptes. L'accès distant (écoute sur le réseau, HTTPS) viendra plus tard, et exigera la protection par mot de passe.
+Par défaut, Servynex n'écoute que sur ce PC. **Accès depuis le réseau privé** (Paramètres › Servynex › Accès à la page › Réseau local, réservé aux administrateurs) : la page s'ouvre aussi depuis les autres appareils du réseau (Wi-Fi, Tailscale), aux adresses affichées. Conditions : la protection par mot de passe doit être active (sans elle, Servynex reste sur ce PC même si `projects.json` dit `"access": "lan"`), le mot de passe est redemandé, et la protection ne peut plus être retirée tant que l'accès réseau est ouvert. Appliqué au redémarrage ; Windows peut alors demander d'autoriser Node.js dans son pare-feu : autorisez les réseaux privés seulement. Sans HTTPS, les mots de passe circulent en clair sur le réseau : réservez cet accès à un réseau de confiance, ou à Tailscale, qui chiffre tout. Depuis un autre appareil, les actions qui ouvriraient une fenêtre sur la machine de Servynex (dossier, VS Code, terminal, fichier local) sont refusées, et seuls les projets exposés s'ouvrent.
 
 ## API
 
@@ -162,6 +163,7 @@ Servynex n'écoute qu'en local, avec ou sans comptes. L'accès distant (écoute 
 | POST | `/api/instance/onboarded` | présentation vue (`runtime/ui.json`) |
 | POST | `/api/restart` | redémarre Servynex (409 s'il n'est pas lancé par `start-hidden.vbs`) |
 | PATCH | `/api/instance` | nom de l'instance |
+| PUT | `/api/instance/access` | `{ "access": "lan", "password": "…" }` ou `{ "access": "local" }` ; administrateur, appliqué au redémarrage |
 | … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (nom, préférences, mot de passe, clé, sessions, comptes liés), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
 
 Les messages d'erreur (`{ "error": "…" }`) sont dans la langue de l'en-tête `Accept-Language`, sinon dans celle du serveur.
@@ -177,7 +179,7 @@ Les messages d'erreur (`{ "error": "…" }`) sont dans la langue de l'en-tête `
 ## Limites
 
 - **Windows uniquement** pour l'instant : lancement (`launch.ps1`, `cmd.exe`), arrêt (`taskkill`), ports (`netstat`, `tasklist`), processeur et mémoire (`sample.ps1`), profils réseau et démarrage automatique (tâche planifiée) sont propres à Windows.
-- **Local uniquement** : pas encore d'accès distant ni de pilotage d'une autre machine.
+- **Réseau privé seulement** : pas encore de HTTPS intégré ni de pilotage d'une autre machine.
 
 ## Licence
 

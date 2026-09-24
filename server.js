@@ -3,6 +3,7 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { ConfigError, createProject, DEFAULT_CONFIG, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig } from './src/config.js';
 import { Auth, AuthError } from './src/auth.js';
@@ -14,6 +15,13 @@ import { Sampler } from './src/stats.js';
 import * as sys from './src/system.js';
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
+const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+// Adresse d'écoute : tout le réseau seulement si l'accès réseau est demandé ET la
+// protection par mot de passe active ; sinon n'importe qui sur le réseau aurait la main.
+export function bindHost(instance, protectedByPassword) {
+  return instance.access === 'lan' && protectedByPassword ? '0.0.0.0' : '127.0.0.1';
+}
 const { version: VERSION } = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));
 
 const HEADERS = {
@@ -60,11 +68,12 @@ function openStream(req, res) {
 // SSE (EventSource ne pose pas d'en-tête) restent libres : ils ne font que lire.
 const COSTLY_GET = /^\/api\/(free-port|git|ports|network|autostart|stats)(\?|$)/;
 
-// Host : bloque le DNS rebinding. En-tête X-Servynex-Request et Origin : bloquent le
-// CSRF (un site tiers ne peut pas poser l'en-tête sans pré-vol CORS, refusé).
-function guard(req) {
+// Host : bloque le DNS rebinding (seuls les noms de cette machine sont acceptés, voir
+// hostAllowed). En-tête X-Servynex-Request et Origin : bloquent le CSRF (un site
+// tiers ne peut pas poser l'en-tête sans pré-vol CORS, refusé).
+function guard(req, hostAllowed) {
   const host = String(req.headers.host ?? '').replace(/:\d+$/, '').toLowerCase();
-  if (!LOOPBACK.has(host)) throw new HttpError(421, 'http.badHost');
+  if (!hostAllowed(host)) throw new HttpError(421, 'http.badHost');
   const site = req.headers['sec-fetch-site'];
   if (req.url.startsWith('/api/') && site && site !== 'same-origin' && site !== 'none') throw new HttpError(403, 'http.crossSite');
   if ((req.method === 'GET' || req.method === 'HEAD') && !COSTLY_GET.test(req.url)) return;
@@ -107,6 +116,9 @@ export function createApp({
   clock = () => Date.now(), // horloge de l'authentification (remplacée dans les tests)
   sample = sys.sampleProcesses, // relevé des processus (processeur et mémoire)
   oauth = {}, // adresses des fournisseurs de connexion (tests : faux fournisseur)
+  listening = 'local', // adresse d'écoute réelle : 'local' (127.0.0.1) ou 'lan' (0.0.0.0)
+  hostnames = () => [...sys.lanAddresses().map((a) => a.address), os.hostname()], // noms de cette machine sur le réseau
+  isLocalViewer = (req) => LOOPBACK_ADDRESSES.has(req.socket.remoteAddress), // la page est-elle ouverte sur cette machine ?
   ...options
 } = {}) {
   // projects.json invalide au démarrage : Servynex démarre quand même, avec la
@@ -215,6 +227,10 @@ export function createApp({
     now: clock,
     instanceName: () => manager.config.instance.name ?? null,
     oauth,
+    // Protection retirée alors que la page est ouverte au réseau : n'importe qui y aurait la main.
+    beforeDisable: () => {
+      if (manager.config.instance.access === 'lan') throw new AuthError(409, 'auth.disableLan');
+    },
     onRevoke: (ids) => {
       for (const id of ids) for (const res of streams.get(id) ?? []) res.end();
     },
@@ -242,6 +258,15 @@ export function createApp({
     folder: (p) => sys.openFolder(p.cwd),
     code: (p) => sys.openInCode(p.cwd),
     terminal: (p) => sys.openTerminal(p.cwd),
+  };
+
+  // Accès réseau : l'en-tête Host peut aussi nommer cette machine (adresse sur le
+  // réseau, nom d'ordinateur). Ce PC seulement : localhost uniquement.
+  const hostAllowed = (host) => LOOPBACK.has(host) || (listening === 'lan' && hostnames().some((n) => n.toLowerCase() === host));
+  // Ouvrent quelque chose sur cette machine : réservées à qui est devant elle.
+  const HOST_ONLY = new Set(['open', 'folder', 'code', 'terminal', 'config', 'log']);
+  const hostOnly = (req, action) => {
+    if (HOST_ONLY.has(action) && !isLocalViewer(req)) throw new HttpError(403, 'http.hostOnly');
   };
 
   // Actions sur Servynex lui-même (page Paramètres). Chemins fixes : rien ne vient de la requête.
@@ -334,6 +359,9 @@ export function createApp({
         name: manager.config.instance.name ?? null,
         // Présentation vue : par compte si la protection est active, sinon pour Servynex.
         onboarded: user ? Boolean(user.prefs?.onboarded) : Boolean(readUi().onboarded),
+        access: manager.config.instance.access ?? 'local', // réglage (appliqué au démarrage)
+        listening, // adresse d'écoute réelle
+        viewerLocal: isLocalViewer(req),
         configError: configErrorIn(lang),
       };
       return send(res, 200, { instance, projects: manager.snapshot() });
@@ -370,8 +398,25 @@ export function createApp({
       return send(res, 200, { ok: true });
     }
     if (section === 'instance' && method === 'POST' && Object.hasOwn(instanceActions, id)) {
+      hostOnly(req, id);
       await instanceActions[id]();
       return send(res, 200, { ok: true });
+    }
+    if (section === 'instance' && id === 'access' && method === 'PUT') {
+      // Ouvrir au réseau : protection active et mot de passe redemandé. Revenir à ce
+      // PC seulement ne demande rien. Appliqué au prochain démarrage (bindHost).
+      const { access, password } = await readJson(req);
+      if (!['local', 'lan'].includes(access)) throw new HttpError(400, 'http.badAccess');
+      if (access === 'lan') {
+        if (!auth.enabled) throw new HttpError(409, 'http.lanNeedsProtection');
+        await auth.confirmPassword(req, user, password);
+      }
+      const next = diskConfig();
+      if (access === 'lan') next.instance.access = 'lan';
+      else delete next.instance.access;
+      applyConfig(next);
+      audit('-', access === 'lan' ? 'audit.accessLan' : 'audit.accessLocal');
+      return send(res, 200, { access, listening });
     }
     if (section === 'instance' && !id && method === 'PATCH') {
       // Nom de l'instance, affiché dans la barre latérale (« Servynex · Serveur maison »).
@@ -491,6 +536,7 @@ export function createApp({
       return send(res, 200, { entries: history([ownPrevLog, ownLog], id) });
     }
     if (method === 'POST' && Object.hasOwn(actions, action)) {
+      hostOnly(req, action);
       log(`[${action}] ${id}${user ? ` · ${tr('history.by', { user: who })}` : ''}`);
       if (user) actors.set(id, { user: who, at: clock() });
       await actions[action](project);
@@ -502,7 +548,7 @@ export function createApp({
   const server = http.createServer(async (req, res) => {
     for (const [k, v] of Object.entries(HEADERS)) res.setHeader(k, v);
     try {
-      guard(req);
+      guard(req, hostAllowed);
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname.startsWith('/api/')) return await api(req, res, url);
       // Retour d'un fournisseur de connexion : navigation venue de son site, hors de /api/.
@@ -519,7 +565,16 @@ export function createApp({
     }
   });
 
-  return { server, manager, log, auth };
+  return {
+    server,
+    manager,
+    log,
+    auth,
+    // Adresse d'écoute choisie au démarrage (bindHost), une fois la configuration lue.
+    setListening(value) {
+      listening = value;
+    },
+  };
 }
 
 // ---- Démarrage ----
@@ -542,16 +597,20 @@ if (import.meta.filename === path.resolve(process.argv[1] ?? '')) {
     console.error(`[config] ${err.message}`);
     process.exit(1);
   }
-  const { server, manager, log } = app;
+  const { server, manager, log, auth } = app;
   const port = Number(process.env.SERVYNEX_PORT) || manager.config.instance.port;
+  const host = bindHost(manager.config.instance, auth.enabled);
+  app.setListening(host === '0.0.0.0' ? 'lan' : 'local');
+  if (manager.config.instance.access === 'lan' && host !== '0.0.0.0') log(`[listen] ${tr('log.lanRefused')}`);
   server.on('error', (err) => {
     log('[listen]', err.code === 'EADDRINUSE' ? tr('log.portInUse', { port }) : err.message);
     process.exit(1);
   });
-  // Local uniquement : le panneau lance des programmes, il ne doit pas être
-  // joignable depuis le réseau.
-  server.listen(port, '127.0.0.1', async () => {
+  // Ce PC seulement, sauf accès réseau demandé avec la protection active (bindHost) :
+  // le panneau lance des programmes.
+  server.listen(port, host, async () => {
     log(`Servynex → http://localhost:${port}`);
+    if (host === '0.0.0.0') for (const a of sys.lanAddresses()) log(`Servynex → http://${a.address}:${port} (${a.name})`);
     await manager.init();
   });
   // Les projets lancés continuent de tourner : la prochaine instance les reprendra.

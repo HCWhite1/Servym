@@ -1,7 +1,8 @@
 // Paramètres : démarrage, apparence, fichier de configuration, Servynex, raccourcis.
 import { renderAccount, renderMembers, renderSecurity } from './accounts.js';
-import { choice, setChoice, t } from './i18n.js';
-import { api, applyTheme, can, confirmDialog, h, session, store, tile, toast } from './lib.js';
+import { choice, setChoice, t, tn } from './i18n.js';
+import { api, applyTheme, ask, can, confirmDialog, h, session, store, tile, toast, viewer } from './lib.js';
+import { publicNetworks } from './network.js';
 
 const $ = (sel) => document.querySelector(sel);
 const dialog = $('#settings');
@@ -25,6 +26,7 @@ export function init(hs) {
   $('#set-projects').addEventListener('change', (e) => setProjectAutostart(e.target.dataset.id, e.target.checked, e.target));
   radio('#set-theme', setTheme);
   radio('#set-layout', (value) => handlers.setLayout(value));
+  radio('#set-access', setAccess);
   $('#set-lang').value = choice();
   $('#set-lang').addEventListener('change', (e) => setLang(e.target.value));
   $('#set-motion').addEventListener('change', (e) => handlers.setMotion(e.target.checked));
@@ -95,6 +97,8 @@ function applyPermissions() {
   off('#open-instance-log', 'instance', needs('instance'));
   off('#open-instance-dir', 'instance', needs('instance'));
   $('#instance-name').disabled = !can('instance');
+  // Ouvrent une fenêtre sur la machine de Servynex : seulement pour qui est devant.
+  for (const id of ['open-config', 'open-instance-log', 'open-instance-dir']) $(`#${id}`).hidden = !viewer.local;
   $('#instance-form button').disabled = !can('instance');
   for (const input of document.querySelectorAll('#set-projects input')) input.disabled = !can('edit');
 }
@@ -228,9 +232,57 @@ function fillInstance() {
   ];
   $('#instance-info').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })]));
   $('#restart-instance').disabled = !info.restartable || !can('instance');
+  renderAccess();
   $('#restart-desc').textContent = info.restartable
     ? t('settings.restartDesc')
     : t('settings.restartUnavailable');
+}
+
+// ---- Accès à la page : ce PC seulement, ou aussi le réseau local ----
+
+// Le réseau demande la protection par mot de passe (le serveur le refuse sinon) ; le
+// changement s'applique au redémarrage, d'où l'avertissement tant qu'il n'est pas fait.
+function renderAccess() {
+  const info = handlers.instance();
+  const access = info.access ?? 'local';
+  for (const b of document.querySelectorAll('#set-access [data-value]')) {
+    b.setAttribute('aria-checked', String(b.dataset.value === access));
+    b.disabled = !can('admin') || (b.dataset.value === 'lan' && !session.enabled && access !== 'lan');
+  }
+  const notes = [];
+  if (!session.enabled) notes.push(h('p', { class: 'hint', text: t('access.needsProtection') }));
+  if (access !== (info.listening ?? 'local')) notes.push(h('p', { class: 'hint warn', text: t(access === 'lan' ? 'access.pendingLan' : 'access.pendingLocal') }));
+  if (access === 'lan' || info.listening === 'lan') {
+    const urls = (info.lan ?? []).map((a) => h('li', {}, h('code', { text: `http://${a.address}:${info.port}` }), ` · ${a.name}`));
+    notes.push(urls.length ? h('div', {}, h('p', { class: 'hint', text: t('access.addresses') }), h('ul', { class: 'access-urls' }, ...urls)) : h('p', { class: 'hint warn', text: t('access.noNetwork') }));
+    const pub = publicNetworks();
+    if (pub.length) notes.push(h('p', { class: 'hint warn', text: tn('access.publicNetwork', pub.length, { networks: pub.join(', ') }) }));
+    notes.push(h('p', { class: 'hint', text: t('access.plainHttp') }));
+  }
+  $('#access-note').replaceChildren(...notes);
+}
+
+async function setAccess(value) {
+  const info = handlers.instance();
+  if (value === (info.access ?? 'local')) return;
+  try {
+    const res = value === 'lan'
+      ? await ask({
+        title: t('access.askTitle'),
+        body: t('access.askBody'),
+        fields: [{ name: 'password', label: t('account.password'), type: 'password', autocomplete: 'current-password' }],
+        confirm: t('access.lanOk'),
+        valid: (v) => v.password.length > 0,
+        submit: (v) => api('instance/access', { method: 'PUT', body: { access: 'lan', password: v.password } }),
+      })
+      : await api('instance/access', { method: 'PUT', body: { access: 'local' } });
+    if (!res) return;
+    info.access = res.access;
+    toast(t(res.access === 'lan' ? 'access.savedLan' : 'access.savedLocal'));
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+  renderAccess();
 }
 
 // Les projets continuent de tourner et sont repris. La page attend que l'ancien

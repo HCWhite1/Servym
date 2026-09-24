@@ -134,7 +134,8 @@ export class AuthStore {
       if (this.mtime !== null || this.error) Object.assign(this, { data: empty(), mtime: null, error: null });
       return this.data;
     }
-    if (info.mtimeMs === this.mtime) return this.data;
+    // Date et taille : un changement fait dans le même instant qu'un enregistrement est vu aussi.
+    if (info.mtimeMs === this.mtime && info.size === this.size) return this.data;
     try {
       this.data = { ...empty(), ...JSON.parse(fs.readFileSync(this.file, 'utf8')) };
       this.error = null;
@@ -142,6 +143,7 @@ export class AuthStore {
       this.error = err.message; // traduit à l'affichage (auth.brokenFile)
     }
     this.mtime = info.mtimeMs;
+    this.size = info.size;
     return this.data;
   }
 
@@ -150,7 +152,9 @@ export class AuthStore {
     const tmp = `${this.file}.tmp`;
     fs.writeFileSync(tmp, `${JSON.stringify(this.data, null, 2)}\n`);
     fs.renameSync(tmp, this.file);
-    this.mtime = fs.statSync(this.file).mtimeMs;
+    const info = fs.statSync(this.file);
+    this.mtime = info.mtimeMs;
+    this.size = info.size;
   }
 }
 
@@ -194,7 +198,9 @@ export class Auth {
   #states = new Map(); // état OAuth → { provider, userId, redirectUri, expiresAt }
 
   // oauth : adresses des fournisseurs à remplacer (tests : faux fournisseur local).
-  constructor({ file, log = () => {}, now = () => Date.now(), onRevoke = () => {}, instanceName = () => null, oauth = {} }) {
+  // beforeDisable : lève une erreur si la protection ne doit pas être retirée maintenant.
+  constructor({ file, log = () => {}, now = () => Date.now(), onRevoke = () => {}, instanceName = () => null, oauth = {}, beforeDisable = () => {} }) {
+    this.beforeDisable = beforeDisable;
     this.store = new AuthStore(file);
     this.providers = oauthProviders(oauth);
     this.instanceName = instanceName; // affiché sur la page de connexion
@@ -746,6 +752,7 @@ export class Auth {
       return send(res, 200, { lockAfter: d.lockAfter });
     }
     if (section === 'disable' && method === 'POST') {
+      this.beforeDisable();
       const ok = await this.#attempt(req, 'login', me.username, () => verifySecret(body.password ?? '', me.password));
       if (!ok) throw new AuthError(401, 'auth.wrongPassword');
       d.enabled = false;

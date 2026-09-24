@@ -205,4 +205,14 @@ export default {
   'audit.providerUnlinked': 'Compte {provider} délié',
   'audit.providerLogin': 'Connexion avec {provider} ({login})',
   'audit.providerLoginFailed': 'Échec de connexion avec {provider} : le compte {login} n’est lié à aucun compte',
+
+  // Accès depuis le réseau privé
+  'config.badInstanceAccess': 'projects.json : instance.access doit valoir « local » ou « lan »',
+  'http.badAccess': 'Accès inconnu : « local » ou « lan »',
+  'http.lanNeedsProtection': 'Activez d’abord la protection par mot de passe : sans elle, tout le réseau aurait la main sur cette machine.',
+  'http.hostOnly': 'Cette action ouvre une fenêtre sur la machine de Servynex : elle n’est possible que devant elle.',
+  'auth.disableLan': 'La page est ouverte au réseau local : repassez d’abord l’accès à « Ce PC seulement » (Paramètres › Servynex).',
+  'audit.accessLan': 'Accès depuis le réseau local activé (au prochain démarrage)',
+  'audit.accessLocal': 'Accès limité à ce PC (au prochain démarrage)',
+  'log.lanRefused': 'accès réseau demandé, mais la protection par mot de passe n\'est pas active : écoute sur ce PC seulement',
 };

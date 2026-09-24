@@ -90,6 +90,9 @@ export async function refreshNetwork() {
   } catch {}
 }
 
+// Noms des réseaux connectés déclarés « public » dans Windows.
+export const publicNetworks = () => networks.filter((n) => n.category === 'public').map((n) => n.name);
+
 export function publicExposure() {
   const projects = handlers.all().filter((p) => p.type !== 'file' && ['running', 'starting'].includes(p.state) && exposure(p).exposed);
   const pub = networks.filter((n) => n.category === 'public');

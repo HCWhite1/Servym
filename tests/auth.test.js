@@ -4,7 +4,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { createResetCode } from '../src/auth.js';
+import { AuthStore, createResetCode } from '../src/auth.js';
 import { createApp } from '../server.js';
 import { setServerLang } from '../src/i18n.js';
 
@@ -253,4 +253,17 @@ describe('authentification', () => {
     assert.equal(res.status, 503);
     assert.match(res.json.error, /illisible/);
   });
+});
+
+test('fichier des comptes changé sur le disque : relu même à la même date de modification', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-store-'));
+  const file = path.join(dir, 'auth.json');
+  const store = new AuthStore(file);
+  store.load().enabled = true;
+  store.save();
+  fs.writeFileSync(file, '{ cassé');
+  store.mtime = fs.statSync(file).mtimeMs; // modifié dans le même instant que l'enregistrement
+  store.load();
+  assert.ok(store.error, 'changement vu');
+  fs.rmSync(dir, { recursive: true, force: true });
 });

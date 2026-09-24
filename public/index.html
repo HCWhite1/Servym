@@ -312,6 +312,19 @@
 
         <section data-section="instance" hidden>
           <dl class="info instance-info" id="instance-info"></dl>
+          <div class="setting stack" id="access-setting">
+            <div class="setting-head">
+              <div class="setting-text">
+                <p class="setting-label" data-i18n="access.title">Accès à la page</p>
+                <p class="setting-desc" data-i18n="access.desc">Réseau local : la page s’ouvre aussi depuis les autres appareils de votre réseau (Wi-Fi, Tailscale). Appliqué au prochain redémarrage de Servynex.</p>
+              </div>
+              <div class="segmented" role="radiogroup" id="set-access" aria-label="Accès à la page" data-i18n-attr="aria-label:access.title">
+                <button type="button" role="radio" data-value="local" data-i18n="access.local">Ce PC seulement</button>
+                <button type="button" role="radio" data-value="lan" data-i18n="access.lan">Réseau local</button>
+              </div>
+            </div>
+            <div class="access-note" id="access-note"></div>
+          </div>
           <div class="setting">
             <div class="setting-text">
               <p class="setting-label" data-i18n="settings.instanceName">Nom de l’instance</p>

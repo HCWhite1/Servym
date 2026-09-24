@@ -46,6 +46,7 @@ The `instance` section sets up Servynex itself:
 | --- | --- |
 | `port` | Port of the page (9000 by default). |
 | `name` | Instance name shown in the sidebar and on the sign-in page. |
+| `access` | `"local"` (default) or `"lan"`: page also open to the local network (see "Security"). |
 | `lang` | `"en"` or `"fr"`: language of logs and server messages. Default: the `SERVYNEX_LANG` variable, otherwise the system language. |
 
 Each project:
@@ -127,13 +128,13 @@ No authentication by default: local use, by one person. Settings › Security �
 
 Servynex runs commands: that is its job, and all of its security is about making sure only authorized people can ask it to.
 
-- listens on 127.0.0.1 only;
-- `Host` header checked (blocks DNS rebinding);
+- listens on 127.0.0.1 only, unless network access is requested (see below);
+- `Host` header checked: `localhost`, plus this machine's addresses and name when network access is on (blocks DNS rebinding);
 - writes use POST, PATCH, PUT or DELETE with the `X-Servynex-Request` header and an `Origin` check (blocks CSRF: a third-party page cannot set this header); the same header is required on GETs that make the machine work (`free-port`, `git`, `ports`, `network`, `autostart`, `stats`);
 - strict CSP, no inline script; only `public/` is served;
 - commands and arguments validated: no `cmd.exe` metacharacters.
 
-Servynex only listens locally, with or without accounts. Remote access (listening on the network, HTTPS) will come later, and will require password protection.
+By default, Servynex only listens on this PC. **Access from the private network** (Settings › Servynex › Access to the page › Local network, administrators only): the page also opens from other devices on the network (Wi-Fi, Tailscale), at the addresses shown. Conditions: password protection must be on (without it, Servynex stays on this PC even if `projects.json` says `"access": "lan"`), the password is asked again, and protection cannot be turned off while network access is open. Applied at restart; Windows may then ask to allow Node.js through its firewall: allow private networks only. Without HTTPS, passwords travel unencrypted on the network: keep this access for a trusted network, or Tailscale, which encrypts everything. From another device, actions that would open a window on the Servynex machine (folder, VS Code, terminal, local file) are refused, and only exposed projects open.
 
 ## API
 
@@ -162,6 +163,7 @@ Servynex only listens locally, with or without accounts. Remote access (listenin
 | POST | `/api/instance/onboarded` | introduction seen (`runtime/ui.json`) |
 | POST | `/api/restart` | restarts Servynex (409 if it was not started by `start-hidden.vbs`) |
 | PATCH | `/api/instance` | instance name |
+| PUT | `/api/instance/access` | `{ "access": "lan", "password": "…" }` or `{ "access": "local" }`; administrator, applied at restart |
 | … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (name, preferences, password, key, sessions, linked accounts), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
 
 Error messages (`{ "error": "…" }`) use the language of the `Accept-Language` header, otherwise the server language.
@@ -177,7 +179,7 @@ Error messages (`{ "error": "…" }`) use the language of the `Accept-Language` 
 ## Limits
 
 - **Windows only** for now: launch (`launch.ps1`, `cmd.exe`), stop (`taskkill`), ports (`netstat`, `tasklist`), CPU and memory (`sample.ps1`), network profiles and autostart (scheduled task) are Windows-specific.
-- **Local only**: no remote access or control of another machine yet.
+- **Private network only**: no built-in HTTPS nor control of another machine yet.
 
 ## License
 

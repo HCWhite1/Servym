@@ -20,6 +20,8 @@ const SAFE_ARG = /^[^"%\r\n&|<>^()]*$/;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const HOST_CONTROLS = ['env', 'args', 'local'];
 const TYPES = ['static', 'file', undefined];
+// Accès à la page : ce PC seulement, ou aussi le réseau local (voir bindHost dans server.js).
+export const ACCESS = ['local', 'lan'];
 
 const isPort = (v) => Number.isInteger(v) && v >= 1 && v <= 65535;
 const isText = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
@@ -116,6 +118,7 @@ export function validate(config) {
   check(isPort(config.instance?.port), 'config.badInstancePort');
   check(config.instance.name === undefined || isText(config.instance.name, 40), 'config.badInstanceName');
   check(config.instance.lang === undefined || LANGS.includes(config.instance.lang), 'config.badInstanceLang');
+  check(config.instance.access === undefined || ACCESS.includes(config.instance.access), 'config.badInstanceAccess');
   const ids = new Set();
   const ports = new Map([[config.instance.port, msg('config.instance')]]);
   for (const p of config.projects) {

@@ -1084,6 +1084,10 @@ body.auth-open .app { visibility: hidden; }
 .provider-steps .key-value { margin-top: 6px; padding: 6px 8px 6px 12px; }
 .provider-steps .key-value code { font-size: 12.5px; letter-spacing: 0; }
 .provider-form .input { flex: 1; min-width: 0; }
+/* Paramètres › Servynex › Accès à la page */
+.access-note { display: grid; gap: 8px; }
+.access-note:empty { display: none; }
+.access-urls { margin: 4px 0 0; padding-left: 18px; color: var(--text-2); font-size: 12.5px; }
 .auth-link { color: var(--text-2); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
 .auth-link:hover { color: var(--text); }
 .auth-options { display: flex; flex-direction: column; gap: 8px; }

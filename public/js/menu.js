@@ -1,6 +1,6 @@
 // Menu « … » d'une ligne : toutes les actions d'un projet (popover natif).
 import { t } from './i18n.js';
-import { can, canRestart, canStop, h, icon, primaryOf } from './lib.js';
+import { can, canRestart, canStop, h, icon, primaryOf, viewer } from './lib.js';
 
 const menu = document.getElementById('row-menu');
 let handlers;
@@ -79,7 +79,7 @@ function render(p) {
   }
   items.push(item(t('panel.settings'), 'sliders-horizontal', () => handlers.openPanel(p.id, 'settings')));
   items.push(item(t('panel.info'), 'info', () => handlers.openPanel(p.id, 'info')));
-  if (operate) {
+  if (operate && viewer.local) {
     items.push(h('hr'));
     items.push(item(t('action.folder'), 'folder-open', () => handlers.run(p, 'folder')));
     if (tools.code) items.push(item(t('action.code'), 'code-xml', () => handlers.run(p, 'code')));

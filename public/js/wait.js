@@ -1,10 +1,12 @@
 // Onglet d'attente : ouvert au clic sur « Démarrer », il suit le démarrage et
 // redirige vers le projet dès qu'il répond.
 import { t, translate } from './i18n.js';
-import { api, fillTile, safeUrl, statusText } from './lib.js';
+import { api, fillTile, statusText, urlOf, viewer } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
 translate();
+// Ouverte depuis un autre appareil : forcément par une autre adresse que localhost.
+viewer.local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const id = new URLSearchParams(location.search).get('id');
 let finished = false;
 
@@ -27,7 +29,7 @@ function render(p) {
   $('#status').dataset.state = p.state;
   $('#status-text').textContent = statusText(p);
   document.title = `${p.name} · ${statusText(p)}`;
-  const url = safeUrl(p.url);
+  const url = urlOf(p);
   if (p.state === 'running' && url) {
     finished = true;
     window.opener = null;

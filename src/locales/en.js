@@ -205,4 +205,14 @@ export default {
   'audit.providerUnlinked': '{provider} account unlinked',
   'audit.providerLogin': 'Signed in with {provider} ({login})',
   'audit.providerLoginFailed': 'Failed sign-in with {provider}: account {login} is not linked to any account',
+
+  // Accès depuis le réseau privé
+  'config.badInstanceAccess': 'projects.json: instance.access must be "local" or "lan"',
+  'http.badAccess': 'Unknown access: "local" or "lan"',
+  'http.lanNeedsProtection': 'Turn on password protection first: without it, the whole network would control this machine.',
+  'http.hostOnly': 'This action opens a window on the Servynex machine: it is only possible in front of it.',
+  'auth.disableLan': 'The page is open to the local network: switch access back to "This PC only" first (Settings › Servynex).',
+  'audit.accessLan': 'Access from the local network turned on (at next start)',
+  'audit.accessLocal': 'Access limited to this PC (at next start)',
+  'log.lanRefused': 'network access requested, but password protection is off: listening on this PC only',
 };

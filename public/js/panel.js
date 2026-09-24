@@ -1,5 +1,5 @@
 // Volet d'un projet : journal en direct, historique, réglages, infos.
-import { STATE_LABELS, ago, api, can, canRestart, canStop, confirmDialog, exposure, fillTile, formatBytes, formatCpu, h, icon, isExternal, primaryOf, safeUrl, statusText, toast, uptime } from './lib.js';
+import { STATE_LABELS, ago, api, can, canRestart, canStop, confirmDialog, exposure, fillTile, formatBytes, formatCpu, h, icon, isExternal, primaryOf, statusText, toast, uptime, urlOf, viewer } from './lib.js';
 import { ERROR_LINE, WARN_LINE } from './log-patterns.js';
 import { createForm } from './project-form.js';
 import { auditLine } from './activity.js';
@@ -129,18 +129,20 @@ export function update(p) {
   dangerZone.hidden = !can('commands');
 
   const main = $('#panel-actions [data-act="main"]');
-  const { label, icon: name, disabled, primary, hidden } = primaryOf(p);
+  const { label, icon: name, disabled, primary, hidden, title } = primaryOf(p);
   main.replaceChildren(...(name ? [icon(name)] : []), label);
   main.disabled = Boolean(disabled) || p.state === 'conflict';
+  main.title = title ?? '';
   main.hidden = Boolean(hidden) || (!can('operate') && !(p.state === 'running' && p.type !== 'file' && !p.service));
   main.classList.toggle('primary', Boolean(primary));
   const file = p.type === 'file';
   $('#panel-actions [data-act="stop"]').hidden = file || !canStop(p) || !can('operate');
   $('#panel-actions [data-act="restart"]').hidden = file || !canRestart(p) || !can('operate');
-  for (const act of ['folder', 'terminal']) $(`#panel-actions [data-act="${act}"]`).hidden = !can('operate');
+  // Dossier, VS Code, terminal : s'ouvrent sur la machine de Servynex, pour qui est devant.
+  for (const act of ['folder', 'terminal']) $(`#panel-actions [data-act="${act}"]`).hidden = !can('operate') || !viewer.local;
   $('#tab-logs').hidden = file;
   $('#tab-history').hidden = file;
-  $('#panel-actions [data-act="code"]').hidden = !handlers.tools().code || !can('operate');
+  $('#panel-actions [data-act="code"]').hidden = !handlers.tools().code || !can('operate') || !viewer.local;
   $('#panel-actions [data-act="terminal"]').title = t('panel.terminalHere', { terminal: handlers.tools().terminal ?? 'Terminal' });
   logNote(p);
   if (tab === 'info') renderInfo(p);
@@ -257,7 +259,7 @@ function renderResources(p) {
 async function renderInfo(p, fresh = false) {
   if (!p) return;
   renderResources(p);
-  const url = safeUrl(p.url);
+  const url = urlOf(p);
   const tags = p.tags.length ? p.tags.join(', ') : '—';
   if (p.type === 'file') {
     return renderRows(p, [[t('info.file'), p.file], [t('info.opening'), t('info.openingValue')], [t('info.folder'), p.cwd], [t('info.tags'), tags]], fresh);

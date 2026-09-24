@@ -1,5 +1,5 @@
 // Page principale : navigation, liste des projets (ou orbite), état en direct, raccourcis.
-import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, formatBytes, formatCpu, gitSummary, h, icon, initials, isExternal, primaryOf, safeUrl, session, statusText, store, toast } from './lib.js';
+import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, formatBytes, formatCpu, gitSummary, h, icon, initials, isExternal, primaryOf, session, statusText, store, toast, urlOf, viewer } from './lib.js';
 import { gate, lockNow, logout, takeNotice } from './auth.js';
 import { choice, setChoice, t, tn, translate } from './i18n.js';
 import * as activity from './activity.js';
@@ -93,7 +93,7 @@ async function primary(p, button) {
   if (!p) return;
   if (needsOperate(p) && !can('operate')) return toast(t('project.cannotOperate'), 'error');
   if (p.type === 'file') return run(p, 'open');
-  const url = safeUrl(p.url);
+  const url = urlOf(p);
   if (p.state === 'running') {
     if (url) window.open(url, '_blank', 'noopener');
     return;
@@ -168,9 +168,10 @@ const lanTitle = (p) => {
 };
 
 function fillMain(button, p) {
-  const { label, icon: name, disabled, primary: strong, hidden } = primaryOf(p);
+  const { label, icon: name, disabled, primary: strong, hidden, title } = primaryOf(p);
   button.replaceChildren(...(name ? [icon(name)] : []), label);
   button.disabled = Boolean(disabled);
+  button.title = title ?? '';
   button.hidden = Boolean(hidden) || (needsOperate(p) && !can('operate'));
   button.classList.toggle('primary', Boolean(strong));
 }
@@ -643,6 +644,7 @@ for (const module of [panel, menu, orbit, network, activity, settings, onboardin
 
 const initial = await api('projects');
 instance = initial.instance;
+viewer.local = instance.viewerLocal !== false;
 $('#brand-sub').textContent = location.host;
 applySnapshot(initial.projects);
 renderUser();
