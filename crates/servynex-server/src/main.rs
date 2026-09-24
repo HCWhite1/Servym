@@ -132,7 +132,14 @@ fn supervise(args: &[String]) -> ExitCode {
     loop {
         let started = Instant::now();
         let mut command = std::process::Command::new(&exe);
-        command.args(&child_args).env("SERVYNEX_SUPERVISOR", "servynex");
+        // Sans console, les sorties standard du superviseur ne sont plus valides : celles du serveur
+        // vont nulle part (il écrit son journal dans logs/servynex.log).
+        command
+            .args(&child_args)
+            .env("SERVYNEX_SUPERVISOR", "servynex")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -140,7 +147,10 @@ fn supervise(args: &[String]) -> ExitCode {
         }
         let code = match command.status() {
             Ok(status) => status.code().unwrap_or(1),
-            Err(_) => return ExitCode::FAILURE,
+            Err(error) => {
+                supervisor_log(&data_dir(args), &format!("[supervisor] {error}"));
+                return ExitCode::FAILURE;
+            }
         };
         if code == 0 {
             return ExitCode::SUCCESS;
@@ -152,6 +162,10 @@ fn supervise(args: &[String]) -> ExitCode {
                 failures + 1
             };
             if failures >= 5 {
+                supervisor_log(
+                    &data_dir(args),
+                    "[supervisor] 5 plantages rapides : abandon (voir les lignes précédentes)",
+                );
                 return ExitCode::FAILURE;
             }
             std::thread::sleep(Duration::from_secs(5));
@@ -229,4 +243,21 @@ async fn serve(data: PathBuf) -> ExitCode {
     };
     running.close().await;
     ExitCode::from(code as u8)
+}
+
+/// Ligne dans logs/servynex.log, écrite par le superviseur (il n'a pas de console).
+fn supervisor_log(data: &Path, text: &str) {
+    use std::io::Write;
+    let dir = data.join("logs");
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("servynex.log"))
+    {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        let _ = writeln!(f, "{}ms {text}", now.as_millis());
+    }
 }

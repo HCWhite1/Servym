@@ -666,6 +666,11 @@ impl Manager {
                     self.warn(format!("[config] {text}"));
                 }
             }
+            // Réécrit tout de suite, avec l'heure de création des processus repris (fichier de la
+            // version Node, ou projets disparus depuis).
+            if !saved.is_empty() {
+                self.save_pids(&st);
+            }
         }
         // Projets repris : leur fin est surveillée (sous Windows, avec leur code de sortie).
         for (id, pid) in adopted {
