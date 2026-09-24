@@ -161,3 +161,56 @@ tâche (`Enable-ScheduledTask -TaskName Servynex`) et la lancer (`Start-Schedule
 Servynex`). Les fichiers de données restent lisibles par la version Node.
 
 CI GitHub Actions entièrement verte (Rust sous Windows et Linux, suite Node sous Windows).
+
+## Phase 6 · Application de bureau (Tauri)
+
+`servynex-desktop` produit `Servynex.exe` (11,9 Mo) et un installateur NSIS par utilisateur
+(3,4 Mo, sans droits administrateur). Tauri n'est construit que sous Windows ; ailleurs, le
+binaire sans écran `servynex` reste la version à utiliser.
+
+- **Coquille autour du serveur** : même serveur HTTP, même interface. La fenêtre charge
+  `http://localhost:{port}` sans aucune capability : l'IPC de Tauri est refusée à la page (vérifié).
+  Liens vers une autre origine : navigateur par défaut ; page d'attente : petite fenêtre qui garde
+  la session ; GitHub : dans la fenêtre, pour que le cookie y arrive.
+- **Superviseur intégré** : lancé sans `SERVYNEX_SUPERVISOR`, `Servynex.exe` se relance lui-même
+  comme enfant (code partagé avec `servynex --supervised`, `servynex_server::supervisor`).
+  Redémarrage demandé : code 75 (sans fenêtre) ou 76 (la fenêtre était ouverte, elle revient).
+  Tauri rend toujours 0 à la sortie : le code demandé est gardé à part.
+- **Instance unique** : un 2ᵉ lancement ouvre l'interface de la première, puis s'arrête.
+- **Fenêtre détruite à la fermeture** : WebView2 rend toute sa mémoire (6 processus, environ
+  200 Mo, puis aucun). Sans fenêtre, les deux processus de Servynex tiennent en 5,4 Mo privés
+  (version de développement).
+- **Zone de notification** : projets et actions (démarrer, arrêter, redémarrer, ouvrir),
+  « Ouvrir Servynex », « Ouvrir dans le navigateur », « Démarrer avec Windows », « Quitter » ; icône
+  rouge quand un projet est en échec. Les actions passent par le même chemin que l'interface et
+  sont inscrites « via la zone de notification ».
+- **Fenêtre ou navigateur** : réglage de la machine (`runtime/ui.json`, `opener`), proposé à la
+  fin de la présentation et dans Paramètres › Général, devant la machine seulement. La fenêtre
+  se signale à la page par `window.servynexWindow` (une valeur, aucune fonction native).
+- **Mot de passe oublié devant la machine** : « Générer un code sur cette machine » (Q2).
+- **Notifications** au nom de l'application une fois installée (le raccourci du menu Démarrer
+  déclare son identifiant), sinon au nom de Windows PowerShell comme avant.
+
+### Données et import
+
+Dossier des données : `--data`, `SERVYNEX_HOME`, mode portable (`projects.json` à côté de
+l'exécutable), sinon `%LOCALAPPDATA%\Servynex`. L'installateur pose aussi le programme dans ce
+dossier : c'est sans risque, sa désinstallation ne supprime que `Servynex.exe` et
+`uninstall.exe` (le dossier n'est retiré que s'il est vide).
+
+Premier lancement sans `projects.json` : l'ancienne installation est cherchée (dossier `--data`
+de la clé Run, dossier de travail de la tâche planifiée, `C:\Servynex`) et l'import proposé. Oui :
+l'ancien superviseur (wscript ou servynex) puis l'ancien serveur (node ou servynex) sont arrêtés,
+et eux seuls ; la tâche planifiée est désactivée ; `projects.json`, `runtime/`, `logs/` et
+`config/` sont copiés. L'ancien dossier n'est pas modifié. Les projets en marche gardent leur
+journal ouvert dans l'ancien dossier : `pids.json` retient ce chemin (`log`), suivi jusqu'au
+prochain lancement du projet. `SERVYNEX_IMPORT_FROM` désigne le dossier à importer sans toucher
+à la clé Run ni à la tâche.
+
+Essai de bout en bout (25/09/2026) sur un Servynex factice : ancien `servynex --supervised` avec un
+projet en marche, puis `Servynex.exe` : ancienne instance arrêtée (2 processus), projet repris
+avec son PID et son journal, import inscrit au journal.
+
+Trouvé en route : la clé Run était dite « activée » dès qu'une valeur « Servynex » existait ; elle
+ne l'est plus que si elle lance bien cet exécutable (sinon l'application aurait cru démarrer avec
+Windows alors que la clé lançait encore l'ancien `servynex.exe`).
