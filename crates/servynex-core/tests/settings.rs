@@ -21,7 +21,6 @@ fn one_program() -> Value {
 
 /// JS : restart.test.js › relancer s’il plante : configuration › booléen, pour un programme seulement
 #[test]
-#[ignore = "phase 2"]
 fn relance_booleen_programme_seulement() {
     assert_eq!(
         patch_project(&one_program(), "a", &json!({ "restartOnCrash": true })).unwrap()["projects"][0]["restartOnCrash"],
@@ -36,7 +35,6 @@ fn relance_booleen_programme_seulement() {
 
 /// JS : restart.test.js › relancer s’il plante : configuration › passer en site statique ou en fichier retire le réglage
 #[test]
-#[ignore = "phase 2"]
 fn relance_retiree_au_changement_de_type() {
     let on = patch_project(&one_program(), "a", &json!({ "restartOnCrash": true })).unwrap();
     assert!(
@@ -72,7 +70,6 @@ fn ids(config: &Value) -> Vec<String> {
 
 /// JS : duplicate.test.js › dupliquer un projet › copie juste après l’original : nouvel identifiant, nom et port
 #[test]
-#[ignore = "phase 2"]
 fn copie_apres_l_original() {
     let base = dup_base();
     let (config, id) = duplicate_project(&base, "api", "API (copie)", Some(3100)).unwrap();
@@ -108,7 +105,6 @@ fn copie_apres_l_original() {
 
 /// JS : duplicate.test.js › dupliquer un projet › dépendances gardées ; page locale sans port
 #[test]
-#[ignore = "phase 2"]
 fn dependances_gardees_page_sans_port() {
     let (config, _) = duplicate_project(&dup_base(), "web", "Web 2", Some(3200)).unwrap();
     assert_eq!(config["projects"][3]["requires"], json!(["api"]));
@@ -119,7 +115,6 @@ fn dependances_gardees_page_sans_port() {
 
 /// JS : duplicate.test.js › dupliquer un projet › projet inconnu
 #[test]
-#[ignore = "phase 2"]
 fn duplication_projet_inconnu() {
     assert_match!(
         fr(duplicate_project(&dup_base(), "zz", "x", Some(1))),
@@ -131,7 +126,6 @@ fn duplication_projet_inconnu() {
 
 /// JS : access.test.js › accès depuis le réseau privé › instance.access : « local » ou « lan »
 #[test]
-#[ignore = "phase 2"]
 fn instance_access() {
     let conf = |access: &str| json!({ "instance": { "port": 9000, "access": access }, "projects": [] });
     validate(&conf("local")).unwrap();
@@ -143,7 +137,6 @@ fn instance_access() {
 
 /// JS : notify.test.js › notifications système › instance.notify : oui ou non
 #[test]
-#[ignore = "phase 2"]
 fn instance_notify() {
     let conf = |notify: Value| json!({ "instance": { "port": 9000, "notify": notify }, "projects": [] });
     validate(&conf(json!(true))).unwrap();
@@ -155,7 +148,6 @@ fn instance_notify() {
 
 /// JS : auth.test.js › fichier des comptes changé sur le disque : relu même à la même date de modification
 #[test]
-#[ignore = "phase 2"]
 fn comptes_relus_meme_date() {
     let dir = temp_dir("servynex-store-");
     let file = dir.path().join("auth.json");

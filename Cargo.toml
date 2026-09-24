@@ -25,3 +25,13 @@ opt-level = "s"
 strip = true
 # Une requête qui panique ne doit pas arrêter la surveillance des projets.
 panic = "unwind"
+
+# scrypt est inutilisable sans optimisation : même en debug (tests, CI), il est compilé optimisé.
+[profile.dev.package.scrypt]
+opt-level = 3
+[profile.dev.package.salsa20]
+opt-level = 3
+[profile.dev.package.pbkdf2]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3

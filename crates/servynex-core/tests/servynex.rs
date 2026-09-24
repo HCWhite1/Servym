@@ -43,7 +43,6 @@ fn remove(value: &mut Value, key: &str) {
 
 /// JS : servynex.test.js › configuration › refuse les ports en double, y compris celui de Servynex
 #[test]
-#[ignore = "phase 2"]
 fn refuse_ports_en_double() {
     let mut conf = base();
     conf["projects"][1]["port"] = json!(3001);
@@ -54,7 +53,6 @@ fn refuse_ports_en_double() {
 
 /// JS : servynex.test.js › configuration › refuse guillemets, % et métacaractères de cmd.exe dans les arguments
 #[test]
-#[ignore = "phase 2"]
 fn refuse_metacaracteres_de_cmd() {
     let mut conf = base();
     for arg in [
@@ -84,7 +82,6 @@ fn refuse_metacaracteres_de_cmd() {
 
 /// JS : servynex.test.js › configuration › stop et env validés comme la commande
 #[test]
-#[ignore = "phase 2"]
 fn stop_et_env_valides() {
     let mut conf = base();
     conf["projects"][0]["stop"] = json!({ "cmd": "mysqladmin", "args": ["--port={port}", "shutdown"] });
@@ -109,7 +106,6 @@ fn stop_et_env_valides() {
 
 /// JS : servynex.test.js › configuration › l'interface modifie commande, dossier et environnement, jamais l'identifiant
 #[test]
-#[ignore = "phase 2"]
 fn interface_modifie_commande_dossier_env() {
     let patch = json!({ "cmd": "npm", "args": ["run", "dev"], "cwd": "D:/app", "env": { "A": "1" }, "stop": { "cmd": "x", "args": [] } });
     let next = patch_project(&base(), "a", &patch).unwrap();
@@ -144,7 +140,6 @@ fn interface_modifie_commande_dossier_env() {
 
 /// JS : servynex.test.js › configuration › projet « file » : sans port, chemin relatif ; un changement de type retire les champs sans objet
 #[test]
-#[ignore = "phase 2"]
 fn projet_file() {
     let mut conf = base();
     conf["projects"]
@@ -170,7 +165,6 @@ fn projet_file() {
 
 /// JS : servynex.test.js › configuration › autostart : booléen, interdit pour un fichier
 #[test]
-#[ignore = "phase 2"]
 fn autostart_booleen() {
     let mut conf = base();
     conf["projects"][0]["autostart"] = json!("oui");
@@ -183,7 +177,6 @@ fn autostart_booleen() {
 
 /// JS : servynex.test.js › configuration › icône : nom d'icône ou court texte
 #[test]
-#[ignore = "phase 2"]
 fn icone() {
     assert_eq!(
         patch_project(&base(), "a", &json!({ "icon": "graduation-cap" })).unwrap()["projects"][0]["icon"],
@@ -206,7 +199,6 @@ fn icone() {
 
 /// JS : servynex.test.js › configuration › port fixe, port pris, exposition impossible
 #[test]
-#[ignore = "phase 2"]
 fn port_fixe_pris_exposition() {
     let base = base();
     assert_match!(fr(patch_project(&base, "b", &json!({ "port": 4000 }))), "fixe");
@@ -229,7 +221,6 @@ fn port_fixe_pris_exposition() {
 
 /// JS : servynex.test.js › configuration › dépendances : inconnues, fichier ou en boucle refusées
 #[test]
-#[ignore = "phase 2"]
 fn dependances_refusees() {
     assert_match!(
         fr(patch_project(&base(), "a", &json!({ "requires": ["zz"] }))),
@@ -257,7 +248,6 @@ fn dependances_refusees() {
 
 /// JS : servynex.test.js › configuration › ajout : identifiant tiré du nom, champs par défaut, validation complète
 #[test]
-#[ignore = "phase 2"]
 fn ajout() {
     let base = base();
     let (config, id) = create_project(
@@ -303,7 +293,6 @@ fn ajout() {
 
 /// JS : servynex.test.js › configuration › suppression : retirée des dépendances des autres projets
 #[test]
-#[ignore = "phase 2"]
 fn suppression() {
     let mut conf = base();
     let projects = conf["projects"].as_array_mut().unwrap();
@@ -332,7 +321,6 @@ fn suppression() {
 
 /// JS : servynex.test.js › configuration › différences de réglages : valeurs lisibles, jamais celles de env
 #[test]
-#[ignore = "phase 2"]
 fn differences_de_reglages() {
     let before = json!({ "id": "a", "name": "A", "port": 1, "env": { "K": "secret" }, "tags": ["x"] });
     let after = json!({ "id": "a", "name": "B", "port": 1, "env": { "K": "autre", "L": "2" }, "tags": ["x", "y"], "url": "http://a" });
@@ -347,7 +335,6 @@ fn differences_de_reglages() {
 
 /// JS : servynex.test.js › configuration › réordonner : tous les identifiants, chacun une fois
 #[test]
-#[ignore = "phase 2"]
 fn reordonner() {
     let base = base();
     let next = reorder_projects(&base, &json!(["c", "a", "b"])).unwrap();
@@ -379,7 +366,6 @@ fn reordonner() {
 
 /// JS : servynex.test.js › configuration › langue des messages du serveur (instance.lang) : fr ou en
 #[test]
-#[ignore = "phase 2"]
 fn langue_du_serveur_fr_ou_en() {
     for lang in ["fr", "en"] {
         let mut conf = base();
@@ -393,7 +379,6 @@ fn langue_du_serveur_fr_ou_en() {
 
 /// JS : servynex.test.js › configuration › fichier absent : configuration vide ; mise en forme compacte conservée
 #[test]
-#[ignore = "phase 2"]
 fn fichier_absent_et_mise_en_forme() {
     let dir = temp_dir("servynex-absent-");
     assert_eq!(
@@ -412,7 +397,6 @@ fn fichier_absent_et_mise_en_forme() {
 
 /// JS : servynex.test.js › exemple publié › projects.example.json : valide, sans fichier de config/ (non publié)
 #[test]
-#[ignore = "phase 2"]
 fn exemple_publie() {
     let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects.example.json");
     load_config(&file).unwrap();
@@ -444,7 +428,6 @@ fn snap(at: i64, list: Vec<(u32, ProcSample)>) -> Snapshot {
 
 /// JS : servynex.test.js › processeur et mémoire › arborescence : enfants et petits-enfants, jamais un PID réutilisé
 #[test]
-#[ignore = "phase 2"]
 fn arborescence() {
     let s = snap(
         0,
@@ -471,7 +454,6 @@ fn arborescence() {
 
 /// JS : servynex.test.js › processeur et mémoire › somme de l’arborescence, en part de toute la machine
 #[test]
-#[ignore = "phase 2"]
 fn somme_de_l_arborescence() {
     let prev = snap(
         10_000,
@@ -521,7 +503,6 @@ fn roots(list: &[(&str, &[u32])]) -> BTreeMap<String, Vec<u32>> {
 
 /// JS : servynex.test.js › processeur et mémoire › relevés partagés : des lectures rapprochées ne relancent pas la mesure
 #[tokio::test]
-#[ignore = "phase 2"]
 async fn releves_partages() {
     let calls = Arc::new(AtomicU64::new(0));
     let now = Arc::new(AtomicI64::new(0));
@@ -575,7 +556,6 @@ async fn releves_partages() {
 
 /// JS : servynex.test.js › total : Servynex compris, chaque processus compté une fois
 #[tokio::test]
-#[ignore = "phase 2"]
 async fn total_servynex_compris() {
     // Servynex (1) lance le projet par un intermédiaire (2) → cmd.exe (3, racine du projet) → node (4) ;
     // un relevé (5) est aussi son enfant.
@@ -594,24 +574,15 @@ async fn total_servynex_compris() {
         "un projet peut s’appeler « self »"
     );
     assert_eq!(res.projects["self"].memory, 7_000_000);
-    assert_eq!(
-        res.own,
-        Usage {
+    let usage = |memory, processes| {
+        Some(Usage {
             cpu: None,
-            memory: 8_000_000,
-            processes: 3
-        },
-        "Servynex sans ses projets"
-    );
-    assert_eq!(
-        res.total,
-        Usage {
-            cpu: None,
-            memory: 15_000_000,
-            processes: 5
-        },
-        "chacun une fois"
-    );
+            memory,
+            processes,
+        })
+    };
+    assert_eq!(res.own, usage(8_000_000, 3), "Servynex sans ses projets");
+    assert_eq!(res.total, usage(15_000_000, 5), "chacun une fois");
 }
 
 // ---- fichiers statiques ----
@@ -622,7 +593,6 @@ fn site_root() -> std::path::PathBuf {
 
 /// JS : servynex.test.js › fichiers statiques › reste dans le dossier
 #[test]
-#[ignore = "phase 2"]
 fn reste_dans_le_dossier() {
     let root = site_root();
     assert_eq!(
@@ -645,7 +615,6 @@ fn reste_dans_le_dossier() {
 
 /// JS : servynex.test.js › fichiers statiques › refuse fichiers cachés, flux NTFS et octets nuls
 #[test]
-#[ignore = "phase 2"]
 fn refuse_caches_flux_ntfs_octets_nuls() {
     let root = site_root();
     assert_eq!(resolve_inside(&root, "/.git/config"), None);
@@ -659,7 +628,6 @@ fn refuse_caches_flux_ntfs_octets_nuls() {
 
 /// JS : servynex.test.js › startupReason : erreur, sinon avertissement, jamais une ligne quelconque
 #[test]
-#[ignore = "phase 2"]
 fn startup_reason_erreur_sinon_avertissement() {
     let dir = temp_dir("servynex-startup-");
     let file = dir.path().join("p.log");
@@ -676,7 +644,6 @@ fn startup_reason_erreur_sinon_avertissement() {
 
 /// JS : servynex.test.js › lastError choisit la ligne qui explique l'arrêt, pas un avertissement
 #[test]
-#[ignore = "phase 2"]
 fn last_error_explique_l_arret() {
     let dir = temp_dir("servynex-test-");
     let file = dir.path().join("p.log");

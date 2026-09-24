@@ -15,9 +15,14 @@ fn root() -> PathBuf {
 /// Textes de l'interface : `public/locales/<langue>.js`, un objet JSON après `export default`.
 fn ui_catalog(lang: &str) -> Map<String, Value> {
     let text = std::fs::read_to_string(root().join("public/locales").join(format!("{lang}.js"))).unwrap();
-    let start = text.find('{').unwrap();
+    let start = text.find("export default {").unwrap() + "export default ".len();
     let end = text.rfind('}').unwrap();
-    serde_json::from_str(&text[start..=end]).unwrap()
+    // Objet JavaScript : virgule permise avant l'accolade finale.
+    let body = Regex::new(r",\s*$")
+        .unwrap()
+        .replace(text[start..end].trim_end(), "")
+        .into_owned();
+    serde_json::from_str(&format!("{body}}}")).unwrap()
 }
 
 fn params_of(text: &str) -> Vec<String> {
@@ -51,7 +56,6 @@ fn same_shape(en: &Map<String, Value>, fr: &Map<String, Value>, place: &str) {
 
 /// JS : i18n.test.js › langues › serveur et interface : mêmes clés et mêmes paramètres en anglais et en français
 #[test]
-#[ignore = "phase 2"]
 fn memes_cles_et_parametres() {
     same_shape(catalog(Lang::En), catalog(Lang::Fr), "serveur");
     same_shape(&ui_catalog("en"), &ui_catalog("fr"), "interface");
@@ -59,7 +63,6 @@ fn memes_cles_et_parametres() {
 
 /// JS : i18n.test.js › langues › traduction : paramètres, message imbriqué, clé inconnue
 #[test]
-#[ignore = "phase 2"]
 fn traduction() {
     let en = catalog(Lang::En);
     let (key, text) = en
@@ -94,7 +97,6 @@ fn traduction() {
 
 /// JS : i18n.test.js › langues › langue du serveur : variable SERVYNEX_LANG, sinon celle du système, sinon l’anglais
 #[test]
-#[ignore = "phase 2"]
 fn langue_du_serveur() {
     assert_eq!(detect_lang(Some("fr-FR"), None), Lang::Fr);
     assert_eq!(detect_lang(Some("de-DE"), None), Lang::En);
@@ -104,7 +106,6 @@ fn langue_du_serveur() {
 
 /// JS : i18n.test.js › langues › langue d’une requête : Accept-Language, sinon celle du serveur
 #[test]
-#[ignore = "phase 2"]
 fn langue_d_une_requete() {
     assert_eq!(lang_of(Some("en-US,en;q=0.9"), Lang::Fr), Lang::En);
     assert_eq!(lang_of(Some("de-DE, fr;q=0.8"), Lang::Fr), Lang::Fr);
@@ -113,7 +114,6 @@ fn langue_d_une_requete() {
 
 /// JS : i18n.test.js › langues › erreur traduisible : message dans la langue du serveur, retraduit à la demande
 #[test]
-#[ignore = "phase 2"]
 fn erreur_traduisible() {
     let err = LocalError::new(404, "project.unknown", params![]);
     assert_eq!(
@@ -145,7 +145,6 @@ fn read_all(dir: &Path, ext: &str, recursive: bool) -> String {
 
 /// JS : i18n.test.js › langues › chaque clé utilisée par l’interface et le serveur existe
 #[test]
-#[ignore = "phase 2"]
 fn chaque_cle_utilisee_existe() {
     let ui = read_all(&root().join("public/js"), "js", false);
     let pages = read_all(&root().join("public"), "html", false);

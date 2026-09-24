@@ -86,26 +86,65 @@ macro_rules! params {
 
 /// Texte d'une clé dans une langue, paramètres remplacés. Clé inconnue : la clé elle-même.
 pub fn tr(key: &str, params: &Params, lang: Lang) -> String {
-    let _ = (key, params, lang);
-    unimplemented!("phase 2")
+    let text = catalog(lang)
+        .get(key)
+        .or_else(|| catalog(Lang::En).get(key))
+        .and_then(|v| v.as_str())
+        .unwrap_or(key);
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let name_len = after
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(after.len());
+        let name = &after[..name_len];
+        let closed = !name.is_empty() && after[name_len..].starts_with('}');
+        match params.iter().find(|(n, _)| n == name) {
+            Some((_, value)) if closed => {
+                match value {
+                    Arg::Text(t) => out.push_str(t),
+                    Arg::Msg(m) => out.push_str(&tr(&m.key, &m.params, lang)),
+                }
+                rest = &after[name_len + 1..];
+            }
+            _ => {
+                out.push('{');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Tous les textes d'une langue (clé → texte), pour les tests de parité.
 pub fn catalog(lang: Lang) -> &'static serde_json::Map<String, serde_json::Value> {
-    let _ = lang;
-    unimplemented!("phase 2")
+    use std::sync::OnceLock;
+    static EN: OnceLock<serde_json::Map<String, serde_json::Value>> = OnceLock::new();
+    static FR: OnceLock<serde_json::Map<String, serde_json::Value>> = OnceLock::new();
+    let (cell, text) = match lang {
+        Lang::En => (&EN, include_str!("../../../locales/en.json")),
+        Lang::Fr => (&FR, include_str!("../../../locales/fr.json")),
+    };
+    cell.get_or_init(|| serde_json::from_str(text).expect("textes du serveur"))
 }
 
 /// Langue du serveur : `SERVYNEX_LANG`, sinon celle du système, sinon l'anglais.
 pub fn detect_lang(system_locale: Option<&str>, env: Option<&str>) -> Lang {
-    let _ = (system_locale, env);
-    unimplemented!("phase 2")
+    env.and_then(Lang::pick)
+        .or_else(|| system_locale.and_then(Lang::pick))
+        .unwrap_or(Lang::En)
 }
 
 /// Langue d'une requête : la première prise en charge de `Accept-Language`, sinon celle du serveur.
 pub fn lang_of(accept_language: Option<&str>, server: Lang) -> Lang {
-    let _ = (accept_language, server);
-    unimplemented!("phase 2")
+    accept_language
+        .unwrap_or_default()
+        .split(',')
+        .find_map(Lang::pick)
+        .unwrap_or(server)
 }
 
 /// Erreur au message traduisible, avec le statut HTTP à renvoyer.

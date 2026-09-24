@@ -1,0 +1,31 @@
+{
+  "instance": { "port": 9000, "name": "Maison", "lang": "fr" },
+  "projects": [
+    {
+      "id": "a",
+      "tags": [],
+      "env": {},
+      "health": { "path": "/", "expect": "ok" },
+      "extra": { "deep": { "deeper": { "deepest": [1, 2, { "k": "v" }] } } }
+    },
+    {
+      "id": "b",
+      "env": {
+        "A": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "args": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "b"
+      ],
+      "nested": {
+        "list": [
+          {
+            "a": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          },
+          { "b": 1 }
+        ]
+      }
+    }
+  ],
+  "unknown": { "kept": [true, false, null], "empty": [] }
+}

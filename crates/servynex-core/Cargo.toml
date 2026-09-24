@@ -15,6 +15,13 @@ servynex-sys = { path = "../servynex-sys" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+regex = "1"
+unicode-normalization = "0.1"
+scrypt = { version = "0.11", default-features = false }
+sha2 = "0.10"
+rand = "0.9"
+base64 = "0.22"
+subtle = "2"
 
 [dev-dependencies]
 servynex-fixtures = { path = "../servynex-fixtures" }

@@ -1,0 +1,12 @@
+{
+  "instance": { "port": 9000 },
+  "projects": [
+    {
+      "id": "a",
+      "port": 3000,
+      "startTimeout": 1.5,
+      "big": 1e+21,
+      "neg": -0.25
+    }
+  ]
+}

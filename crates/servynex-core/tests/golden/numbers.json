@@ -1,0 +1,1 @@
+{ "instance": { "port": 9000.0 }, "projects": [{ "id": "a", "port": 3000.0, "startTimeout": 1.5, "big": 1e21, "neg": -0.25 }] }
