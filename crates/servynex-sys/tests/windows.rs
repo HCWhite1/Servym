@@ -6,7 +6,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use servynex_fixtures::{Req, fixture_exe, free_port, listening, read, temp_dir, until};
-use servynex_sys::{LaunchOptions, Platform, clean_env, native};
+use servynex_sys::{LaunchOptions, clean_env, native};
 use tokio::sync::oneshot;
 
 /// Même analyse que `listeners()` de la version Node (windows.js).
@@ -99,6 +99,15 @@ fn visible_windows() -> BTreeSet<isize> {
     set
 }
 
+/// Arrête le projet même si le test échoue avant la fin.
+struct KillOnDrop(u32);
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        let _ = servynex_sys::windows::procs::kill_tree(self.0);
+    }
+}
+
 fn window_pid(hwnd: isize) -> u32 {
     let mut pid = 0;
     // SAFETY : lecture du processus propriétaire d'une fenêtre.
@@ -115,6 +124,7 @@ async fn lancement_cache_journal_et_arret() {
     let (opts, rx) = options(dir.path(), port);
     let exe = fixture_exe().to_string_lossy().into_owned();
     let pid = platform.launch(vec![exe, "server".into()], opts).await.unwrap();
+    let _guard = KillOnDrop(pid);
     until(|| listening(port), 10_000).await;
     assert_eq!(Req::get("/").send(port).await.body, "<title>Factice</title>");
     // Seules comptent les fenêtres des processus du projet (d'autres programmes de la machine
