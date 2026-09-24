@@ -282,8 +282,8 @@ async fn ressources() {
         "mémoire de l'application factice"
     );
     assert!(
-        first["projects"]["ok"]["processes"].as_u64().unwrap() >= 2,
-        "cmd.exe puis le programme : toute l’arborescence"
+        first["projects"]["ok"]["processes"].as_u64().unwrap() >= if cfg!(windows) { 2 } else { 1 },
+        "Windows : cmd.exe puis le programme, toute l’arborescence (Linux : lancé sans shell)"
     );
     assert!(first["projects"].get("crash").is_none(), "arrêté : absent");
     assert!(
