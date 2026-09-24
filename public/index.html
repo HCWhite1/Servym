@@ -305,6 +305,17 @@
           </div>
           <div class="setting">
             <div class="setting-text">
+              <p class="setting-label" data-i18n="transfer.title">Exporter ou importer</p>
+              <p class="setting-desc" data-i18n="transfer.desc">Pour retrouver ses projets sur un autre PC. Le fichier contient aussi leurs variables d’environnement. L’import remplace la liste des projets, après un aperçu ; les réglages de Servynex (port, accès, nom) restent ceux de ce PC.</p>
+            </div>
+            <div class="setting-actions">
+              <button class="btn" type="button" id="config-export" data-i18n="transfer.export"><svg><use href="icons.svg#download"/></svg>Exporter</button>
+              <button class="btn" type="button" id="config-import" data-i18n="transfer.import"><svg><use href="icons.svg#upload"/></svg>Importer…</button>
+              <input type="file" id="config-import-file" accept=".json,application/json" hidden>
+            </div>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
               <p class="setting-label" data-i18n="settings.ownLog">Journal de Servynex</p>
               <p class="setting-desc" data-i18n="settings.ownLogDesc">Actions et changements d’état (logs/servynex.log).</p>
             </div>

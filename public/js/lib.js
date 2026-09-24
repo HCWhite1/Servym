@@ -2,11 +2,13 @@
 import { lang, t } from './i18n.js';
 import { projectUrl } from './urls.js';
 
-export async function api(path, { method = 'GET', body } = {}) {
+// raw : la réponse elle-même quand elle réussit (fichier à télécharger).
+export async function api(path, { method = 'GET', body, raw = false } = {}) {
   // Accept-Language : les messages d'erreur du serveur arrivent dans la langue de la page.
   const headers = { 'X-Servynex-Request': '1', 'Accept-Language': lang };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(`/api/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (raw && res.ok) return res;
   const data = await res.json().catch(() => ({}));
   // Session absente, expirée ou verrouillée : l'écran de connexion prend la main (auth.js).
   if (data.auth && !path.startsWith('auth/')) dispatchEvent(new CustomEvent('servynex:auth', { detail: data }));

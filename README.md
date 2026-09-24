@@ -165,6 +165,8 @@ By default, Servynex only listens on this PC. **Access from the private network*
 | PATCH | `/api/instance` | instance name |
 | PUT | `/api/instance/lang` | server language: `{ "lang": "en" }`, `"fr"` or `null` (the system one); applied at once |
 | PUT | `/api/instance/notify` | system notifications when a project crashes: `{ "notify": true }` or `false` |
+| GET | `/api/config/export` | the whole `projects.json`, as a file to download (environment variables included) |
+| POST | `/api/config/import` | `{ "config": {…} }`: preview of the added, changed and removed projects; with `"apply": true`, replaces the projects (the `instance` section of this PC is kept) |
 | POST | `/api/instance/notify-test` | sends a test notification; `{ "sent": false }` when the system has none |
 | PUT | `/api/instance/access` | `{ "access": "lan", "password": "…" }` or `{ "access": "local" }`; administrator, applied at restart |
 | … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (name, preferences, password, key, sessions, linked accounts), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
@@ -175,6 +177,7 @@ Error messages (`{ "error": "…" }`) use the language of the `Accept-Language` 
 
 - **Projects**: list by default; **Orbit** as an option (Servynex in the middle, online projects circle around it, a required service is a moon of the application that depends on it, an exposed project has a dotted halo).
 - **Resources**: CPU and memory in the list, and as charts (last 5 minutes) in the panel's Info tab.
+- **Export and import** (Settings › Configuration): the whole `projects.json` as a file, to take your projects to another PC. Importing shows the added, changed and removed projects first, keeps this PC's Servynex settings (port, access, name) and refuses to remove a running project.
 - **System notifications** (off by default, Settings › General): a Windows notification when a project crashes or fails to start, even with the page closed. The texts reach PowerShell through environment variables, never through the command line. On Linux, `notify-send` when it is installed.
 - **Activity**, **Network**, **Settings** (startup, language, theme — system, light, dark, Solarized light or dark —, `projects.json`, restarting Servynex, shortcuts).
 - Shortcuts: `1`–`9` start or open a project · `/` search · `,` settings · `V` list or orbit · `P` pause the orbit · `Esc` close.

@@ -234,4 +234,10 @@ export default {
   'notify.failedStart': '{name} n\'a pas pu démarrer',
   'notify.testTitle': 'Notifications de Servynex',
   'notify.testBody': 'Elles s\'afficheront ainsi quand un projet plante.',
+
+  // Export et import de la configuration
+  'audit.imported': 'Configuration importée : {added} ajouté(s), {changed} modifié(s), {removed} retiré(s)',
+  'audit.addedByImport': 'Projet {name} ajouté par import',
+  'audit.changedByImport': 'Modifié par import : {changes}',
+  'audit.removedByImport': 'Projet {name} retiré par import',
 };

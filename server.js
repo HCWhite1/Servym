@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { ConfigError, createProject, DEFAULT_CONFIG, describeChanges, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig } from './src/config.js';
+import { ConfigError, createProject, DEFAULT_CONFIG, describeChanges, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig, validate } from './src/config.js';
 import { Auth, AuthError } from './src/auth.js';
 import { LANGS, LocalError, langOf, msg, serverLang, setServerLang, tr } from './src/i18n.js';
 import { followLog, history, tailLines } from './src/logs.js';
@@ -39,12 +39,12 @@ const send = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
-async function readJson(req) {
+async function readJson(req, limit = 16_000) {
   if (!String(req.headers['content-type']).startsWith('application/json')) throw new HttpError(415, 'http.jsonExpected');
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 16_000) throw new HttpError(413, 'http.tooLarge');
+    if (raw.length > limit) throw new HttpError(413, 'http.tooLarge');
   }
   try {
     return JSON.parse(raw || '{}');
@@ -67,7 +67,7 @@ function openStream(req, res) {
 // en-tête exigé que pour les écritures, pour qu'un <img> tiers ne puisse pas
 // les déclencher sur un navigateur qui n'envoie pas Sec-Fetch-Site. Les flux
 // SSE (EventSource ne pose pas d'en-tête) restent libres : ils ne font que lire.
-const COSTLY_GET = /^\/api\/(free-port|git|ports|network|autostart|stats)(\?|$)/;
+const COSTLY_GET = /^\/api\/(free-port|git|ports|network|autostart|stats|config\/export)(\?|$)/;
 
 // Host : bloque le DNS rebinding (seuls les noms de cette machine sont acceptés, voir
 // hostAllowed). En-tête X-Servynex-Request et Origin : bloquent le CSRF (un site
@@ -92,6 +92,7 @@ function guard(req, hostAllowed) {
 const OPERATE = new Set(['start', 'stop', 'restart', 'open', 'folder', 'code', 'terminal']);
 const INSTANCE_ACTION_PERMISSION = { config: 'commands', log: 'instance', folder: 'instance', onboarded: 'view', lang: 'instance', notify: 'instance', 'notify-test': 'instance' };
 function permissionFor(section, id, action, method) {
+  if (section === 'config') return 'commands'; // export et import : tout projects.json, commandes comprises
   if (method === 'GET' || method === 'HEAD') return 'view';
   if (section === 'projects' && !id && method === 'POST') return 'commands';
   if (section === 'projects' && !id && method === 'PUT') return 'edit'; // ordre des projets
@@ -551,6 +552,41 @@ export function createApp({
       }
       for (const old of previous.projects) if (!next.projects.some((p) => p.id === old.id)) audit(old.id, 'audit.removedInFile', { name: old.name });
       return send(res, 200, { ok: true });
+    }
+    if (section === 'config' && id === 'export' && method === 'GET') {
+      // Le fichier tel qu'il est sur le disque, à télécharger.
+      const day = new Date().toISOString().slice(0, 10);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': `attachment; filename="servynex-projects-${day}.json"`,
+        'Cache-Control': 'no-store',
+      });
+      return res.end(fs.readFileSync(configFile, 'utf8'));
+    }
+    if (section === 'config' && id === 'import' && method === 'POST') {
+      // Remplace les projets par ceux d'un fichier exporté ; la section instance (port,
+      // accès, nom…) reste celle de cette machine. Sans apply : aperçu seulement.
+      const { config: imported, apply } = await readJson(req, 512_000);
+      if (!Array.isArray(imported?.projects)) throw new ConfigError('config.noProjects');
+      const current = diskConfig();
+      const next = validate({ ...current, projects: imported.projects });
+      const diff = { added: [], removed: [], changed: [], unchanged: 0 };
+      for (const p of next.projects) {
+        const old = current.projects.find((x) => x.id === p.id);
+        const changes = old ? describeChanges(old, p) : '';
+        if (!old) diff.added.push({ id: p.id, name: p.name });
+        else if (changes) diff.changed.push({ id: p.id, name: p.name, changes });
+        else diff.unchanged += 1;
+      }
+      for (const old of current.projects) if (!next.projects.some((p) => p.id === old.id)) diff.removed.push({ id: old.id, name: old.name });
+      if (apply === true) {
+        applyConfig(next);
+        audit('-', 'audit.imported', { added: diff.added.length, changed: diff.changed.length, removed: diff.removed.length });
+        for (const p of diff.added) audit(p.id, 'audit.addedByImport', { name: p.name });
+        for (const p of diff.changed) audit(p.id, 'audit.changedByImport', { changes: p.changes });
+        for (const p of diff.removed) audit(p.id, 'audit.removedByImport', { name: p.name });
+      }
+      return send(res, 200, { ...diff, applied: apply === true });
     }
     if (section !== 'projects' || !id) throw new HttpError(404, 'http.unknownRoute');
 

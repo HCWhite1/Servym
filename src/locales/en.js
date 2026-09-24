@@ -234,4 +234,10 @@ export default {
   'notify.failedStart': '{name} could not start',
   'notify.testTitle': 'Servynex notifications',
   'notify.testBody': 'This is how they will look when a project crashes.',
+
+  // Configuration export and import
+  'audit.imported': 'Configuration imported: {added} added, {changed} changed, {removed} removed',
+  'audit.addedByImport': 'Project {name} added by import',
+  'audit.changedByImport': 'Changed by import: {changes}',
+  'audit.removedByImport': 'Project {name} removed by import',
 };

@@ -794,6 +794,12 @@ dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 .setting-label { font-weight: 550; }
 .setting-desc { color: var(--text-2); margin-top: 2px; font-size: 12.5px; }
 .setting.stack { flex-direction: column; align-items: stretch; gap: 12px; }
+.import-preview { width: min(560px, calc(100vw - 32px)); }
+.import-head { font-weight: 550; margin-top: 4px; }
+.import-list { margin: 6px 0 14px; padding-left: 18px; }
+.import-list li { margin: 3px 0; overflow-wrap: anywhere; }
+.import-rest { color: var(--text-2); }
+.import-preview .hint { margin-top: 12px; }
 
 /* Suppression d'un projet, en bas de ses réglages. */
 .danger-zone {

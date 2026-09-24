@@ -37,6 +37,13 @@ export function init(hs) {
   $('#open-instance-log').addEventListener('click', () => instanceAction('log'));
   $('#open-instance-dir').addEventListener('click', () => instanceAction('folder'));
   $('#reload-config').addEventListener('click', reloadConfig);
+  $('#config-export').addEventListener('click', exportConfig);
+  $('#config-import').addEventListener('click', () => $('#config-import-file').click());
+  $('#config-import-file').addEventListener('change', (e) => {
+    const [file] = e.target.files;
+    e.target.value = ''; // le même fichier pourra être choisi de nouveau
+    if (file) importConfig(file);
+  });
   $('#restart-instance').addEventListener('click', restartInstance);
   $('#instance-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -97,6 +104,8 @@ function applyPermissions() {
   const needs = (perm) => t('settings.needsPermission', { permission: t(`perm.${perm}`) });
   off('#open-config', 'commands', needs('commands'));
   off('#reload-config', 'edit', needs('edit'));
+  off('#config-export', 'commands', needs('commands'));
+  off('#config-import', 'commands', needs('commands'));
   off('#open-instance-log', 'instance', needs('instance'));
   off('#open-instance-dir', 'instance', needs('instance'));
   $('#instance-name').disabled = !can('instance');
@@ -219,6 +228,73 @@ async function reloadConfig() {
   } catch (err) {
     toast(err.message, 'error');
   }
+}
+
+// ---- Export et import de la configuration ----
+
+// projects.json tel qu'il est sur le disque, à télécharger.
+async function exportConfig() {
+  try {
+    const res = await api('config/export', { raw: true });
+    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'servynex-projects.json';
+    const url = URL.createObjectURL(await res.blob());
+    h('a', { href: url, download: name }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// Aperçu d'abord (rien n'est écrit), puis l'import une fois confirmé.
+async function importConfig(file) {
+  let config;
+  try {
+    config = JSON.parse(await file.text());
+  } catch (err) {
+    return toast(t('transfer.unreadable', { name: file.name, error: err.message }), 'error');
+  }
+  try {
+    const diff = await api('config/import', { method: 'POST', body: { config } });
+    if (!diff.added.length && !diff.changed.length && !diff.removed.length) return toast(t('transfer.same'));
+    if (!(await previewImport(diff))) return;
+    await api('config/import', { method: 'POST', body: { config, apply: true } });
+    toast(t('transfer.done'));
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function previewImport({ added, changed, removed, unchanged }) {
+  const group = (key, items, line) => (items.length
+    ? [h('p', { class: 'import-head', text: tn(key, items.length) }), h('ul', { class: 'import-list' }, items.map(line))]
+    : []);
+  const ok = h('button', { class: `btn ${removed.length ? 'danger-fill' : 'primary'}`, type: 'submit', text: t('transfer.apply') });
+  const cancel = h('button', { class: 'btn', type: 'button', text: t('common.cancel') });
+  const dialog = h('dialog', { class: 'modal import-preview' },
+    h('header', { class: 'modal-head' }, h('h2', { text: t('transfer.previewTitle') })),
+    h('div', { class: 'modal-body' },
+      ...group('transfer.added', added, (p) => h('li', { text: p.name })),
+      ...group('transfer.changed', changed, (p) => h('li', {}, h('b', { text: p.name }), h('span', { class: 'muted', text: ` · ${p.changes}` }))),
+      ...group('transfer.removed', removed, (p) => h('li', { text: p.name })),
+      unchanged ? h('p', { class: 'import-rest', text: tn('transfer.unchanged', unchanged) }) : null,
+      h('p', { class: 'hint', text: t('transfer.keepInstance') })),
+    h('footer', { class: 'modal-foot' }, cancel, ok));
+  document.body.append(dialog);
+  dialog.showModal();
+  ok.focus();
+  return new Promise((resolve) => {
+    const close = (value) => {
+      dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    cancel.addEventListener('click', () => close(false));
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      close(false);
+    });
+    ok.addEventListener('click', () => close(true));
+  });
 }
 
 function fillInstance() {
