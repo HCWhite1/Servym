@@ -136,3 +136,28 @@ Trouvé en route :
 - Superviseur `vbs` accepté le temps de la transition (tâche planifiée actuelle).
 
 Jalon (à faire avec toi) : `servynex.exe` remplace `node server.js` sur ta machine.
+
+### Jalon (24/09/2026, 21 h 10)
+
+`servynex.exe` a remplacé `node server.js` sur la machine de développement :
+
+- installé dans `%LOCALAPPDATA%\Programs\Servynex\servynex.exe`, données inchangées dans
+  `C:\Servynex` (`--data C:\Servynex`) ;
+- tâche planifiée « Servynex » (VBS + Node) **désactivée**, pas supprimée ;
+- démarrage avec Windows : clé Run de HKCU,
+  `"…\servynex.exe" --supervised --data "C:\Servynex"` ;
+- Bogue, MangaFlow et MySQL repris sans redémarrage (MySQL toujours dépendance de Bogue) ;
+  `pids.json` réécrit avec l'heure de création des processus ;
+- mémoire : superviseur 1,3 Mo et serveur 3,4 Mo de mémoire privée (Node : wscript 13 Mo, node
+  85 Mo, sonde PowerShell 92 Mo, plus environ 75 Mo par PowerShell d'attente de projet).
+
+Trouvé pendant la bascule : le superviseur détaché de sa console transmettait des sorties
+invalides au serveur, dont le lancement échouait sans rien dire. Corrigé (sorties vers « nul »,
+échec inscrit dans `servynex.log`).
+
+Retour arrière : arrêter les deux `servynex.exe`, retirer la valeur « Servynex » de la clé Run
+(`reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v Servynex /f`), réactiver la
+tâche (`Enable-ScheduledTask -TaskName Servynex`) et la lancer (`Start-ScheduledTask -TaskName
+Servynex`). Les fichiers de données restent lisibles par la version Node.
+
+CI GitHub Actions entièrement verte (Rust sous Windows et Linux, suite Node sous Windows).
