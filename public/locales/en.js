@@ -276,7 +276,7 @@ export default {
   "keys.layout": "Switch between list and orbit",
   "keys.pause": "Pause the orbit",
   "keys.sections": "Previous or next settings section",
-  "keys.settings": "Open the settings",
+  "keys.settings": "Open or close the settings",
   "keys.startNth": "Start or open project no. 1 to 9",
   "layout.list": "List",
   "layout.orbit": "Orbit",

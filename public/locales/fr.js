@@ -276,7 +276,7 @@ export default {
   "keys.layout": "Passer de la liste à l’orbite",
   "keys.pause": "Mettre l’orbite en pause",
   "keys.sections": "Section précédente ou suivante des paramètres",
-  "keys.settings": "Ouvrir les paramètres",
+  "keys.settings": "Ouvrir ou fermer les paramètres",
   "keys.startNth": "Démarrer ou ouvrir le projet n°1 à 9",
   "layout.list": "Liste",
   "layout.orbit": "Orbite",

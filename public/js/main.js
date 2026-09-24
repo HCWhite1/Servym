@@ -535,7 +535,20 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     return panel.open(e.target.dataset.id);
   }
-  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select') || document.querySelector('dialog[open]')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select')) return;
+  // « , » referme aussi les Paramètres, sauf si une fenêtre ouverte par-dessus (confirmation) a la main.
+  if (e.key === ',' && settings.isOpen() && !e.target.closest?.('dialog:not(#settings)')) {
+    e.preventDefault();
+    return settings.close();
+  }
+  // Et les ouvre même par-dessus le volet d'un projet ou le formulaire « Ajouter » :
+  // une fois refermés, on reprend là où on en était. Pas par-dessus une confirmation
+  // ni la présentation, qui attendent une réponse.
+  if (e.key === ',' && [...document.querySelectorAll('dialog[open]')].every((d) => ['panel', 'add-dialog'].includes(d.id))) {
+    e.preventDefault();
+    return settings.open();
+  }
+  if (document.querySelector('dialog[open]')) return;
   const key = e.key.toLowerCase();
   if (key === '/') {
     e.preventDefault();
@@ -543,8 +556,6 @@ document.addEventListener('keydown', (e) => {
     search.focus();
   } else if (/^[1-9]$/.test(key)) {
     primary(apps()[Number(key) - 1]);
-  } else if (key === ',') {
-    settings.open();
   } else if (key === 'v') {
     setLayout(prefs.layout === 'orbit' ? 'list' : 'orbit');
   } else if (key === 'p' && prefs.layout === 'orbit') {

@@ -94,6 +94,12 @@ export function open(section = 'general') {
   if (!dialog.open) dialog.showModal();
 }
 
+export const isOpen = () => dialog.open;
+
+export function close() {
+  dialog.close();
+}
+
 function showSection(name) {
   for (const s of dialog.querySelectorAll('.modal-body > [data-section]')) s.hidden = s.dataset.section !== name;
   for (const b of dialog.querySelectorAll('.settings-nav [data-section]')) {
