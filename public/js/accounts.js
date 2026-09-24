@@ -1,7 +1,7 @@
 // Paramètres › Mon compte, Sécurité, Membres (comptes et protection par mot de passe).
 import { showKeyDialog, logout } from './auth.js';
 import { t } from './i18n.js';
-import { PERMISSION_LABELS, ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, h, icon, initials, session, toast } from './lib.js';
+import { ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, h, icon, initials, permissionLabels, session, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LOCKS = [[0, t('lock.never')], [120, '2 min'], [300, '5 min'], [900, '15 min'], [1800, '30 min'], [3600, '1 h']];
@@ -64,7 +64,7 @@ function permissionPicker(initial) {
     });
     return b;
   }));
-  const list = h('div', { class: 'sub-list' }, ...Object.entries(PERMISSION_LABELS).map(([p, [label, desc]]) => {
+  const list = h('div', { class: 'sub-list' }, ...Object.entries(permissionLabels()).map(([p, [label, desc]]) => {
     const box = h('input', { type: 'checkbox', class: 'check-input', checked: initial.includes(p), disabled: p === 'view' });
     box.addEventListener('change', () => sync(p));
     boxes.set(p, box);

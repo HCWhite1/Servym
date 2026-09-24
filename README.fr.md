@@ -12,7 +12,7 @@ Tableau de bord local pour lancer, surveiller et arrêter vos projets de dévelo
 
 ## Prérequis
 
-- **Windows 10 ou 11** (la version Linux est prévue, voir « Limites »).
+- **Windows 10 ou 11**, ou **Linux** (pas encore essayé sur une vraie machine, voir « Linux »).
 - **Node.js 22 ou plus.**
 
 ## Installation
@@ -28,6 +28,16 @@ Ouvrir http://localhost:9000 : une présentation propose de démarrer Servynex a
 - **Démarrage avec Windows** : Paramètres › Général, ou `autostart.bat` puis `ON` / `OFF`. Crée la tâche planifiée « Servynex » (sans droits administrateur) : Servynex démarre sans fenêtre à l'ouverture de session (`scripts/start-hidden.vbs`) et se relance s'il plante (il abandonne après 5 plantages rapides de suite).
 - **Redémarrer Servynex** : Paramètres › Servynex. Les projets lancés continuent de tourner et sont repris. Disponible seulement sous la tâche planifiée : lancé par `npm start`, Servynex se relance depuis son terminal.
 - **Tests** : `npm test`.
+
+## Linux
+
+Le même code tourne sous Linux ; seul `src/platform/linux.js` change (Windows : `src/platform/windows.js`, mêmes fonctions). **État : testé sur des sorties enregistrées seulement, pas encore sur une vraie machine Linux.**
+
+- Demande `ss` (iproute2), et `xdg-open` (xdg-utils) sur un bureau. Les projets sont lancés directement, sans shell, dans leur propre groupe de processus ; l'arrêt envoie `SIGTERM` à toute l'arborescence, puis `SIGKILL` après 3 s.
+- **Démarrer avec la session** : Paramètres › Général crée le service systemd utilisateur `servynex` (`~/.config/systemd/user/servynex.service`, sans droits administrateur). Il relance Servynex s'il plante, et l'arrêter laisse tourner les projets (`KillMode=process`). Pour qu'il démarre au boot sans ouvrir de session : `loginctl enable-linger`.
+- **VS Code et terminal** : `code` dans le `PATH` ; premier terminal trouvé parmi Ptyxis, GNOME Terminal, Konsole, Xfce Terminal, kitty, Alacritty et XTerm.
+- **Sans écran** (serveur) : rien ne s'ouvre sur la machine ; dossier, VS Code, terminal et fichiers locaux sont masqués.
+- Pas de profils réseau comme sous Windows : le pare-feu (firewalld…) se règle à part.
 
 ## Projets
 
@@ -185,7 +195,7 @@ Les messages d'erreur (`{ "error": "…" }`) sont dans la langue de l'en-tête `
 
 ## Limites
 
-- **Windows uniquement** pour l'instant : lancement (`launch.ps1`, `cmd.exe`), arrêt (`taskkill`), ports (`netstat`, `tasklist`), processeur et mémoire (`sample.ps1`), profils réseau et démarrage automatique (tâche planifiée) sont propres à Windows.
+- **Linux** pas encore essayé sur une vraie machine (voir « Linux »). Pas de version macOS.
 - **Réseau privé seulement** : pas encore de HTTPS intégré ni de pilotage d'une autre machine.
 
 ## Licence

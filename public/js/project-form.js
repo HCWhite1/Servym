@@ -87,7 +87,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
         h('span', {}, h('strong', { text: t('form.service') }), h('span', { class: 'hint', text: t('form.serviceHint') })),
         input('service', { type: 'checkbox', role: 'switch', class: 'switch' })),
       h('label', { class: 'setting-line' },
-        h('span', {}, h('strong', { text: t('form.autostart') }), h('span', { class: 'hint', text: t('form.autostartHint') })),
+        h('span', {}, h('strong', { text: t('form.autostart') }), h('span', { class: 'hint', 'data-i18n': 'form.autostartHint', text: t('form.autostartHint') })),
         input('autostart', { type: 'checkbox', role: 'switch', class: 'switch' }))),
     h('details', { class: 'form-section only-process' },
       h('summary', { text: t('form.stop') }),

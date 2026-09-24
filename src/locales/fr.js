@@ -240,4 +240,9 @@ export default {
   'audit.addedByImport': 'Projet {name} ajouté par import',
   'audit.changedByImport': 'Modifié par import : {changes}',
   'audit.removedByImport': 'Projet {name} retiré par import',
+
+  // Linux
+  'process.commandNotFound': 'Commande introuvable : {cmd}. Vérifiez qu’elle est installée et dans le PATH.',
+  'http.noDesktop': 'Servynex tourne sans écran : rien ne peut s’ouvrir sur sa machine.',
+  'system.noTerminal': 'Aucun terminal reconnu sur cette machine.',
 };

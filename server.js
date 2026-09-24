@@ -122,6 +122,8 @@ export function createApp({
   hostnames = () => [...sys.lanAddresses().map((a) => a.address), os.hostname()], // noms de cette machine sur le réseau
   isLocalViewer = (req) => LOOPBACK_ADDRESSES.has(req.socket.remoteAddress), // la page est-elle ouverte sur cette machine ?
   notify = notifier(), // notification du système (tests : factice)
+  platform = process.platform, // système, pour les textes de la page (« avec Windows », « avec la session »)
+  desktop = sys.tools.desktop, // session avec écran : sinon rien ne peut s'ouvrir sur cette machine
   ...options
 } = {}) {
   // projects.json invalide au démarrage : Servynex démarre quand même, avec la
@@ -280,8 +282,12 @@ export function createApp({
   const hostAllowed = (host) => LOOPBACK.has(host) || (listening === 'lan' && hostnames().some((n) => n.toLowerCase() === host));
   // Ouvrent quelque chose sur cette machine : réservées à qui est devant elle.
   const HOST_ONLY = new Set(['open', 'folder', 'code', 'terminal', 'config', 'log']);
+  // Sans écran (serveur Linux), personne n'est « devant » la machine.
+  const viewerLocal = (req) => desktop && isLocalViewer(req);
   const hostOnly = (req, action) => {
-    if (HOST_ONLY.has(action) && !isLocalViewer(req)) throw new HttpError(403, 'http.hostOnly');
+    if (!HOST_ONLY.has(action)) return;
+    if (!desktop) throw new HttpError(403, 'http.noDesktop');
+    if (!isLocalViewer(req)) throw new HttpError(403, 'http.hostOnly');
   };
 
   // Actions sur Servynex lui-même (page Paramètres). Chemins fixes : rien ne vient de la requête.
@@ -368,7 +374,7 @@ export function createApp({
         node: process.version,
         dir: ROOT_DIR,
         config: configFile,
-        tools: sys.tools,
+        tools: desktop ? sys.tools : { desktop: false, code: false, terminal: null },
         lan: sys.lanAddresses(),
         restartable: Boolean(restart),
         name: manager.config.instance.name ?? null,
@@ -376,7 +382,8 @@ export function createApp({
         onboarded: user ? Boolean(user.prefs?.onboarded) : Boolean(readUi().onboarded),
         access: manager.config.instance.access ?? 'local', // réglage (appliqué au démarrage)
         listening, // adresse d'écoute réelle
-        viewerLocal: isLocalViewer(req),
+        viewerLocal: viewerLocal(req),
+        platform,
         lang: manager.config.instance.lang ?? null, // langue choisie (null : celle du système)
         serverLang: serverLang(), // langue des journaux et des états, en ce moment
         notify: manager.config.instance.notify === true,
@@ -676,14 +683,20 @@ export function createApp({
 
 // ---- Démarrage ----
 
-// Code de sortie qui demande à scripts/start-hidden.vbs une relance immédiate.
+// Code de sortie qui demande au superviseur une relance immédiate.
 const RESTART_CODE = 75;
+
+// Lancé par un superviseur qui le relance : scripts/start-hidden.vbs sous Windows,
+// le service systemd utilisateur sous Linux (src/platform/linux.js).
+export function isSupervised(env = process.env) {
+  return ['vbs', 'systemd'].includes(env.SERVYNEX_SUPERVISOR);
+}
 
 if (import.meta.filename === path.resolve(process.argv[1] ?? '')) {
   let app;
   // Redémarrage depuis l'interface : seulement sous le superviseur, qui relance
   // Servynex ; lancé par npm start, personne ne le relancerait.
-  const supervised = process.env.SERVYNEX_SUPERVISOR === 'vbs';
+  const supervised = isSupervised();
   try {
     app = createApp({ restart: supervised ? () => shutdown(RESTART_CODE) : null });
   } catch (err) {

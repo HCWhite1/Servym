@@ -29,8 +29,19 @@ export function setChoice(value) {
 export const lang = pick(choice()) ?? navigator.languages.map(pick).find(Boolean) ?? 'en';
 document.documentElement.lang = lang;
 
+// Système de la machine de Servynex : une clé peut avoir sa variante « clé@linux »
+// (« Démarrer Servynex avec la session » plutôt qu'« avec Windows »).
+let platform = null;
+export function setPlatform(value) {
+  const changed = value !== platform;
+  platform = value;
+  return changed;
+}
+
+const message = (key) => MESSAGES[lang][key] ?? MESSAGES.en[key];
+
 export function t(key, params = {}) {
-  const text = MESSAGES[lang][key] ?? MESSAGES.en[key] ?? key;
+  const text = (platform && message(`${key}@${platform}`)) || message(key) || key;
   return text.replace(/\{(\w+)\}/g, (whole, name) => (name in params ? String(params[name]) : whole));
 }
 

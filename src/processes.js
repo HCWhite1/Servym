@@ -23,7 +23,6 @@
 // Seuls les projets managed sont persistés dans runtime/pids.json (#savePids).
 // « dependency » : démarré automatiquement pour un projet qui en dépend (une base
 // de données pour une application) ; il s'arrête avec le dernier projet qui l'utilisait.
-import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -34,7 +33,6 @@ import { lastError } from './logs.js';
 import { startStaticSite } from './static-server.js';
 import * as sys from './system.js';
 
-const LAUNCHER = path.join(import.meta.dirname, 'launch.ps1');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Message : clé de src/locales/<langue>.js et ses paramètres (« raw » : texte déjà traduit).
@@ -362,39 +360,13 @@ export class Manager extends EventEmitter {
     const stamp = new Date().toLocaleString(serverLang());
     fs.writeFileSync(log, `[servynex] ${stamp} · ${argv.join(' ')} · ${hostOf(p)}:${p.port}\n`);
 
-    const env = sys.cleanEnv({
-      ...p.env,
-      PORT: String(p.port),
-      NO_COLOR: '1',
-      SERVYNEX_CMDLINE: argv.map((a) => `"${a}"`).join(' '),
-      SERVYNEX_LOG: log,
-      SERVYNEX_CWD: p.cwd,
-    });
+    const env = sys.cleanEnv({ ...p.env, PORT: String(p.port), NO_COLOR: '1' });
     delete env.HOST;
     // HOST vide = toutes les interfaces (IPv4 et IPv6) pour les projets Node.
     if (p.hostControl === 'env' && !p.expose) env.HOST = '127.0.0.1';
 
-    const child = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', LAUNCHER], {
-      env,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return new Promise((resolve, reject) => {
-      let out = '';
-      let err = '';
-      let pid = null;
-      child.stdout.setEncoding('utf8').on('data', (d) => {
-        out += d;
-        const m = !pid && out.match(/^SERVYNEX_PID=(\d+)\r?\n/m); // écrit par launch.ps1
-        if (m) resolve((pid = Number(m[1])));
-      });
-      child.stderr.setEncoding('utf8').on('data', (d) => (err += d));
-      child.on('error', reject);
-      child.on('exit', (code) => {
-        if (pid) this.#exited(p.id, pid, code);
-        else reject(new Error(err.trim().split('\n')[0] || tr('process.launchFailed', { code })));
-      });
-    });
+    // PID de la racine de l'arborescence du projet (cmd.exe sous Windows).
+    return sys.launch(argv, { cwd: p.cwd, env, log, onExit: (pid, code) => this.#exited(p.id, pid, code) });
   }
 
   async #waitHealthy(p, pid) {

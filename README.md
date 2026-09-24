@@ -12,7 +12,7 @@ A local dashboard to start, watch and stop your development projects: Node, PHP 
 
 ## Requirements
 
-- **Windows 10 or 11** (a Linux version is planned, see "Limits").
+- **Windows 10 or 11**, or **Linux** (not yet tried on a real machine, see "Linux").
 - **Node.js 22 or later.**
 
 ## Install
@@ -28,6 +28,16 @@ Open http://localhost:9000: a short introduction offers to start Servynex with W
 - **Start with Windows**: Settings › General, or `autostart.bat` then `ON` / `OFF`. Creates the "Servynex" scheduled task (no administrator rights): Servynex starts without a window when you sign in (`scripts/start-hidden.vbs`) and restarts if it crashes (it gives up after 5 quick crashes in a row).
 - **Restart Servynex**: Settings › Servynex. Running projects keep running and are picked up again. Only available under the scheduled task: started with `npm start`, Servynex is restarted from its terminal.
 - **Tests**: `npm test`.
+
+## Linux
+
+The same code runs on Linux; only `src/platform/linux.js` changes (Windows: `src/platform/windows.js`, same functions). **Status: tested on recorded outputs only, not yet on a real Linux machine.**
+
+- Needs `ss` (iproute2), plus `xdg-open` (xdg-utils) on a desktop. Projects start directly, without a shell, in their own process group; stopping sends `SIGTERM` to the whole tree, then `SIGKILL` after 3 s.
+- **Start with the session**: Settings › General creates the user systemd service `servynex` (`~/.config/systemd/user/servynex.service`, no administrator rights). It restarts Servynex if it crashes, and stopping it leaves projects running (`KillMode=process`). To start it at boot without signing in: `loginctl enable-linger`.
+- **VS Code and terminal**: `code` in the `PATH`; first terminal found among Ptyxis, GNOME Terminal, Konsole, Xfce Terminal, kitty, Alacritty and XTerm.
+- **Without a screen** (server): nothing opens on the machine; folder, VS Code, terminal and local files are hidden.
+- No network profiles as on Windows: the firewall (firewalld…) is set apart.
 
 ## Projects
 
@@ -185,7 +195,7 @@ Error messages (`{ "error": "…" }`) use the language of the `Accept-Language` 
 
 ## Limits
 
-- **Windows only** for now: launch (`launch.ps1`, `cmd.exe`), stop (`taskkill`), ports (`netstat`, `tasklist`), CPU and memory (`sample.ps1`), network profiles and autostart (scheduled task) are Windows-specific.
+- **Linux** not yet tried on a real machine (see "Linux"). No macOS version.
 - **Private network only**: no built-in HTTPS nor control of another machine yet.
 
 ## License

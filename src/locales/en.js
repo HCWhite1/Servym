@@ -240,4 +240,9 @@ export default {
   'audit.addedByImport': 'Project {name} added by import',
   'audit.changedByImport': 'Changed by import: {changes}',
   'audit.removedByImport': 'Project {name} removed by import',
+
+  // Linux
+  'process.commandNotFound': 'Command not found: {cmd}. Check that it is installed and in the PATH.',
+  'http.noDesktop': 'Servynex runs without a screen: nothing can open on its machine.',
+  'system.noTerminal': 'No known terminal on this machine.',
 };

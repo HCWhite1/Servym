@@ -28,8 +28,9 @@ export function can(permission) {
   return !session.enabled || Boolean(perms && (perms.includes('admin') || perms.includes(permission)));
 }
 
-// Permission → [nom, description].
-export const PERMISSION_LABELS = Object.fromEntries(['view', 'operate', 'edit', 'commands', 'instance', 'admin']
+// Permission → [nom, description]. Calculé à l'affichage : certains textes
+// dépendent du système de la machine, connu après le chargement.
+export const permissionLabels = () => Object.fromEntries(['view', 'operate', 'edit', 'commands', 'instance', 'admin']
   .map((p) => [p, [t(`perm.${p}`), t(`perm.${p}.desc`)]]));
 export const ROLE_LABELS = Object.fromEntries(['admin', 'editor', 'operator', 'readonly', 'custom'].map((r) => [r, t(`roleLabel.${r}`)]));
 export const ROLE_PERMISSIONS = { readonly: ['view'], operator: ['view', 'operate'], editor: ['view', 'operate', 'edit'], admin: ['view', 'operate', 'edit', 'commands', 'instance', 'admin'] };

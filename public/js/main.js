@@ -1,7 +1,7 @@
 // Page principale : navigation, liste des projets (ou orbite), état en direct, raccourcis.
 import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, formatBytes, formatCpu, gitSummary, h, icon, initials, isExternal, primaryOf, session, statusText, store, toast, urlOf, viewer } from './lib.js';
 import { gate, lockNow, logout, takeNotice } from './auth.js';
-import { choice, setChoice, t, tn, translate } from './i18n.js';
+import { choice, setChoice, setPlatform, t, tn, translate } from './i18n.js';
 import * as activity from './activity.js';
 import * as menu from './menu.js';
 import * as network from './network.js';
@@ -653,6 +653,8 @@ for (const module of [panel, menu, orbit, network, activity, settings, onboardin
 
 const initial = await api('projects');
 instance = initial.instance;
+// Textes propres au système (« avec la session » sous Linux).
+if (setPlatform(instance.platform)) translate();
 viewer.local = instance.viewerLocal !== false;
 $('#brand-sub').textContent = location.host;
 applySnapshot(initial.projects);

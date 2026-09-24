@@ -4,8 +4,8 @@ import { t, tn } from './i18n.js';
 import { api, exposure, h, icon, tile, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
-// Plage dynamique de Windows (RPC, services système) : masquée par défaut.
-const DYNAMIC = 49152;
+// Plage dynamique du système (ports éphémères, services) : masquée par défaut.
+const dynamicFrom = () => (handlers.instance().platform === 'linux' ? 32768 : 49152);
 
 let handlers;
 let data = null;
@@ -43,7 +43,7 @@ async function load() {
 function render() {
   if (!data) return;
   const all = $('#ports-dynamic').checked;
-  const rows = data.ports.filter((r) => all || r.port < DYNAMIC || r.project);
+  const rows = data.ports.filter((r) => all || r.port < dynamicFrom() || r.project);
   const exposed = rows.filter((r) => r.exposed).length;
   $('#ports-summary').textContent = `${tn('network.listening', rows.length)} · ${tn('network.reachable', exposed)}`;
   $('#networks').replaceChildren(...networkCards());
