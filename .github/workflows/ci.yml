@@ -39,3 +39,4 @@ jobs:
         with:
           node-version: 22
       - run: node --test
+      - run: node tools/test-parity.mjs

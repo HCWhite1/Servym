@@ -11,3 +11,8 @@ publish = false
 workspace = true
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+servynex-fixtures = { path = "../servynex-fixtures" }
+tokio = { version = "1", features = ["full"] }

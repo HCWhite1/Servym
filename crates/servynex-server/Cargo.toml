@@ -10,9 +10,16 @@ publish = false
 [lints]
 workspace = true
 
-[dependencies]
-servynex-core = { path = "../servynex-core" }
-
 [[bin]]
 name = "servynex"
 path = "src/main.rs"
+
+[dependencies]
+servynex-core = { path = "../servynex-core" }
+servynex-sys = { path = "../servynex-sys" }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+servynex-fixtures = { path = "../servynex-fixtures" }
+regex = "1"

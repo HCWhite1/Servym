@@ -1,0 +1,25 @@
+[package]
+name = "servynex-fixtures"
+description = "Aides de test : client HTTP brut, attente, ports libres, applications factices."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+regex = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+tempfile = "3"
+tokio = { version = "1", features = ["net", "io-util", "time", "macros", "rt"] }
+
+[[bin]]
+name = "servynex-fixture"
+path = "src/bin/fixture.rs"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

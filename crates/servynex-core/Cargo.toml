@@ -12,3 +12,11 @@ workspace = true
 
 [dependencies]
 servynex-sys = { path = "../servynex-sys" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+
+[dev-dependencies]
+servynex-fixtures = { path = "../servynex-fixtures" }
+tokio = { version = "1", features = ["full"] }
+regex = "1"
