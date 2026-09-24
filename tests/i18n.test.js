@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { describe, test } from 'node:test';
 import { LocalError, detectLang, langOf, msg, setServerLang, tr } from '../src/i18n.js';
 import serverEn from '../src/locales/en.js';
@@ -53,5 +54,20 @@ describe('langues', () => {
     assert.equal(err.message, serverFr['project.unknown']);
     assert.equal(err.in('en'), serverEn['project.unknown']);
     assert.equal(err.status, 404);
+  });
+
+  test('chaque clé utilisée par l’interface et le serveur existe', () => {
+    const read = (dir, ext) => fs.readdirSync(dir).filter((f) => f.endsWith(ext)).map((f) => fs.readFileSync(`${dir}/${f}`, 'utf8')).join('\n');
+    const ui = read('public/js', '.js');
+    const pages = read('public', '.html');
+    const used = new Set();
+    for (const m of ui.matchAll(/\bt\('([\w.]+)'/g)) used.add(m[1]);
+    for (const m of ui.matchAll(/\btn\('([\w.]+)'/g)) used.add(`${m[1]}.one`).add(`${m[1]}.other`);
+    for (const m of pages.matchAll(/data-i18n(?:-rich)?="([\w.]+)"/g)) used.add(m[1]);
+    for (const m of pages.matchAll(/data-i18n-attr="([^"]+)"/g)) for (const pair of m[1].split(';')) used.add(pair.split(':')[1]);
+    assert.deepEqual([...used].filter((k) => !(k in uiEn)), [], 'interface');
+    const server = [read('src', '.js'), fs.readFileSync('server.js', 'utf8'), fs.readFileSync('scripts/auth.js', 'utf8')].join('\n');
+    const keys = [...server.matchAll(/'((?:config|project|process|http|auth|audit|history|log|system|cli|time|role)\.[A-Za-z.]+)'/g)].map((m) => m[1]).filter((k) => k !== 'auth.json');
+    assert.deepEqual(keys.filter((k) => !(k in serverEn)), [], 'serveur');
   });
 });

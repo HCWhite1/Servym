@@ -119,6 +119,7 @@ Par défaut, pas d'authentification : usage local, par une seule personne. Param
   ```
 
   Les sessions du compte sont alors fermées. Dernier recours : supprimer `runtime/auth.json` retire la protection et tous les comptes.
+- **Connexion avec GitHub** (facultative) : un administrateur crée une OAuth App sur GitHub (adresse de retour : `http://localhost:9000/auth/github/callback`) et colle son identifiant et son secret dans Paramètres › Sécurité ; le secret reste dans `runtime/auth.json` et n'est jamais renvoyé à la page. Chaque membre lie ensuite son compte GitHub dans Mon compte, puis peut se connecter avec « Continuer avec GitHub » ; un compte GitHub non lié est refusé, le mot de passe reste valable. Seul le profil public est demandé à GitHub (identifiant et nom d'utilisateur).
 - **Journal d'audit** : connexions, échecs, réglages modifiés, actions (« démarré par alice ») dans l'Activité.
 - **Limite en local** : les navigateurs envoient le cookie de session à tout ce qui tourne sur `localhost`, quel que soit le port ; vos autres projets locaux le reçoivent donc. Sur un serveur, donnez à Servynex son propre nom de domaine.
 
@@ -161,7 +162,7 @@ Servynex n'écoute qu'en local, avec ou sans comptes. L'accès distant (écoute 
 | POST | `/api/instance/onboarded` | présentation vue (`runtime/ui.json`) |
 | POST | `/api/restart` | redémarre Servynex (409 s'il n'est pas lancé par `start-hidden.vbs`) |
 | PATCH | `/api/instance` | nom de l'instance |
-| … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (nom, préférences, mot de passe, clé, sessions), `users`, `invites`, `settings`, `disable` |
+| … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (nom, préférences, mot de passe, clé, sessions, comptes liés), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
 
 Les messages d'erreur (`{ "error": "…" }`) sont dans la langue de l'en-tête `Accept-Language`, sinon dans celle du serveur.
 

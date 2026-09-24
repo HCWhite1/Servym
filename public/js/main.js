@@ -1,6 +1,6 @@
 // Page principale : navigation, liste des projets (ou orbite), état en direct, raccourcis.
 import { ROLE_LABELS, act, addressOf, api, applyTheme, ask, can, canRestart, canStop, confirmDialog, fillTile, formatBytes, formatCpu, gitSummary, h, icon, initials, isExternal, primaryOf, safeUrl, session, statusText, store, toast } from './lib.js';
-import { gate, lockNow, logout } from './auth.js';
+import { gate, lockNow, logout, takeNotice } from './auth.js';
 import { choice, setChoice, t, tn, translate } from './i18n.js';
 import * as activity from './activity.js';
 import * as menu from './menu.js';
@@ -656,3 +656,11 @@ setInterval(refreshGit, 60_000);
 network.refreshNetwork().then(renderBanners);
 setInterval(() => network.refreshNetwork().then(renderBanners), 60_000);
 if (!instance.onboarded) onboarding.open();
+// Retour d'une liaison GitHub (auth.js) : message, puis Mon compte.
+const notice = takeNotice();
+if (notice?.done === 'linked') {
+  toast(t('oauth.linked'));
+  settings.open('account');
+} else if (notice?.error) {
+  toast(t(`oauth.error.${notice.error}`), 'error');
+}

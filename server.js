@@ -106,6 +106,7 @@ export function createApp({
   task = sys.autostartTask, // tâche planifiée qui démarre Servynex avec la session
   clock = () => Date.now(), // horloge de l'authentification (remplacée dans les tests)
   sample = sys.sampleProcesses, // relevé des processus (processeur et mémoire)
+  oauth = {}, // adresses des fournisseurs de connexion (tests : faux fournisseur)
   ...options
 } = {}) {
   // projects.json invalide au démarrage : Servynex démarre quand même, avec la
@@ -213,6 +214,7 @@ export function createApp({
     log,
     now: clock,
     instanceName: () => manager.config.instance.name ?? null,
+    oauth,
     onRevoke: (ids) => {
       for (const id of ids) for (const res of streams.get(id) ?? []) res.end();
     },
@@ -503,6 +505,9 @@ export function createApp({
       guard(req);
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname.startsWith('/api/')) return await api(req, res, url);
+      // Retour d'un fournisseur de connexion : navigation venue de son site, hors de /api/.
+      const [, root, provider, step] = url.pathname.split('/');
+      if (root === 'auth' && step === 'callback' && req.method === 'GET') return await auth.callback(req, res, provider, url);
       if (await serveUi(req, res)) return;
       throw new HttpError(404, 'http.notFound');
     } catch (err) {

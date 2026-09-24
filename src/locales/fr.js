@@ -194,4 +194,15 @@ export default {
   'cli.resetCode': 'Code de réinitialisation pour {name} : {code}',
   'cli.resetHelp': 'Valable 15 minutes. Sur la page de connexion : « Mot de passe oublié ? » › « J’ai un code ».\nToutes les sessions de ce compte seront fermées.',
   'cli.usage': 'Usage :\n  npm run auth -- list\n  npm run auth -- reset-password <nom>',
+
+  // Connexion par un fournisseur (GitHub)
+  'auth.providerOff': 'La connexion avec {provider} n’est pas configurée.',
+  'auth.providerBad': 'Identifiant de l’application manquant, ou identifiant et secret trop longs (200 caractères au plus).',
+  'auth.providerSecret': 'Le secret de l’application est obligatoire.',
+  'audit.providerSet': 'Connexion avec {provider} configurée',
+  'audit.providerRemoved': 'Connexion avec {provider} retirée',
+  'audit.providerLinked': 'Compte {provider} {login} lié',
+  'audit.providerUnlinked': 'Compte {provider} délié',
+  'audit.providerLogin': 'Connexion avec {provider} ({login})',
+  'audit.providerLoginFailed': 'Échec de connexion avec {provider} : le compte {login} n’est lié à aucun compte',
 };

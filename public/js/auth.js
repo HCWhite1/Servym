@@ -6,6 +6,9 @@ import { ROLE_LABELS, api, h, icon, initials, session, toast } from './lib.js';
 
 const screen = document.getElementById('auth-screen');
 let instanceName = 'Servynex';
+// Retour d'une connexion ou d'une liaison GitHub (?auth_error=… ou ?auth_done=…).
+let notice = null;
+const OAUTH_ERRORS = ['state', 'denied', 'failed', 'unlinked', 'taken'];
 const forever = () => new Promise(() => {});
 
 // ---- Petits éléments de formulaire ----
@@ -83,7 +86,12 @@ function showLogin() {
     await api('auth/login', { method: 'POST', body: { username: user.value, password: pass.value, remember: remember.checked } });
     location.replace('/');
   });
-  card(t('login.title'), null, form, h('div', { class: 'auth-links' }, link(t('login.forgot'), showForgot)));
+  if (notice?.error) showError(error, t(`oauth.error.${notice.error}`));
+  notice = null;
+  const github = session.methods.github
+    ? [h('p', { class: 'auth-or', text: t('login.or') }), h('a', { class: 'btn auth-provider', href: '/api/auth/github/start' }, icon('github'), t('login.withGithub'))]
+    : [];
+  card(t('login.title'), null, form, ...github, h('div', { class: 'auth-links' }, link(t('login.forgot'), showForgot)));
 }
 
 function showLocked() {
@@ -158,6 +166,13 @@ async function showInvite(token) {
     location.replace('/');
   });
   card(t('invite.title', { name: instanceName }), t('invite.lead', { role: ROLE_LABELS[info.role] ?? info.role }), form);
+}
+
+// Message laissé par un retour de GitHub, pour la page une fois chargée (main.js).
+export function takeNotice() {
+  const n = notice;
+  notice = null;
+  return n;
 }
 
 // ---- Clé de secours ----
@@ -238,7 +253,12 @@ function startIdleLock(seconds) {
 export async function gate() {
   const params = new URLSearchParams(location.search);
   const status = await api('auth/status');
-  Object.assign(session, { enabled: status.enabled, user: status.user, lockAfter: status.lockAfter });
+  Object.assign(session, { enabled: status.enabled, user: status.user, lockAfter: status.lockAfter, methods: status.methods ?? {} });
+  if (params.has('auth_error') || params.has('auth_done')) {
+    const error = params.get('auth_error');
+    notice = { error: error && (OAUTH_ERRORS.includes(error) ? error : 'failed'), done: params.get('auth_done') === 'linked' ? 'linked' : null };
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
   instanceName = status.name || 'Servynex';
   if (params.has('invite')) {
     await showInvite(params.get('invite'));

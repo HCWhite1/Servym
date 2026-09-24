@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { LocalError, langOf, msg, tr } from './i18n.js';
+import { authorizeUrl, fetchProfile, providers as oauthProviders } from './oauth.js';
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -54,6 +55,8 @@ const INVITE_TTL = 48 * 3600e3;
 const MAX_SESSIONS = 20;
 const USERNAME = /^[a-z0-9][a-z0-9._-]{1,31}$/;
 const COOKIE = 'servynex_session';
+const OAUTH_COOKIE = 'servynex_oauth';
+const OAUTH_TTL = 10 * 60e3; // pour revenir du fournisseur
 
 // Message : clé de src/locales/<langue>.js ; extra : champs ajoutés à la réponse ({ auth: 'login' }).
 export class AuthError extends LocalError {
@@ -111,7 +114,7 @@ function checkName(name) {
 
 // ---- Stockage : runtime/auth.json ----
 
-const empty = () => ({ version: 1, enabled: false, lockAfter: 0, users: [], sessions: [], invites: [], resets: [] });
+const empty = () => ({ version: 1, enabled: false, lockAfter: 0, users: [], sessions: [], invites: [], resets: [], providers: {} });
 
 export class AuthStore {
   constructor(file) {
@@ -188,8 +191,12 @@ export class Auth {
   #failures = new Map(); // clé → { count, until }
   #seenSaved = new Map(); // session → dernière écriture de lastSeen
 
-  constructor({ file, log = () => {}, now = () => Date.now(), onRevoke = () => {}, instanceName = () => null }) {
+  #states = new Map(); // état OAuth → { provider, userId, redirectUri, expiresAt }
+
+  // oauth : adresses des fournisseurs à remplacer (tests : faux fournisseur local).
+  constructor({ file, log = () => {}, now = () => Date.now(), onRevoke = () => {}, instanceName = () => null, oauth = {} }) {
     this.store = new AuthStore(file);
+    this.providers = oauthProviders(oauth);
     this.instanceName = instanceName; // affiché sur la page de connexion
     this.log = log;
     this.now = now;
@@ -212,7 +219,8 @@ export class Auth {
   }
 
   publicUser(u) {
-    return { id: u.id, username: u.username, name: u.name || u.username, permissions: u.permissions, role: roleOf(u.permissions), prefs: u.prefs ?? {}, createdAt: u.createdAt, github: u.github ?? null };
+    return { id: u.id, username: u.username, name: u.name || u.username, permissions: u.permissions, role: roleOf(u.permissions), prefs: u.prefs ?? {}, createdAt: u.createdAt,
+      identities: (u.identities ?? []).map(({ provider, login }) => ({ provider, login })) };
   }
 
   setPrefs(userId, prefs) {
@@ -304,6 +312,91 @@ export class Auth {
     return gone.length;
   }
 
+  // ---- Connexion par un fournisseur (src/oauth.js) ----
+
+  #configured(key) {
+    const c = this.data.providers?.[key];
+    return Boolean(this.enabled && c?.clientId && c?.clientSecret);
+  }
+
+  // Départ vers le fournisseur : état aléatoire, à usage unique, valable 10 minutes,
+  // lié au navigateur par un cookie SameSite=Lax (il revient avec la redirection du
+  // fournisseur, contrairement au cookie de session, Strict). link : lier le compte
+  // connecté au lieu de se connecter.
+  #startOAuth(req, res, key, link) {
+    const provider = this.providers[key];
+    if (!this.#configured(key)) throw new AuthError(409, 'auth.providerOff', { provider: provider.name });
+    let userId = null;
+    if (link) {
+      const ctx = this.session(req);
+      if (!ctx || this.isLocked(ctx.session)) throw new AuthError(401, 'auth.loginRequired', {}, { auth: 'login' });
+      userId = ctx.user.id;
+    }
+    const now = this.now();
+    for (const [s, e] of this.#states) if (e.expiresAt <= now) this.#states.delete(s);
+    if (this.#states.size >= 200) this.#states.delete(this.#states.keys().next().value);
+    const state = randomToken();
+    const redirectUri = `${req.socket?.encrypted ? 'https' : 'http'}://${req.headers.host}/auth/${key}/callback`;
+    this.#states.set(state, { provider: key, userId, redirectUri, expiresAt: now + OAUTH_TTL });
+    const secure = req.socket?.encrypted ? '; Secure' : '';
+    res.writeHead(302, {
+      Location: authorizeUrl(provider, { clientId: this.data.providers[key].clientId, redirectUri, state }),
+      'Set-Cookie': `${OAUTH_COOKIE}=${state}; HttpOnly; SameSite=Lax; Path=/auth/; Max-Age=${OAUTH_TTL / 1000}${secure}`,
+      'Cache-Control': 'no-store',
+    });
+    res.end();
+  }
+
+  // Retour du fournisseur (GET /auth/<fournisseur>/callback, navigation venue de son
+  // site) : jamais d'erreur HTTP, toujours une page qui renvoie vers Servynex avec un
+  // code fixe (rien de la requête n'y est recopié).
+  async callback(req, res, key, url) {
+    const back = (target) => {
+      const cookies = [`${OAUTH_COOKIE}=; HttpOnly; SameSite=Lax; Path=/auth/; Max-Age=0`];
+      const session = res.getHeader('Set-Cookie');
+      if (session) cookies.unshift(session);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': cookies });
+      // Redirection par la page elle-même : la navigation suivante part de Servynex,
+      // donc le cookie de session (SameSite=Strict) l'accompagne.
+      res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${target}"><title>Servynex</title></head><body></body></html>`);
+    };
+    const fail = (code) => back(`/?auth_error=${code}`);
+    const provider = this.providers[key];
+    const state = url.searchParams.get('state') ?? '';
+    const entry = this.#states.get(state);
+    if (!provider || !entry || entry.provider !== key || parseCookies(req)[OAUTH_COOKIE] !== state) return fail('state');
+    this.#states.delete(state);
+    if (entry.expiresAt <= this.now()) return fail('state');
+    if (url.searchParams.get('error')) return fail('denied');
+    if (!this.#configured(key)) return fail('failed');
+    const d = this.data;
+    let profile;
+    try {
+      const { clientId, clientSecret } = d.providers[key];
+      profile = await fetchProfile(provider, { clientId, clientSecret, code: url.searchParams.get('code') ?? '', redirectUri: entry.redirectUri });
+    } catch {
+      return fail('failed');
+    }
+    const owner = d.users.find((u) => u.identities?.some((i) => i.provider === key && i.id === profile.id));
+    const params = { provider: provider.name, login: profile.login };
+    if (entry.userId) {
+      const user = d.users.find((u) => u.id === entry.userId);
+      if (!user) return fail('state');
+      if (owner && owner !== user) return fail('taken');
+      user.identities = [...(user.identities ?? []).filter((i) => i.provider !== key), { provider: key, id: profile.id, login: profile.login }];
+      this.store.save();
+      this.audit(user, 'audit.providerLinked', params);
+      return back('/?auth_done=linked');
+    }
+    if (!owner) {
+      this.audit(null, 'audit.providerLoginFailed', params);
+      return fail('unlinked');
+    }
+    this.#openSession(res, req, owner, false);
+    this.audit(owner, 'audit.providerLogin', params);
+    return back('/');
+  }
+
   // ---- Limite des essais ----
 
   #checkRate(keys) {
@@ -390,13 +483,16 @@ export class Auth {
         error: this.store.error ? tr('auth.brokenFile', { error: this.store.error }, langOf(req)) : null,
         hasAccounts: d.users.length > 0,
         lockAfter: d.lockAfter,
-        methods: { password: true },
+        methods: { password: true, ...Object.fromEntries(Object.keys(this.providers).map((k) => [k, this.#configured(k)])) },
         user: ctx ? this.publicUser(ctx.user) : null,
         locked: ctx ? this.isLocked(ctx.session) : false,
       });
     }
     if (this.store.error) throw new AuthError(503, 'auth.brokenFile', { error: this.store.error });
 
+    if (this.providers[section] && id === 'start' && method === 'GET') {
+      return this.#startOAuth(req, res, section, new URL(req.url, 'http://localhost').searchParams.has('link'));
+    }
     if (section === 'setup' && method === 'POST') {
       // Première activation : crée le compte administrateur.
       if (d.users.length) throw new AuthError(409, 'auth.accountsExist');
@@ -534,6 +630,12 @@ export class Auth {
         this.audit(me, 'audit.newKey');
         return send(res, 200, { recovery });
       }
+      if (id === 'identities' && this.providers[sub] && method === 'DELETE') {
+        me.identities = (me.identities ?? []).filter((i) => i.provider !== sub);
+        this.store.save();
+        this.audit(me, 'audit.providerUnlinked', { provider: this.providers[sub].name });
+        return send(res, 200, { user: this.publicUser(me) });
+      }
       if (id === 'sessions') {
         if (method === 'GET') {
           const list = d.sessions.filter((s) => s.userId === me.id && this.#expiresAt(s) >= now)
@@ -555,6 +657,34 @@ export class Auth {
 
     // -- Administration --
     if (!me.permissions.includes('admin')) throw new AuthError(403, 'auth.adminOnly');
+    if (section === 'providers') {
+      if (!id && method === 'GET') {
+        // Le secret ne quitte jamais le serveur : seulement « configuré » et l'identifiant.
+        return send(res, 200, Object.fromEntries(Object.entries(this.providers).map(([k, p]) => {
+          const c = d.providers?.[k];
+          return [k, { name: p.name, configured: Boolean(c?.clientId && c?.clientSecret), clientId: c?.clientId ?? null, registerUrl: p.registerUrl }];
+        })));
+      }
+      const provider = this.providers[id];
+      if (!provider) throw new AuthError(404, 'http.unknownRoute');
+      if (method === 'PUT') {
+        const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : '';
+        const secret = typeof body.clientSecret === 'string' ? body.clientSecret.trim() : '';
+        const current = d.providers?.[id];
+        if (!clientId || clientId.length > 200 || secret.length > 200) throw new AuthError(400, 'auth.providerBad');
+        if (!secret && !current?.clientSecret) throw new AuthError(400, 'auth.providerSecret');
+        d.providers = { ...d.providers, [id]: { clientId, clientSecret: secret || current.clientSecret } };
+        this.store.save();
+        this.audit(me, 'audit.providerSet', { provider: provider.name });
+        return send(res, 200, { configured: true, clientId });
+      }
+      if (method === 'DELETE') {
+        d.providers = Object.fromEntries(Object.entries(d.providers ?? {}).filter(([k]) => k !== id));
+        this.store.save();
+        this.audit(me, 'audit.providerRemoved', { provider: provider.name });
+        return send(res, 200, { configured: false });
+      }
+    }
     if (section === 'users') {
       if (!id && method === 'GET') return send(res, 200, { users: d.users.map((u) => this.publicUser(u)) });
       const user = d.users.find((u) => u.id === id);

@@ -119,6 +119,7 @@ No authentication by default: local use, by one person. Settings › Security �
   ```
 
   The account's sessions are then closed. Last resort: deleting `runtime/auth.json` removes the protection and every account.
+- **Sign-in with GitHub** (optional): an administrator creates an OAuth App on GitHub (callback address: `http://localhost:9000/auth/github/callback`) and pastes its Client ID and secret in Settings › Security; the secret stays in `runtime/auth.json` and is never sent back to the page. Each member then links their GitHub account in My account and can sign in with "Continue with GitHub"; an unlinked GitHub account is refused, and the password keeps working. Only the public profile is requested from GitHub (ID and username).
 - **Audit log**: sign-ins, failures, changed settings, actions ("started by alice") in Activity.
 - **Local limit**: browsers send the session cookie to everything running on `localhost`, whatever the port; your other local projects therefore receive it. On a server, give Servynex its own domain name.
 
@@ -161,7 +162,7 @@ Servynex only listens locally, with or without accounts. Remote access (listenin
 | POST | `/api/instance/onboarded` | introduction seen (`runtime/ui.json`) |
 | POST | `/api/restart` | restarts Servynex (409 if it was not started by `start-hidden.vbs`) |
 | PATCH | `/api/instance` | instance name |
-| … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (name, preferences, password, key, sessions), `users`, `invites`, `settings`, `disable` |
+| … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (name, preferences, password, key, sessions, linked accounts), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
 
 Error messages (`{ "error": "…" }`) use the language of the `Accept-Language` header, otherwise the server language.
 

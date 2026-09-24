@@ -105,6 +105,67 @@ const roleOf = (perms) => {
   return Object.entries(ROLE_PERMISSIONS).find(([, p]) => [...p].sort().join() === key)?.[0] ?? 'custom';
 };
 
+// ---- Connexion avec GitHub ----
+
+// Mon compte : lier (aller-retour par GitHub, retour sur Mon compte) ou délier.
+function identitySetting(user) {
+  const linked = user.identities?.find((i) => i.provider === 'github');
+  if (!linked && !session.methods.github) return null;
+  const control = linked
+    ? button(t('oauth.unlink'), null, async () => {
+      const res = await api('auth/me/identities/github', { method: 'DELETE' });
+      Object.assign(session.user, res.user);
+      toast(t('oauth.unlinked'));
+      renderAccount();
+    })
+    : h('a', { class: 'btn', href: '/api/auth/github/start?link=1' }, icon('github'), t('oauth.link'));
+  return setting(t('oauth.title'), linked ? t('oauth.linkedAs', { login: linked.login }) : t('oauth.linkDesc'), control);
+}
+
+// Sécurité : l'administrateur déclare l'application créée sur GitHub. Le secret
+// n'est jamais renvoyé par le serveur : le champ reste vide, « inchangé » s'il existe.
+async function providerSetting() {
+  const gh = (await api('auth/providers').catch(() => ({}))).github;
+  if (!gh) return null;
+  const callback = `${location.origin}/auth/github/callback`;
+  const clientId = h('input', { class: 'input', name: 'clientId', value: gh.clientId ?? '', autocomplete: 'off', spellcheck: 'false', placeholder: 'Client ID', 'aria-label': 'Client ID' });
+  const secret = h('input', { class: 'input', name: 'clientSecret', type: 'password', autocomplete: 'new-password', placeholder: gh.configured ? t('oauth.secretKept') : 'Client secret', 'aria-label': 'Client secret' });
+  const form = h('form', { class: 'inline-form provider-form' }, clientId, secret, h('button', { class: 'btn', type: 'submit', text: t('common.save') }));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('auth/providers/github', { method: 'PUT', body: { clientId: clientId.value, clientSecret: secret.value } });
+      session.methods = { ...session.methods, github: true };
+      toast(t('oauth.saved'));
+      renderSecurity();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+  const copy = button(t('common.copy'), 'copy', async () => {
+    await navigator.clipboard.writeText(callback).catch(() => {});
+    toast(t('oauth.callbackCopied'));
+  }, 'btn small');
+  const remove = gh.configured ? button(t('oauth.remove'), null, async () => {
+    const ok = await confirmDialog({ title: t('oauth.removeTitle'), body: t('oauth.removeBody'), confirm: t('oauth.remove'), danger: true });
+    if (!ok) return;
+    await api('auth/providers/github', { method: 'DELETE' });
+    session.methods = { ...session.methods, github: false };
+    toast(t('oauth.removed'));
+    renderSecurity();
+  }, 'btn danger small') : null;
+  return h('div', { class: 'setting stack provider-github' },
+    h('div', { class: 'setting-head' },
+      h('div', { class: 'setting-text' }, h('p', { class: 'setting-label', text: t('oauth.title') }), h('p', { class: 'setting-desc', text: t('oauth.adminDesc') })),
+      gh.configured ? h('span', { class: 'badge ok', text: t('security.on') }) : null,
+      remove),
+    h('ol', { class: 'provider-steps' },
+      h('li', {}, t('oauth.step1'), ' ', h('a', { href: gh.registerUrl, target: '_blank', rel: 'noopener', text: gh.registerUrl.replace(/^https:\/\//, '') })),
+      h('li', {}, t('oauth.step2'), h('span', { class: 'key-value' }, h('code', { text: callback }), copy)),
+      h('li', {}, t('oauth.step3'))),
+    form);
+}
+
 // ---- Mon compte ----
 
 export async function renderAccount() {
@@ -113,7 +174,7 @@ export async function renderAccount() {
   if (!user) return body.replaceChildren();
   const name = input({ value: user.name, maxlength: '60', 'aria-label': t('account.displayName') });
   const sessionsList = h('div', { class: 'sub-list' });
-  body.replaceChildren(
+  body.replaceChildren(...[
     h('div', { class: 'account-head' },
       h('span', { class: 'avatar lg', text: initials(user) }),
       h('div', {}, h('p', { class: 'setting-label', text: user.name }), h('p', { class: 'setting-desc', text: `${user.username} · ${ROLE_LABELS[user.role] ?? user.role}` }))),
@@ -137,6 +198,7 @@ export async function renderAccount() {
       if (res) toast(res.closed ? t('account.passwordChangedClosed', { n: res.closed }) : t('account.passwordChanged'));
       renderAccount();
     })),
+    identitySetting(user),
     setting(t('account.recoveryKey'), t('account.recoveryKeyDesc'), button(t('account.newKey'), 'key-round', async () => {
       const res = await ask({
         title: t('account.newRecoveryKey'),
@@ -155,7 +217,7 @@ export async function renderAccount() {
         toast(t('account.sessionsClosed', { n: res.closed }));
         renderAccount();
       }), button(t('user.logout'), 'log-out', () => logout(), 'btn danger'))),
-  );
+  ].filter(Boolean));
   const { sessions } = await api('auth/me/sessions').catch(() => ({ sessions: [] }));
   sessionsList.replaceChildren(...sessions.map((s) => h('div', { class: 'sub-item' },
     icon('monitor'),
@@ -224,13 +286,15 @@ export async function renderSecurity() {
     });
     return b;
   }));
-  body.replaceChildren(
+  const github = await providerSetting();
+  body.replaceChildren(...[
     setting(t('security.protection'), t('security.onDesc'), h('span', { class: 'badge ok', text: t('security.on') })),
     h('div', { class: 'setting stack' },
       h('div', { class: 'setting-text' },
         h('p', { class: 'setting-label', text: t('security.lockAfter') }),
         h('p', { class: 'setting-desc', text: t('security.lockAfterDesc') })),
       lock),
+    github,
     setting(t('security.disable'), t('security.disableDesc'), button(t('security.disableOk'), null, async () => {
       const res = await ask({
         title: t('security.disableTitle'),
@@ -242,7 +306,7 @@ export async function renderSecurity() {
       });
       if (res) location.reload();
     }, 'btn danger')),
-  );
+  ].filter(Boolean));
 }
 
 // ---- Membres ----
@@ -277,7 +341,7 @@ export async function renderMembers() {
       }, 'icon-btn'));
     return h('div', { class: 'sub-item member' },
       h('span', { class: 'avatar', text: initials(u) }),
-      h('span', {}, h('strong', { text: u.name }), h('small', { class: 'block muted', text: me ? t('members.you', { username: u.username }) : u.username })),
+      h('span', {}, h('strong', { text: u.name }), h('small', { class: 'block muted', text: [me ? t('members.you', { username: u.username }) : u.username, ...(u.identities ?? []).map((i) => t('members.identity', { provider: 'GitHub', login: i.login }))].join(' · ') })),
       h('span', { class: `badge${u.role === 'admin' ? ' ok' : ''}`, text: ROLE_LABELS[u.role] ?? u.role }),
       actions);
   };

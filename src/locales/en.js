@@ -194,4 +194,15 @@ export default {
   'cli.resetCode': 'Reset code for {name}: {code}',
   'cli.resetHelp': 'Valid for 15 minutes. On the sign-in page: "Forgot password?" › "I have a code".\nAll sessions of this account will be closed.',
   'cli.usage': 'Usage:\n  npm run auth -- list\n  npm run auth -- reset-password <name>',
+
+  // Connexion par un fournisseur (GitHub)
+  'auth.providerOff': 'Sign-in with {provider} is not set up.',
+  'auth.providerBad': 'Missing application ID, or ID and secret too long (200 characters at most).',
+  'auth.providerSecret': 'The application secret is required.',
+  'audit.providerSet': 'Sign-in with {provider} set up',
+  'audit.providerRemoved': 'Sign-in with {provider} removed',
+  'audit.providerLinked': '{provider} account {login} linked',
+  'audit.providerUnlinked': '{provider} account unlinked',
+  'audit.providerLogin': 'Signed in with {provider} ({login})',
+  'audit.providerLoginFailed': 'Failed sign-in with {provider}: account {login} is not linked to any account',
 };

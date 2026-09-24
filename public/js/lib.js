@@ -15,8 +15,9 @@ export async function api(path, { method = 'GET', body } = {}) {
 
 // ---- Compte connecté et permissions ----
 
-// enabled : protection active · user : compte connecté (null si protection désactivée).
-export const session = { enabled: false, user: null, lockAfter: 0 };
+// enabled : protection active · user : compte connecté (null si protection désactivée) ·
+// methods : moyens de connexion proposés ({ password: true, github: false }).
+export const session = { enabled: false, user: null, lockAfter: 0, methods: {} };
 
 // Protection désactivée : tout est permis. Sinon, permission du compte (admin : tout).
 export function can(permission) {
