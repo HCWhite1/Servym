@@ -14,6 +14,8 @@ use serde::Serialize;
 
 pub mod linux;
 pub mod notify;
+#[cfg(windows)]
+pub mod windows;
 
 /// Future en boîte, pour les traits utilisés derrière `dyn`.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -46,10 +48,10 @@ pub struct Listener {
 
 /// Réseau connecté et son profil (Windows : le pare-feu applique ses règles par profil).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NetworkProfile {
     pub name: String,
-    pub interface_alias: String,
+    /// Nom de la carte réseau (« Wi-Fi », « Ethernet »…).
+    pub interface: String,
     /// `public`, `private` ou `domain`.
     pub category: String,
 }
@@ -115,7 +117,82 @@ pub trait Platform: Send + Sync {
     fn autostart(&self) -> Arc<dyn Autostart>;
 }
 
-/// Le système de cette machine.
+/// Le système de cette machine (le même objet à chaque appel).
 pub fn native() -> Arc<dyn Platform> {
-    unimplemented!("phase 3")
+    static NATIVE: std::sync::OnceLock<Arc<dyn Platform>> = std::sync::OnceLock::new();
+    NATIVE
+        .get_or_init(|| {
+            #[cfg(windows)]
+            return Arc::new(windows::WindowsPlatform::new());
+            #[cfg(unix)]
+            return Arc::new(linux::LinuxPlatform::new());
+        })
+        .clone()
+}
+
+/// PID de l'arborescence de chaque racine. Un enfant démarré avant son parent désigne un ancien
+/// processus au PID réutilisé : il n'en fait pas partie.
+pub fn tree_of(processes: &ProcTable, roots: &[u32]) -> std::collections::BTreeSet<u32> {
+    let mut children: HashMap<u32, Vec<&ProcSample>> = HashMap::new();
+    for p in processes.values() {
+        children.entry(p.ppid).or_default().push(p);
+    }
+    let mut tree = std::collections::BTreeSet::new();
+    let mut stack: Vec<u32> = roots.iter().rev().copied().collect();
+    while let Some(pid) = stack.pop() {
+        let Some(parent) = processes.get(&pid) else {
+            continue;
+        };
+        if !tree.insert(pid) {
+            continue;
+        }
+        for child in children.get(&pid).into_iter().flatten() {
+            if child.pid != pid && child.start >= parent.start {
+                stack.push(child.pid);
+            }
+        }
+    }
+    tree
+}
+
+/// Variables d'environnement de Servynex, sans celles de l'éditeur ou du terminal qui l'a démarré
+/// (VS Code, Electron, Claude) ni celle de son superviseur : pour les programmes qu'il lance.
+pub fn clean_env() -> HashMap<String, String> {
+    std::env::vars()
+        .filter(|(k, _)| {
+            let upper = k.to_ascii_uppercase();
+            !(upper.starts_with("ELECTRON_")
+                || upper.starts_with("VSCODE_")
+                || upper.starts_with("CLAUDE")
+                || upper == "SERVYNEX_SUPERVISOR")
+        })
+        .collect()
+}
+
+/// Exécute une commande (sans shell, sans fenêtre) : sortie standard si elle réussit, sinon sa
+/// sortie standard comme erreur. Délai : 15 s.
+pub fn run_command() -> linux::Runner {
+    Arc::new(
+        |cmd: String, args: Vec<String>| -> BoxFuture<'static, Result<String, String>> {
+            Box::pin(async move {
+                let mut command = tokio::process::Command::new(&cmd);
+                command
+                    .args(&args)
+                    .stdin(std::process::Stdio::null())
+                    .kill_on_drop(true);
+                #[cfg(windows)]
+                command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+                let output = tokio::time::timeout(std::time::Duration::from_secs(15), command.output())
+                    .await
+                    .map_err(|_| format!("{cmd} : délai dépassé"))?
+                    .map_err(|e| format!("{cmd} : {e}"))?;
+                let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+                if output.status.success() {
+                    Ok(stdout)
+                } else {
+                    Err(stdout)
+                }
+            })
+        },
+    )
 }

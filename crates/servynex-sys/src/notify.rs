@@ -27,15 +27,75 @@ pub enum Os {
     Other,
 }
 
-/// Notificateur d'un système. Linux : `notify-send` par `run`, jamais par un shell.
-pub fn notifier_for(os: Os, run: Runner) -> Box<dyn Notifier> {
-    let _ = (os, run);
-    unimplemented!("phase 3")
+impl Os {
+    /// Le système de cette machine.
+    pub fn current() -> Os {
+        if cfg!(windows) {
+            Os::Windows
+        } else if cfg!(target_os = "linux") {
+            Os::Linux
+        } else {
+            Os::Other
+        }
+    }
 }
 
-/// Contenu XML d'une notification Windows : les textes y sont des nœuds texte, jamais
-/// concaténés dans le XML.
-pub fn toast_xml(notification: &Notification) -> String {
-    let _ = notification;
-    unimplemented!("phase 3")
+struct SystemNotifier {
+    os: Os,
+    run: Runner,
+}
+
+impl Notifier for SystemNotifier {
+    fn notify(&self, n: Notification) -> BoxFuture<'_, Result<bool, String>> {
+        Box::pin(async move {
+            match self.os {
+                Os::Linux => {
+                    (self.run)(
+                        "notify-send".into(),
+                        vec!["--app-name=Servynex".into(), n.title, n.body],
+                    )
+                    .await?;
+                    Ok(true)
+                }
+                #[cfg(windows)]
+                Os::Windows => tokio::task::spawn_blocking(move || crate::windows::toast::show(&n))
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .map(|()| true),
+                _ => Ok(false),
+            }
+        })
+    }
+}
+
+/// Notificateur d'un système. Linux : `notify-send` par `run`, jamais par un shell.
+pub fn notifier_for(os: Os, run: Runner) -> Box<dyn Notifier> {
+    Box::new(SystemNotifier { os, run })
+}
+
+fn escape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            // Caractères interdits en XML 1.0 : retirés.
+            c if (c as u32) < 0x20 && !matches!(c, '\t' | '\n' | '\r') => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Contenu XML d'une notification Windows : les textes y sont échappés, jamais interprétés.
+pub fn toast_xml(n: &Notification) -> String {
+    format!(
+        "<toast><visual><binding template=\"ToastGeneric\"><text>{}</text><text>{}</text><text placement=\"attribution\">{}</text></binding></visual></toast>",
+        escape(&n.title),
+        escape(&n.body),
+        escape(n.source.as_deref().unwrap_or_default())
+    )
 }

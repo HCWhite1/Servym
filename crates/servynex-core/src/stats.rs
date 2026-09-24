@@ -3,12 +3,12 @@
 //! Un relevé liste tous les processus de la machine : PID → [`ProcSample`]. Un projet compte toute
 //! son arborescence (cmd.exe, puis node et ses propres enfants).
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Serialize;
-pub use servynex_sys::{ProcSample, ProcTable};
+pub use servynex_sys::{ProcSample, ProcTable, tree_of};
 use tokio::sync::Mutex;
 
 use crate::BoxFuture;
@@ -18,31 +18,6 @@ use crate::BoxFuture;
 pub struct Snapshot {
     pub at: i64,
     pub processes: ProcTable,
-}
-
-/// PID de l'arborescence de chaque racine. Un enfant démarré avant son parent désigne un ancien
-/// processus au PID réutilisé : il n'en fait pas partie.
-pub fn tree_of(processes: &ProcTable, roots: &[u32]) -> BTreeSet<u32> {
-    let mut children: HashMap<u32, Vec<&ProcSample>> = HashMap::new();
-    for p in processes.values() {
-        children.entry(p.ppid).or_default().push(p);
-    }
-    let mut tree = BTreeSet::new();
-    let mut stack: Vec<u32> = roots.iter().rev().copied().collect();
-    while let Some(pid) = stack.pop() {
-        let Some(parent) = processes.get(&pid) else {
-            continue;
-        };
-        if !tree.insert(pid) {
-            continue;
-        }
-        for child in children.get(&pid).into_iter().flatten() {
-            if child.pid != pid && child.start >= parent.start {
-                stack.push(child.pid);
-            }
-        }
-    }
-    tree
 }
 
 /// Usage d'une arborescence.

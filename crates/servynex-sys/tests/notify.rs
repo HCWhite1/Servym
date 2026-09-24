@@ -35,7 +35,6 @@ fn recorder() -> (Calls, servynex_sys::linux::Runner) {
 /// JS : notify.test.js › notificateur du système › Windows : PowerShell caché, les textes par variables d’environnement
 /// (remplacé : notification native ; les textes ne passent par aucune ligne de commande ni aucun script.)
 #[test]
-#[ignore = "phase 3"]
 fn windows_textes_echappes() {
     let xml = toast_xml(&notification(Some("Serveur maison")));
     assert!(xml.contains("Servynex · « Mon API »"));
@@ -49,7 +48,6 @@ fn windows_textes_echappes() {
 
 /// JS : notify.test.js › notificateur du système › Linux : notify-send, sans shell
 #[tokio::test]
-#[ignore = "phase 3"]
 async fn linux_notify_send_sans_shell() {
     let (calls, run) = recorder();
     let send = notifier_for(Os::Linux, run);
@@ -61,7 +59,6 @@ async fn linux_notify_send_sans_shell() {
 
 /// JS : notify.test.js › notificateur du système › ailleurs : rien n’est envoyé
 #[tokio::test]
-#[ignore = "phase 3"]
 async fn ailleurs_rien() {
     let (calls, run) = recorder();
     let send = notifier_for(Os::Other, run);
@@ -72,7 +69,6 @@ async fn ailleurs_rien() {
 /// JS : notify.test.js › notificateur du système › notify.ps1 : textes insérés comme nœuds XML, script valide
 /// (remplacé : le XML produit est bien formé, quels que soient les textes.)
 #[test]
-#[ignore = "phase 3"]
 fn xml_bien_forme() {
     let tricky = Notification {
         title: "]]><x a=\"".into(),

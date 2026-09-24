@@ -62,7 +62,6 @@ fn fake_proc(processes: Vec<(u32, Fake)>, btime: u64) -> TempDir {
 /// JS : linux.test.js › Linux : mêmes fonctions que Windows › chaque fonction du module Windows existe sous Linux
 /// (en Rust, le trait `Platform` le garantit à la compilation ; il reste à vérifier le système natif.)
 #[test]
-#[ignore = "phase 3"]
 fn meme_interface_que_windows() {
     let platform = servynex_sys::native();
     let _ = platform.tools();
@@ -86,7 +85,6 @@ fn l(address: &str, port: u16, pid: Option<u32>) -> Listener {
 
 /// JS : linux.test.js › Linux : ports en écoute (ss) › adresse, port et PID ; adresses ramenées à la forme de Windows
 #[test]
-#[ignore = "phase 3"]
 fn ss_adresses_forme_windows() {
     assert_eq!(
         parse_ss(SS),
@@ -104,7 +102,6 @@ fn ss_adresses_forme_windows() {
 
 /// JS : linux.test.js › Linux : ports en écoute (ss) › avec la ligne d’en-tête (ancien ss sans -H)
 #[test]
-#[ignore = "phase 3"]
 fn ss_avec_en_tete() {
     let with_header = format!("State  Recv-Q Send-Q Local Address:Port Peer Address:Port Process\n{SS}");
     assert_eq!(parse_ss(&with_header).len(), 7);
@@ -112,7 +109,6 @@ fn ss_avec_en_tete() {
 
 /// JS : linux.test.js › Linux : processus (/proc) › ligne stat : un nom avec espaces et parenthèses ne décale rien
 #[test]
-#[ignore = "phase 3"]
 fn ligne_stat() {
     let line = "4242 (node (worker) 2) S 4000 4242 4242 0 -1 4194560 100 0 0 0 250 50 0 0 20 0 7 0 12345 1000000 2048 18446744073709551615";
     assert_eq!(
@@ -129,7 +125,6 @@ fn ligne_stat() {
 
 /// JS : linux.test.js › Linux : processus (/proc) › relevé : début, temps processeur et mémoire en ms et octets
 #[test]
-#[ignore = "phase 3"]
 fn releve_proc() {
     let proc = fake_proc(
         vec![
@@ -178,7 +173,6 @@ fn releve_proc() {
 
 /// JS : linux.test.js › Linux : processus (/proc) › un processus disparu pendant la lecture est ignoré
 #[test]
-#[ignore = "phase 3"]
 fn processus_disparu() {
     let proc = fake_proc(vec![(10, p("a", 1))], 1_700_000_000);
     std::fs::create_dir(proc.path().join("11")).unwrap(); // plus de stat : terminé entre-temps
@@ -188,14 +182,12 @@ fn processus_disparu() {
 
 /// JS : linux.test.js › Linux : processus (/proc) › pas de profils réseau comme sous Windows
 #[test]
-#[ignore = "phase 3"]
 fn pas_de_profils_reseau() {
     assert!(linux::network_profiles().is_empty());
 }
 
 /// JS : linux.test.js › Linux : processus (/proc) › noms des processus
 #[test]
-#[ignore = "phase 3"]
 fn noms_des_processus() {
     let proc = fake_proc(vec![(4242, p("node", 1)), (777, p("mysqld", 1))], 1_700_000_000);
     let names = linux::process_names(proc.path());
@@ -212,7 +204,6 @@ fn started(comm: &'static str, ppid: u32, start: u64) -> Fake {
 
 /// JS : linux.test.js › Linux : arrêt de toute l’arborescence › SIGTERM au groupe et aux descendants, SIGKILL à ceux qui résistent, rien aux autres
 #[tokio::test]
-#[ignore = "phase 3"]
 async fn arret_de_l_arborescence() {
     let proc = fake_proc(
         vec![
@@ -263,7 +254,6 @@ async fn arret_de_l_arborescence() {
 
 /// JS : linux.test.js › Linux : arrêt de toute l’arborescence › un processus impossible à arrêter : erreur
 #[tokio::test]
-#[ignore = "phase 3"]
 async fn processus_impossible_a_arreter() {
     let proc = fake_proc(vec![(100, p("bloqué", 1))], 1_700_000_000);
     let options = KillOptions {
@@ -280,7 +270,6 @@ async fn processus_impossible_a_arreter() {
 /// JS : linux.test.js › Linux : lancement d’un projet › sans shell, sortie dans le journal, code de sortie transmis
 #[cfg(unix)]
 #[tokio::test]
-#[ignore = "phase 3"]
 async fn lancement_sans_shell() {
     let dir = temp_dir("servynex-launch-");
     let log = dir.path().join("p.log");
@@ -322,7 +311,6 @@ async fn lancement_sans_shell() {
 
 /// JS : linux.test.js › Linux : lancement d’un projet › tué par un signal : code 128 + numéro du signal
 #[test]
-#[ignore = "phase 3"]
 fn code_de_sortie_signal() {
     assert_eq!(exit_code(None, Some(SIGKILL)), Some(137));
     assert_eq!(exit_code(None, Some(SIGTERM)), Some(143));
@@ -333,7 +321,6 @@ fn code_de_sortie_signal() {
 /// JS : linux.test.js › Linux : lancement d’un projet › commande introuvable : message clair
 #[cfg(unix)]
 #[tokio::test]
-#[ignore = "phase 3"]
 async fn commande_introuvable() {
     let dir = temp_dir("servynex-launch-");
     let options = servynex_sys::LaunchOptions {
@@ -372,7 +359,6 @@ fn tools(desktop: bool, code: bool, terminal: Option<&str>) -> Tools {
 
 /// JS : linux.test.js › Linux : outils du bureau › sans écran (serveur) : rien à ouvrir
 #[test]
-#[ignore = "phase 3"]
 fn sans_ecran_rien_a_ouvrir() {
     assert_eq!(
         detect_tools(&env(&[]), &has(&["code", "gnome-terminal"])),
@@ -382,7 +368,6 @@ fn sans_ecran_rien_a_ouvrir() {
 
 /// JS : linux.test.js › Linux : outils du bureau › avec écran : VS Code et le premier terminal trouvé (Ptyxis sur Fedora)
 #[test]
-#[ignore = "phase 3"]
 fn avec_ecran_code_et_terminal() {
     assert_eq!(
         detect_tools(
@@ -403,7 +388,6 @@ fn avec_ecran_code_et_terminal() {
 
 /// JS : linux.test.js › Linux : outils du bureau › terminal ouvert dans le dossier du projet
 #[test]
-#[ignore = "phase 3"]
 fn terminal_dans_le_dossier() {
     let cmd = |name, args: &[&str]| {
         Some((
@@ -427,7 +411,6 @@ fn terminal_dans_le_dossier() {
 
 /// JS : linux.test.js › Linux : démarrage avec la session (systemd) › service utilisateur : relancé s’il plante, les projets survivent à son arrêt
 #[test]
-#[ignore = "phase 3"]
 fn service_utilisateur() {
     let unit = unit_file(
         Path::new("/home/hugo/Servynex 100%/servynex"),
@@ -453,7 +436,6 @@ fn service_utilisateur() {
 
 /// JS : linux.test.js › Linux : démarrage avec la session (systemd) › activer, lire l’état, désactiver
 #[tokio::test]
-#[ignore = "phase 3"]
 async fn activer_lire_desactiver() {
     let dir = temp_dir("servynex-systemd-");
     let calls = Arc::new(Mutex::new(Vec::<String>::new()));
