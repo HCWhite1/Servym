@@ -521,7 +521,7 @@ export default {
   "settings.bootProjectsWarn@linux": "Servynex does not start with the session: these projects will only start the next time it does. Turn on \"Start Servynex with the session\" above.",
   "settings.config": "Configuration",
   "settings.configFile": "Projects file",
-  "settings.configFileDesc": "All project settings are saved in this file, which can also be edited by hand.",
+  "settings.configFileDesc": "All project settings are saved in this file, which can also be edited by hand: Servynex reloads it as soon as it is saved.",
   "settings.general": "General",
   "settings.instanceName": "Instance name",
   "settings.instanceNameDesc": "Shown in the sidebar and on the sign-in page. Useful when you have several Servynex instances.",

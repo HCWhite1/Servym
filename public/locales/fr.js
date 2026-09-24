@@ -521,7 +521,7 @@ export default {
   "settings.bootProjectsWarn@linux": "Servynex ne démarre pas avec la session : ces projets ne seront lancés qu’à son prochain démarrage. Activer « Démarrer Servynex avec la session » ci-dessus.",
   "settings.config": "Configuration",
   "settings.configFile": "Fichier des projets",
-  "settings.configFileDesc": "Tous les réglages des projets y sont enregistrés ; il peut aussi se modifier à la main.",
+  "settings.configFileDesc": "Tous les réglages des projets y sont enregistrés ; il peut aussi se modifier à la main : Servynex le relit dès qu’il est enregistré.",
   "settings.general": "Général",
   "settings.instanceName": "Nom de l’instance",
   "settings.instanceNameDesc": "Affiché dans la barre latérale et sur la page de connexion. Utile quand on a plusieurs instances de Servynex.",

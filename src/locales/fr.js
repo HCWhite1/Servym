@@ -249,4 +249,8 @@ export default {
   // Dupliquer un projet
   'project.copyName': '{name} (copie)',
   'audit.duplicated': 'Dupliqué depuis {name}',
+
+  // Relecture automatique de projects.json
+  'log.autoReloaded': 'projects.json modifié : relu automatiquement',
+  'log.autoReloadFailed': 'projects.json modifié, mais pas appliqué : {error}',
 };

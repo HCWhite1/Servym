@@ -39,6 +39,15 @@ const send = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
+// Contenu d'un fichier, ou null s'il est illisible (absent, en cours d'écriture…).
+function readText(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 async function readJson(req, limit = 16_000) {
   if (!String(req.headers['content-type']).startsWith('application/json')) throw new HttpError(415, 'http.jsonExpected');
   let raw = '';
@@ -125,6 +134,7 @@ export function createApp({
   notify = notifier(), // notification du système (tests : factice)
   platform = process.platform, // système, pour les textes de la page (« avec Windows », « avec la session »)
   desktop = sys.tools.desktop, // session avec écran : sinon rien ne peut s'ouvrir sur cette machine
+  watchMs = 1000, // relecture automatique de projects.json : intervalle de surveillance (0 : aucune)
   ...options
 } = {}) {
   // projects.json invalide au démarrage : Servynex démarre quand même, avec la
@@ -190,11 +200,71 @@ export function createApp({
   function applyConfig(next) {
     manager.assertCanApply(next);
     saveConfig(configFile, next);
+    known = readText(configFile); // écrit par Servynex : pas à relire
     manager.setConfig(next);
     setServerLang(next.instance.lang);
     rememberValid(next);
     setConfigError(null);
   }
+
+  // Relit projects.json (bouton « Relire » ou relecture automatique) ; who : compte
+  // qui l'a demandé, « - » sinon. Fichier invalide ou projet en marche retiré :
+  // l'erreur est affichée par la page et la configuration actuelle reste en place.
+  function reloadConfig(who, logKey) {
+    known = readText(configFile);
+    let next;
+    try {
+      next = loadConfig(configFile);
+      manager.assertCanApply(next);
+    } catch (err) {
+      if (err instanceof LocalError) setConfigError(err);
+      throw err;
+    }
+    const previous = manager.config;
+    manager.setConfig(next);
+    setServerLang(next.instance.lang);
+    rememberValid(next);
+    setConfigError(null);
+    log(`[config] ${tr(logKey)}`);
+    // Modifications faites à la main dans le fichier : inscrites comme les autres.
+    const audit = (project, key, params) => log(`[audit] ${project} ${who} · ${tr(key, params)}`);
+    for (const p of next.projects) {
+      const old = previous.projects.find((x) => x.id === p.id);
+      if (!old) audit(p.id, 'audit.addedInFile');
+      else if (describeChanges(old, p)) audit(p.id, 'audit.changedInFile', { changes: describeChanges(old, p) });
+    }
+    for (const old of previous.projects) if (!next.projects.some((p) => p.id === old.id)) audit(old.id, 'audit.removedInFile', { name: old.name });
+  }
+
+  // Relecture automatique : projects.json modifié à la main (éditeur, git pull…) est
+  // relu dès qu'il ne bouge plus (même contenu deux tours de suite), comme avec
+  // « Relire ». known : le contenu déjà connu, lu ou écrit par Servynex lui-même.
+  // Refusé (fichier invalide, projet en marche retiré) : réessayé à chaque tour,
+  // pour s'appliquer dès que possible (projet arrêté), et signalé une seule fois.
+  let known = readText(configFile);
+  let pending = null;
+  let failure = null;
+  const watcher = watchMs > 0 ? setInterval(() => {
+    const text = readText(configFile);
+    if (text === null || text === known) {
+      pending = null;
+      return;
+    }
+    if (pending !== text) {
+      pending = text;
+      return;
+    }
+    try {
+      reloadConfig('-', 'log.autoReloaded');
+      pending = null;
+      failure = null;
+    } catch (err) {
+      known = null;
+      if (err.message !== failure) log(`[config] ${tr('log.autoReloadFailed', { error: err.message })}`);
+      failure = err.message;
+    }
+  }, watchMs) : null;
+  watcher?.unref();
 
   const log = (...parts) => {
     const line = `${new Date().toISOString()} ${parts.join(' ')}\n`;
@@ -539,26 +609,7 @@ export function createApp({
       return void setImmediate(restart);
     }
     if (section === 'reload' && method === 'POST') {
-      let next;
-      try {
-        next = loadConfig(configFile);
-      } catch (err) {
-        if (err instanceof ConfigError) setConfigError(err);
-        throw err;
-      }
-      const previous = manager.config;
-      manager.setConfig(next);
-      setServerLang(next.instance.lang);
-      rememberValid(next);
-      setConfigError(null);
-      log(`[config] ${tr('log.reloaded')}`);
-      // Modifications faites à la main dans le fichier : inscrites comme les autres.
-      for (const p of next.projects) {
-        const old = previous.projects.find((x) => x.id === p.id);
-        if (!old) audit(p.id, 'audit.addedInFile');
-        else if (describeChanges(old, p)) audit(p.id, 'audit.changedInFile', { changes: describeChanges(old, p) });
-      }
-      for (const old of previous.projects) if (!next.projects.some((p) => p.id === old.id)) audit(old.id, 'audit.removedInFile', { name: old.name });
+      reloadConfig(who, 'log.reloaded');
       return send(res, 200, { ok: true });
     }
     if (section === 'config' && id === 'export' && method === 'GET') {
@@ -679,6 +730,8 @@ export function createApp({
       send(res, status, { error: err instanceof LocalError ? err.in(langOf(req)) : err.message, ...(err.extra ?? {}) });
     }
   });
+
+  server.on('close', () => clearInterval(watcher));
 
   return {
     server,

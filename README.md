@@ -48,7 +48,7 @@ Everything is set from the interface: the **Add** button, then the **Settings** 
 
 The configuration is saved in `projects.json`, at the root. This file is personal and not versioned; `projects.example.json` shows an example of each project type. Without `projects.json`, Servynex starts with an empty list.
 
-The file can also be edited by hand (Settings › Configuration › Edit, then Reload). A hand edit is never overwritten by the interface: each save starts again from the file as it is on disk. If the file becomes invalid, Servynex keeps going with the last valid configuration (`runtime/projects.valid.json`) and shows the error.
+The file can also be edited by hand (Settings › Configuration › Edit): Servynex reloads it as soon as it is saved and stable for a second, and logs the changes in Activity (the Reload button does the same at once). A running project removed by hand is kept until it is stopped, then the change applies. A hand edit is never overwritten by the interface: each save starts again from the file as it is on disk. If the file becomes invalid, Servynex keeps going with the last valid configuration (`runtime/projects.valid.json`) and shows the error.
 
 The `instance` section sets up Servynex itself:
 

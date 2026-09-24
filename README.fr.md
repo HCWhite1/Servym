@@ -48,7 +48,7 @@ Tout se règle depuis l'interface : bouton **Ajouter**, puis l'onglet **Réglage
 
 La configuration est enregistrée dans `projects.json`, à la racine. Ce fichier est personnel et n'est pas versionné ; `projects.example.json` montre un exemple de chaque type de projet. Sans `projects.json`, Servynex démarre avec une liste vide.
 
-Le fichier peut aussi se modifier à la main (Paramètres › Configuration › Modifier, puis Relire). Une modification faite à la main n'est jamais écrasée par l'interface : chaque enregistrement repart du fichier tel qu'il est sur le disque. Si le fichier devient invalide, Servynex continue avec la dernière configuration valide (`runtime/projects.valid.json`) et affiche l'erreur.
+Le fichier peut aussi se modifier à la main (Paramètres › Configuration › Modifier) : Servynex le relit dès qu'il est enregistré et stable depuis une seconde, et inscrit les changements à l'Activité (le bouton Relire fait de même tout de suite). Un projet en marche retiré à la main est gardé jusqu'à son arrêt, puis le changement s'applique. Une modification faite à la main n'est jamais écrasée par l'interface : chaque enregistrement repart du fichier tel qu'il est sur le disque. Si le fichier devient invalide, Servynex continue avec la dernière configuration valide (`runtime/projects.valid.json`) et affiche l'erreur.
 
 La section `instance` règle Servynex lui-même :
 

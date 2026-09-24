@@ -249,4 +249,8 @@ export default {
   // Duplicate a project
   'project.copyName': '{name} (copy)',
   'audit.duplicated': 'Duplicated from {name}',
+
+  // Automatic reload of projects.json
+  'log.autoReloaded': 'projects.json changed: reloaded automatically',
+  'log.autoReloadFailed': 'projects.json changed, but not applied: {error}',
 };
