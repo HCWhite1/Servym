@@ -71,13 +71,23 @@ where
     panic!("délai dépassé ({timeout_ms} ms)");
 }
 
-/// Port TCP libre sur 127.0.0.1 au moment de l'appel.
+/// Port TCP libre sur 127.0.0.1 au moment de l'appel, jamais rendu deux fois dans un même
+/// processus de test (le système peut redonner aussitôt un port qui vient d'être libéré : deux
+/// projets d'une même configuration auraient alors le même port).
 pub fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
+    static GIVEN: Mutex<Vec<u16>> = Mutex::new(Vec::new());
+    let mut given = GIVEN.lock().unwrap();
+    loop {
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        if !given.contains(&port) {
+            given.push(port);
+            return port;
+        }
+    }
 }
 
 /// Un port est-il ouvert (quelqu'un écoute) sur 127.0.0.1 ?
