@@ -80,7 +80,7 @@ Each project:
 - **Project that restarts itself**: if it exits with code 0 and starts a new instance that keeps the same output, Servynex waits 30 s, finds the new PID through the port and keeps following it.
 - **Stop**: the `stop` command if the project declares one, otherwise `taskkill /T /F` on the whole process tree. Stopping a project that other running projects depend on asks for confirmation.
 - **Removing a project** from `projects.json` while it runs is refused: stop it first, or it would keep running unwatched.
-- **CPU and memory**: the whole process tree of a project is counted (`cmd.exe`, then `node` and its children), plus the process listening on its port. CPU is a share of the whole machine, as in the Task Manager. Sampled every 5 s, only while a page is visible and a project runs; one PowerShell stays open for these samples and closes after a minute without requests.
+- **CPU and memory**: the whole process tree of a project is counted (`cmd.exe`, then `node` and its children), plus the process listening on its port. CPU is a share of the whole machine, as in the Task Manager. Sampled every 5 s, only while a page is visible and a project runs; one PowerShell stays open for these samples and closes after a minute without requests. The project summary also shows the total for Servynex and its projects, each process counted once; its tooltip gives Servynex alone (its own process, the samples and the project launchers).
 - **History**: every state change is written to `logs/servynex.log`; a project's "History" tab and the "Activity" page read it back.
 - **Network**: the "Network" page lists everything listening on the machine (netstat + tasklist), matched to projects, with the PC's addresses and the profile (public / private) of each network.
 
@@ -145,7 +145,7 @@ By default, Servynex only listens on this PC. **Access from the private network*
 | PUT | `/api/projects` | new order: `{ "order": ["id", …] }`, each project once |
 | PATCH | `/api/projects/:id` | changes a project (`null` removes an optional field) |
 | DELETE | `/api/projects/:id` | deletes a project: `{ "password": "…" }` if protection is on, otherwise `{ "confirm": "<exact name>" }`; stopped first, removed from the others' `requires`, logs kept |
-| GET | `/api/stats` | CPU and memory of each running project; shared sample, at most one every 2 s |
+| GET | `/api/stats` | CPU and memory of each running project, of Servynex alone (`self`) and of both (`total`); shared sample, at most one every 2 s |
 | GET | `/api/events` | SSE stream: `snapshot`, `state` on every change, `instance` (configuration error) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |
 | POST | `/api/projects/:id/open` | opens the file of a "file" project |

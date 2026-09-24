@@ -545,6 +545,8 @@ export default {
   "summary.failed": "{n} en échec",
   "summary.none": "Aucun projet",
   "summary.online": "{up} en ligne sur {total}",
+  "summary.resources": "Total {cpu} · {memory}",
+  "summary.resourcesHint": "Servynex et ses projets, chaque processus compté une fois. Servynex seul : {cpu} · {memory}.",
   "summary.title": "Servynex · {n} en ligne",
   "theme.dark": "Sombre",
   "theme.light": "Clair",

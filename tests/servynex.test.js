@@ -253,6 +253,18 @@ describe('processeur et mémoire', () => {
   });
 });
 
+test('total : Servynex compris, chaque processus compté une fois', async () => {
+  // Servynex (1) lance le projet par un PowerShell (2) → cmd.exe (3, racine du projet) → node (4) ;
+  // le PowerShell des relevés (5) est aussi son enfant.
+  const snap = new Map([[1, 0, 100], [2, 1, 110], [3, 2, 120], [4, 3, 130], [5, 1, 140]].map(([pid, ppid, start]) => [pid, { pid, ppid, start, cpu: 0, memory: pid * 1e6 }]));
+  const sampler = new Sampler({ sample: async () => snap, now: () => 0, cores: 1 });
+  const res = await sampler.measureAll({ self: [3] }, 1);
+  assert.equal(res.projects.self.processes, 2, 'un projet peut s’appeler « self »');
+  assert.equal(res.projects.self.memory, 7e6);
+  assert.deepEqual(res.self, { cpu: null, memory: 8e6, processes: 3 }, 'Servynex sans ses projets');
+  assert.deepEqual(res.total, { cpu: null, memory: 15e6, processes: 5 }, 'chacun une fois');
+});
+
 describe('fichiers statiques', () => {
   const root = path.resolve('C:/site');
   test('reste dans le dossier', () => {
@@ -381,6 +393,8 @@ describe('serveur et processus', () => {
     assert.ok(first.projects.ok.memory > 1_000_000, 'mémoire du processus node');
     assert.ok(first.projects.ok.processes >= 2, 'cmd.exe puis node : toute l’arborescence');
     assert.equal(first.projects.crash, undefined, 'arrêté : absent');
+    assert.ok(first.self.memory > 1_000_000 && first.self.processes >= 1, 'Servynex lui-même');
+    assert.ok(first.total.memory >= first.projects.ok.memory + first.self.memory, 'total');
     await sleep(2500);
     const second = (await get('/api/stats')).json;
     assert.equal(typeof second.projects.ok.cpu, 'number');

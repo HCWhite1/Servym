@@ -80,7 +80,7 @@ Chaque projet :
 - **Projet qui se relance lui-même** : s'il quitte avec le code 0 et relance une instance qui garde la même sortie, Servynex attend 30 s, retrouve le nouveau PID par le port et continue de le suivre.
 - **Arrêt** : commande `stop` si le projet en déclare une, sinon `taskkill /T /F` sur tout l'arbre de processus. Arrêter un projet dont d'autres projets en marche dépendent demande une confirmation.
 - **Retirer un projet** de `projects.json` pendant qu'il tourne est refusé : il faut l'arrêter d'abord, sinon il continuerait sans surveillance.
-- **Processeur et mémoire** : toute l'arborescence de processus d'un projet est comptée (`cmd.exe`, puis `node` et ses enfants), ainsi que le processus qui écoute sur son port. Le processeur est une part de toute la machine, comme dans le Gestionnaire des tâches. Relevé toutes les 5 s, seulement quand une page est visible et qu'un projet tourne ; un PowerShell reste ouvert pour ces relevés et se ferme après une minute sans demande.
+- **Processeur et mémoire** : toute l'arborescence de processus d'un projet est comptée (`cmd.exe`, puis `node` et ses enfants), ainsi que le processus qui écoute sur son port. Le processeur est une part de toute la machine, comme dans le Gestionnaire des tâches. Relevé toutes les 5 s, seulement quand une page est visible et qu'un projet tourne ; un PowerShell reste ouvert pour ces relevés et se ferme après une minute sans demande. Le résumé des projets affiche aussi le total de Servynex et de ses projets, chaque processus compté une fois ; son info-bulle donne Servynex seul (son propre processus, les relevés et les lanceurs des projets).
 - **Historique** : chaque changement d'état est écrit dans `logs/servynex.log` ; l'onglet « Historique » d'un projet et la page « Activité » le relisent.
 - **Réseau** : la page « Réseau » liste tout ce qui écoute sur la machine (netstat + tasklist), rattaché aux projets, avec les adresses du PC et le profil (public / privé) de chaque réseau.
 
@@ -145,7 +145,7 @@ Par défaut, Servynex n'écoute que sur ce PC. **Accès depuis le réseau privé
 | PUT | `/api/projects` | nouvel ordre : `{ "order": ["id", …] }`, chaque projet une fois |
 | PATCH | `/api/projects/:id` | modifie un projet (`null` retire un champ facultatif) |
 | DELETE | `/api/projects/:id` | supprime un projet : `{ "password": "…" }` si la protection est active, sinon `{ "confirm": "<nom exact>" }` ; arrêté d'abord, retiré des `requires` des autres, journaux gardés |
-| GET | `/api/stats` | processeur et mémoire de chaque projet en marche ; relevé partagé, au plus un toutes les 2 s |
+| GET | `/api/stats` | processeur et mémoire de chaque projet en marche, de Servynex seul (`self`) et des deux (`total`) ; relevé partagé, au plus un toutes les 2 s |
 | GET | `/api/events` | flux SSE : `snapshot`, `state` à chaque changement, `instance` (erreur de configuration) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |
 | POST | `/api/projects/:id/open` | ouvre le fichier d'un projet « file » |

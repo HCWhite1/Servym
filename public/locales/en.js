@@ -545,6 +545,8 @@ export default {
   "summary.failed": "{n} failed",
   "summary.none": "No projects",
   "summary.online": "{up} online out of {total}",
+  "summary.resources": "Total {cpu} · {memory}",
+  "summary.resourcesHint": "Servynex and its projects, each process counted once. Servynex alone: {cpu} · {memory}.",
   "summary.title": "Servynex · {n} online",
   "theme.dark": "Dark",
   "theme.light": "Light",

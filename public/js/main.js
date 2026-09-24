@@ -201,6 +201,7 @@ function fillResources(row, p) {
 }
 
 function statsChanged() {
+  updateSummary();
   for (const p of projects.values()) {
     const row = document.querySelector(`.row[data-id="${CSS.escape(p.id)}"]`);
     if (row) fillResources(row, p);
@@ -294,7 +295,15 @@ function updateSummary() {
   const failed = list.filter((p) => ['failed', 'conflict'].includes(p.state)).length;
   const parts = [t('summary.online', { up, total: list.length })];
   if (failed) parts.push(t('summary.failed', { n: failed }));
-  $('#summary').textContent = projects.size ? parts.join(' · ') : t('summary.none');
+  // Total de la machine pour Servynex et ses projets, pendant qu'un projet tourne.
+  const sums = stats.totals();
+  const res = sums && projects.size ? h('span', {
+    id: 'summary-res',
+    text: t('summary.resources', { cpu: formatCpu(sums.total.cpu), memory: formatBytes(sums.total.memory) }),
+    title: t('summary.resourcesHint', { cpu: formatCpu(sums.self?.cpu), memory: sums.self ? formatBytes(sums.self.memory) : '—' }),
+  }) : null;
+  if (!projects.size) $('#summary').textContent = t('summary.none');
+  else $('#summary').replaceChildren(parts.join(' · '), ...(res ? [' · ', res] : []));
   $('#nav-count').textContent = list.length ? `${up}/${list.length}` : '';
   orbit.summary(up, list.length);
   document.title = up ? t('summary.title', { n: up }) : 'Servynex';

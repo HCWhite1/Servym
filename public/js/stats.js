@@ -9,6 +9,7 @@ const KEEP = 60; // 5 minutes
 let handlers;
 let onUpdate = () => {};
 let latest = {};
+let sums = null; // { self, total } : Servynex seul, et avec ses projets
 const history = new Map(); // id → [{ at, cpu, memory }]
 let timer = null;
 
@@ -21,6 +22,7 @@ export function init(hs, callback) {
 
 export const get = (id) => latest[id] ?? null;
 export const historyOf = (id) => history.get(id) ?? [];
+export const totals = () => sums;
 
 const wanted = () => document.visibilityState === 'visible'
   && handlers.all().some((p) => p.type !== 'file' && ['running', 'starting', 'stopping'].includes(p.state));
@@ -35,8 +37,9 @@ export function schedule() {
 async function tick() {
   if (wanted()) {
     try {
-      const { projects } = await api('stats');
+      const { projects, self, total } = await api('stats');
       latest = projects;
+      sums = total ? { self, total } : null;
       const at = Date.now();
       for (const [id, s] of Object.entries(projects)) {
         if (s.inProcess) continue;
@@ -47,9 +50,11 @@ async function tick() {
       }
     } catch {
       latest = {};
+      sums = null;
     }
   } else {
     latest = {};
+    sums = null;
   }
   // Projet arrêté : sa courbe repart de zéro au prochain lancement.
   for (const id of history.keys()) if (!latest[id]) history.delete(id);

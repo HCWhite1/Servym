@@ -482,8 +482,9 @@ export function createApp({
         const port = p.activePort ?? p.port;
         roots[p.id] = [p.managed ? p.pid : null, ...listening.filter((l) => l.port === port).map((l) => l.pid)].filter(Boolean);
       }
-      const measured = Object.keys(roots).length ? await sampler.measure(roots) : {};
-      return send(res, 200, { cores: sys.cores, projects: { ...measured, ...inProcess } });
+      // Servynex lui-même (sites statiques compris) et le total de la machine pour Servynex.
+      const { projects: measured, self, total } = await sampler.measureAll(roots, process.pid);
+      return send(res, 200, { cores: sys.cores, projects: { ...measured, ...inProcess }, self, total });
     }
     if (section === 'network' && method === 'GET') return send(res, 200, { lan: sys.lanAddresses(), networks: await networkProfiles() });
     if (section === 'restart' && method === 'POST') {

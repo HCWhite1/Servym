@@ -28,7 +28,11 @@ export function treeOf(processes, roots) {
 // (100 % : tous les cœurs occupés), comme le Gestionnaire des tâches. Sans
 // relevé précédent, le processeur est inconnu (null). null : aucun processus.
 export function usageOf(prev, next, roots, cores) {
-  const tree = treeOf(next.processes, roots);
+  return usageOfTree(prev, next, treeOf(next.processes, roots), cores);
+}
+
+// Même calcul pour un ensemble de PID déjà établi.
+function usageOfTree(prev, next, tree, cores) {
   if (!tree.size) return null;
   let memory = 0;
   let used = 0;
@@ -75,12 +79,29 @@ export class Sampler {
 
   // rootsById : { id: [pid, …] } → { id: { cpu, memory, processes } }, sans les projets introuvables.
   async measure(rootsById) {
+    return (await this.measureAll(rootsById)).projects;
+  }
+
+  // Avec self (le PID de Servynex) : { projects, self, total }, self étant Servynex
+  // sans les arborescences des projets (ses relevés compris), total tout, chaque
+  // processus une fois.
+  async measureAll(rootsById, self) {
     await this.#snapshot();
+    const { processes } = this.#last;
     const result = {};
+    const projects = new Set();
     for (const [id, roots] of Object.entries(rootsById)) {
-      const usage = usageOf(this.#prev, this.#last, roots, this.#cores);
+      const tree = treeOf(processes, roots);
+      for (const pid of tree) projects.add(pid);
+      const usage = usageOfTree(this.#prev, this.#last, tree, this.#cores);
       if (usage) result[id] = usage;
     }
-    return result;
+    if (self === undefined) return { projects: result };
+    const own = new Set([...treeOf(processes, [self])].filter((pid) => !projects.has(pid)));
+    return {
+      projects: result,
+      self: usageOfTree(this.#prev, this.#last, own, this.#cores),
+      total: usageOfTree(this.#prev, this.#last, new Set([...own, ...projects]), this.#cores),
+    };
   }
 }
