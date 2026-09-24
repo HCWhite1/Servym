@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { ConfigError, createProject, DEFAULT_CONFIG, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig } from './src/config.js';
+import { ConfigError, createProject, DEFAULT_CONFIG, describeChanges, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig } from './src/config.js';
 import { Auth, AuthError } from './src/auth.js';
 import { LANGS, LocalError, langOf, msg, serverLang, setServerLang, tr } from './src/i18n.js';
 import { followLog, history, tailLines } from './src/logs.js';
@@ -500,11 +500,19 @@ export function createApp({
         if (err instanceof ConfigError) setConfigError(err);
         throw err;
       }
+      const previous = manager.config;
       manager.setConfig(next);
       setServerLang(next.instance.lang);
       rememberValid(next);
       setConfigError(null);
       log(`[config] ${tr('log.reloaded')}`);
+      // Modifications faites à la main dans le fichier : inscrites comme les autres.
+      for (const p of next.projects) {
+        const old = previous.projects.find((x) => x.id === p.id);
+        if (!old) audit(p.id, 'audit.addedInFile');
+        else if (describeChanges(old, p)) audit(p.id, 'audit.changedInFile', { changes: describeChanges(old, p) });
+      }
+      for (const old of previous.projects) if (!next.projects.some((p) => p.id === old.id)) audit(old.id, 'audit.removedInFile', { name: old.name });
       return send(res, 200, { ok: true });
     }
     if (section !== 'projects' || !id) throw new HttpError(404, 'http.unknownRoute');
@@ -516,10 +524,12 @@ export function createApp({
       if (sensitive.length && !auth.can(user, 'commands')) {
         throw new AuthError(403, 'auth.needsCommands');
       }
-      const next = patchProject(diskConfig(), id, patch);
+      const current = diskConfig();
+      const next = patchProject(current, id, patch);
       applyConfig(next);
       log(`[config] ${tr('log.changed', { id })}`);
-      audit(id, 'audit.changed', { fields: Object.keys(patch).join(', ') });
+      const changes = describeChanges(current.projects.find((p) => p.id === id), next.projects.find((p) => p.id === id));
+      if (changes) audit(id, 'audit.changed', { changes });
       return send(res, 200, manager.view(manager.project(id)));
     }
     if (!action && method === 'DELETE') {

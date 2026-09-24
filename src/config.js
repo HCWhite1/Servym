@@ -261,6 +261,23 @@ export function reorderProjects(config, order) {
   return next;
 }
 
+// Différences entre deux versions d'un projet, pour le journal d'audit :
+// « port 3200 → 3300 · name "A" → "B" ». Les valeurs de env ne sont jamais écrites
+// (elles peuvent contenir des secrets) : seulement les noms des variables.
+export function describeChanges(before, after) {
+  const show = (key, value) => {
+    if (value === undefined) return '—';
+    if (key === 'env') return Object.keys(value).map((k) => `${k}=•••`).join(', ') || '—';
+    const text = JSON.stringify(value);
+    return text.length > 60 ? `${text.slice(0, 58)}…${text.at(-1) === '"' ? '"' : ''}` : text;
+  };
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+  return keys
+    .filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]))
+    .map((k) => `${k} ${show(k, before[k])} → ${show(k, after[k])}`)
+    .join(' · ');
+}
+
 // Adresse d'écoute demandée au projet.
 export const hostOf = (p) => (p.expose && p.hostControl !== 'local' ? '0.0.0.0' : '127.0.0.1');
 

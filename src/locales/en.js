@@ -161,7 +161,7 @@ export default {
 
   // Audit log (Activity)
   'audit.added': 'Project added',
-  'audit.changed': 'Settings changed: {fields}',
+  'audit.changed': 'Settings changed: {changes}',
   'audit.deleted': 'Project deleted: {name}',
   'audit.reordered': 'Project order changed',
   'audit.instanceName': 'Instance name: {name}',
@@ -219,4 +219,7 @@ export default {
   // Langue du serveur
   'http.badLang': 'Unknown language: "en", "fr" or null (the system one)',
   'audit.serverLang': 'Server language: {lang}',
+  'audit.addedInFile': 'Project added in projects.json',
+  'audit.changedInFile': 'Changed in projects.json: {changes}',
+  'audit.removedInFile': 'Project {name} removed from projects.json',
 };

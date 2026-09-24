@@ -5,7 +5,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { createProject, formatConfig, loadConfig, patchProject, removeProject, reorderProjects, validate } from '../src/config.js';
+import { createProject, describeChanges, formatConfig, loadConfig, patchProject, removeProject, reorderProjects, validate } from '../src/config.js';
 import { lastError } from '../src/logs.js';
 import { resolveInside } from '../src/static.js';
 import { Sampler, treeOf, usageOf } from '../src/stats.js';
@@ -180,6 +180,14 @@ describe('configuration', () => {
     assert.equal('requires' in next.projects.find((p) => p.id === 'e'), false, 'liste vide : champ retiré');
     assert.equal(conf.projects.length, 5, "l'original n'est pas modifié");
     assert.throws(() => removeProject(conf, 'absent'), (err) => err.status === 404);
+  });
+
+  test('différences de réglages : valeurs lisibles, jamais celles de env', () => {
+    const before = { id: 'a', name: 'A', port: 1, env: { K: 'secret' }, tags: ['x'] };
+    const after = { id: 'a', name: 'B', port: 1, env: { K: 'autre', L: '2' }, tags: ['x', 'y'], url: 'http://a' };
+    assert.equal(describeChanges(before, after), 'name "A" → "B" · env K=••• → K=•••, L=••• · tags ["x"] → ["x","y"] · url — → "http://a"');
+    assert.equal(describeChanges(before, before), '');
+    assert.match(describeChanges({ desc: 'x'.repeat(200) }, {}), /^desc "x{40,}…" → —$/, 'valeurs longues coupées');
   });
 
   test('réordonner : tous les identifiants, chacun une fois', () => {
@@ -527,6 +535,24 @@ describe('serveur et processus', () => {
     assert.equal(after.projects.find((p) => p.id === 'site').desc, 'écrit à la main');
     assert.equal(after.projects.find((p) => p.id === 'crash').desc, "depuis l'interface");
     assert.equal(app.manager.project('site').desc, 'écrit à la main', 'la modification à la main est aussi appliquée');
+  });
+
+  test('activité : chaque modification de réglage, avec ses valeurs', async () => {
+    const patch = (body) => request(port, { method: 'PATCH', path: '/api/projects/dep', headers: { 'x-servynex-request': '1', 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal((await patch({ desc: 'avant', startTimeout: 20 })).status, 200);
+    assert.equal((await patch({ desc: 'après', startTimeout: 30, env: { SECRET_TOKEN: 'abc123' } })).status, 200);
+    const texts = async () => (await get('/api/history')).json.entries.filter((e) => e.kind === 'audit' && e.id === 'dep').map((e) => e.text);
+    let all = await texts();
+    assert.ok(all.some((t) => /desc "avant" → "après"/.test(t) && /startTimeout 20 → 30/.test(t) && /env — → SECRET_TOKEN=•••/.test(t)), all.join(' | '));
+    assert.ok(!all.some((t) => t.includes('abc123')), 'valeurs de env jamais écrites');
+    // Modifié à la main, puis relu : la différence est aussi inscrite.
+    const file = path.join(dir, 'projects.json');
+    const conf = JSON.parse(fs.readFileSync(file, 'utf8'));
+    conf.projects.find((p) => p.id === 'dep').desc = 'à la main';
+    fs.writeFileSync(file, JSON.stringify(conf));
+    assert.equal((await post('/api/reload')).status, 200);
+    all = await texts();
+    assert.ok(all.some((t) => /projects.json/.test(t) && /desc "après" → "à la main"/.test(t)), all.join(' | '));
   });
 
   test('ajout depuis l’interface, puis lancement', async () => {
