@@ -145,3 +145,44 @@ describe('accès depuis le réseau privé', () => {
     }
   });
 });
+
+describe('langue du serveur', () => {
+  test('réglable depuis l’interface : appliquée tout de suite, retirée pour suivre le système', async () => {
+    const s = await makeApp();
+    const file = path.join(s.dir, 'projects.json');
+    try {
+      assert.equal((await s.call('PUT', '/api/instance/lang', { body: { lang: 'de' } })).status, 400);
+      assert.equal((await s.call('PUT', '/api/instance/lang', { body: { lang: 'en' } })).status, 200);
+      assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).instance.lang, 'en');
+      let { instance } = (await s.call('GET', '/api/projects')).json;
+      assert.equal(instance.lang, 'en');
+      assert.equal(instance.serverLang, 'en', 'appliquée sans redémarrage');
+      const unknown = await s.call('POST', '/api/projects/absent/start');
+      assert.equal(unknown.json.error, 'Unknown project', 'messages du serveur en anglais');
+      assert.equal((await s.call('PUT', '/api/instance/lang', { body: { lang: null } })).status, 200);
+      assert.equal('lang' in JSON.parse(fs.readFileSync(file, 'utf8')).instance, false);
+      ({ instance } = (await s.call('GET', '/api/projects')).json);
+      assert.equal(instance.lang, null);
+      assert.equal(instance.serverLang, 'fr', 'de nouveau celle du système (SERVYNEX_LANG ici)');
+    } finally {
+      setServerLang('fr');
+      await s.close();
+    }
+  });
+
+  test('permission « Servynex »', async () => {
+    const s = await makeApp();
+    try {
+      const admin = (await s.call('POST', '/api/auth/setup', { body: { username: 'alice', password: 'mot de passe 1' } })).cookie;
+      const join = async (permissions, username) => {
+        const { token } = (await s.call('POST', '/api/auth/invites', { cookie: admin, body: { permissions } })).json;
+        return (await s.call('POST', '/api/auth/invite', { body: { token, username, password: 'mot de passe 2' } })).cookie;
+      };
+      assert.equal((await s.call('PUT', '/api/instance/lang', { cookie: await join(['edit'], 'ed'), body: { lang: 'en' } })).status, 403);
+      assert.equal((await s.call('PUT', '/api/instance/lang', { cookie: await join(['instance'], 'inst'), body: { lang: 'fr' } })).status, 200);
+    } finally {
+      setServerLang('fr');
+      await s.close();
+    }
+  });
+});

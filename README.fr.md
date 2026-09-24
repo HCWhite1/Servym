@@ -88,7 +88,7 @@ Journaux : `logs/servynex.log` (le précédent passe dans `logs/servynex.prev.lo
 
 ## Langues
 
-L'interface existe en français et en anglais : la langue du navigateur est choisie automatiquement, et Paramètres › Apparence › Langue permet d'en fixer une (gardée par le navigateur, et par le compte si la protection est active). Les messages d'erreur du serveur suivent la langue de la page. Les journaux, l'historique et les états en direct (« Attente de MySQL… ») sont dans la langue du serveur : `instance.lang`, sinon `SERVYNEX_LANG`, sinon celle du système.
+L'interface existe en français et en anglais : la langue du navigateur est choisie automatiquement, et Paramètres › Apparence › Langue permet d'en fixer une (gardée par le navigateur, et par le compte si la protection est active). Les messages d'erreur du serveur suivent la langue de la page. Les journaux, l'historique et les états en direct (« Attente de MySQL… ») sont dans la langue du serveur, réglable dans Paramètres › Servynex › Langue du serveur (enregistrée dans `instance.lang`) ; par défaut `SERVYNEX_LANG`, sinon la langue du système.
 
 Textes : `public/locales/` (interface) et `src/locales/` (serveur), un fichier par langue, sous des clés ; `npm test` vérifie que toutes les langues ont les mêmes clés et les mêmes paramètres.
 
@@ -163,6 +163,7 @@ Par défaut, Servynex n'écoute que sur ce PC. **Accès depuis le réseau privé
 | POST | `/api/instance/onboarded` | présentation vue (`runtime/ui.json`) |
 | POST | `/api/restart` | redémarre Servynex (409 s'il n'est pas lancé par `start-hidden.vbs`) |
 | PATCH | `/api/instance` | nom de l'instance |
+| PUT | `/api/instance/lang` | langue du serveur : `{ "lang": "fr" }`, `"en"` ou `null` (celle du système) ; appliquée tout de suite |
 | PUT | `/api/instance/access` | `{ "access": "lan", "password": "…" }` ou `{ "access": "local" }` ; administrateur, appliqué au redémarrage |
 | … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (nom, préférences, mot de passe, clé, sessions, comptes liés), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
 

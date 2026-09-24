@@ -27,6 +27,7 @@ export function init(hs) {
   radio('#set-theme', setTheme);
   radio('#set-layout', (value) => handlers.setLayout(value));
   radio('#set-access', setAccess);
+  $('#set-server-lang').addEventListener('change', (e) => setServerLang(e.target.value));
   $('#set-lang').value = choice();
   $('#set-lang').addEventListener('change', (e) => setLang(e.target.value));
   $('#set-motion').addEventListener('change', (e) => handlers.setMotion(e.target.checked));
@@ -283,6 +284,31 @@ async function setAccess(value) {
     toast(err.message, 'error');
   }
   renderAccess();
+  renderServerLang();
+}
+
+// Langue des journaux, de l'historique et des états en direct (côté serveur),
+// distincte de celle de cette page. Appliquée tout de suite.
+function renderServerLang() {
+  const info = handlers.instance();
+  const select = $('#set-server-lang');
+  select.value = info.lang ?? 'auto';
+  select.disabled = !can('instance');
+  $('#server-lang-desc').textContent = t('serverLang.desc', { current: LANG_NAMES[info.serverLang] ?? info.serverLang ?? '—' });
+}
+
+const LANG_NAMES = { fr: 'Français', en: 'English' };
+
+async function setServerLang(value) {
+  const info = handlers.instance();
+  try {
+    const res = await api('instance/lang', { method: 'PUT', body: { lang: value === 'auto' ? null : value } });
+    Object.assign(info, { lang: res.lang, serverLang: res.serverLang });
+    toast(t('serverLang.saved', { current: LANG_NAMES[res.serverLang] ?? res.serverLang }));
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+  renderServerLang();
 }
 
 // Les projets continuent de tourner et sont repris. La page attend que l'ancien

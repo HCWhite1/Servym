@@ -215,4 +215,8 @@ export default {
   'audit.accessLan': 'Accès depuis le réseau local activé (au prochain démarrage)',
   'audit.accessLocal': 'Accès limité à ce PC (au prochain démarrage)',
   'log.lanRefused': 'accès réseau demandé, mais la protection par mot de passe n\'est pas active : écoute sur ce PC seulement',
+
+  // Langue du serveur
+  'http.badLang': 'Langue inconnue : « en », « fr » ou null (celle du système)',
+  'audit.serverLang': 'Langue du serveur : {lang}',
 };

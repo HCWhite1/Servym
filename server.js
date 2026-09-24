@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ConfigError, createProject, DEFAULT_CONFIG, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig } from './src/config.js';
 import { Auth, AuthError } from './src/auth.js';
-import { LocalError, langOf, msg, setServerLang, tr } from './src/i18n.js';
+import { LANGS, LocalError, langOf, msg, serverLang, setServerLang, tr } from './src/i18n.js';
 import { followLog, history, tailLines } from './src/logs.js';
 import { HttpError, Manager } from './src/processes.js';
 import { staticHandler } from './src/static.js';
@@ -89,7 +89,7 @@ function guard(req, hostAllowed) {
 
 // Permission exigée par une route de l'API (voir src/auth.js).
 const OPERATE = new Set(['start', 'stop', 'restart', 'open', 'folder', 'code', 'terminal']);
-const INSTANCE_ACTION_PERMISSION = { config: 'commands', log: 'instance', folder: 'instance', onboarded: 'view' };
+const INSTANCE_ACTION_PERMISSION = { config: 'commands', log: 'instance', folder: 'instance', onboarded: 'view', lang: 'instance' };
 function permissionFor(section, id, action, method) {
   if (method === 'GET' || method === 'HEAD') return 'view';
   if (section === 'projects' && !id && method === 'POST') return 'commands';
@@ -362,6 +362,8 @@ export function createApp({
         access: manager.config.instance.access ?? 'local', // réglage (appliqué au démarrage)
         listening, // adresse d'écoute réelle
         viewerLocal: isLocalViewer(req),
+        lang: manager.config.instance.lang ?? null, // langue choisie (null : celle du système)
+        serverLang: serverLang(), // langue des journaux et des états, en ce moment
         configError: configErrorIn(lang),
       };
       return send(res, 200, { instance, projects: manager.snapshot() });
@@ -401,6 +403,18 @@ export function createApp({
       hostOnly(req, id);
       await instanceActions[id]();
       return send(res, 200, { ok: true });
+    }
+    if (section === 'instance' && id === 'lang' && method === 'PUT') {
+      // Langue des journaux, de l'historique et des états : appliquée tout de suite
+      // (applyConfig). null : celle du système.
+      const { lang: chosen } = await readJson(req);
+      if (chosen !== null && !LANGS.includes(chosen)) throw new HttpError(400, 'http.badLang');
+      const next = diskConfig();
+      if (chosen) next.instance.lang = chosen;
+      else delete next.instance.lang;
+      applyConfig(next);
+      audit('-', 'audit.serverLang', { lang: chosen ?? 'auto' });
+      return send(res, 200, { lang: chosen, serverLang: serverLang() });
     }
     if (section === 'instance' && id === 'access' && method === 'PUT') {
       // Ouvrir au réseau : protection active et mot de passe redemandé. Revenir à ce

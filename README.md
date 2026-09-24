@@ -88,7 +88,7 @@ Logs: `logs/servynex.log` (the previous one moves to `logs/servynex.prev.log` be
 
 ## Languages
 
-The interface exists in English and French: the browser language is picked automatically, and Settings › Appearance › Language sets one (kept by the browser, and by the account if protection is on). Server error messages follow the page language. Logs, history and live states ("Waiting for MySQL…") use the server language: `instance.lang`, otherwise `SERVYNEX_LANG`, otherwise the system language.
+The interface exists in English and French: the browser language is picked automatically, and Settings › Appearance › Language sets one (kept by the browser, and by the account if protection is on). Server error messages follow the page language. Logs, history and live states ("Waiting for MySQL…") use the server language, set in Settings › Servynex › Server language (saved as `instance.lang`); by default `SERVYNEX_LANG`, otherwise the system language.
 
 Texts: `public/locales/` (interface) and `src/locales/` (server), one file per language, under keys; `npm test` checks that every language has the same keys and the same parameters.
 
@@ -163,6 +163,7 @@ By default, Servynex only listens on this PC. **Access from the private network*
 | POST | `/api/instance/onboarded` | introduction seen (`runtime/ui.json`) |
 | POST | `/api/restart` | restarts Servynex (409 if it was not started by `start-hidden.vbs`) |
 | PATCH | `/api/instance` | instance name |
+| PUT | `/api/instance/lang` | server language: `{ "lang": "en" }`, `"fr"` or `null` (the system one); applied at once |
 | PUT | `/api/instance/access` | `{ "access": "lan", "password": "…" }` or `{ "access": "local" }`; administrator, applied at restart |
 | … | `/api/auth/…` | `status`, `setup`, `enable`, `login`, `logout`, `lock`, `unlock`, `activity`, `recover`, `reset`, `invite`, `me` (name, preferences, password, key, sessions, linked accounts), `users`, `invites`, `settings`, `providers`, `disable`, `github/start` |
 

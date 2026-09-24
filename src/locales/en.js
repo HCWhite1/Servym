@@ -215,4 +215,8 @@ export default {
   'audit.accessLan': 'Access from the local network turned on (at next start)',
   'audit.accessLocal': 'Access limited to this PC (at next start)',
   'log.lanRefused': 'network access requested, but password protection is off: listening on this PC only',
+
+  // Langue du serveur
+  'http.badLang': 'Unknown language: "en", "fr" or null (the system one)',
+  'audit.serverLang': 'Server language: {lang}',
 };
