@@ -26,8 +26,16 @@ use crate::http::{Ctx, err, permission_for, send};
 /// Champs dont la modification revient à choisir ce qui s'exécute (ou s'expose).
 const SENSITIVE: [&str; 7] = ["type", "cwd", "cmd", "args", "env", "stop", "expose"];
 /// Ouvrent quelque chose sur cette machine : réservées à qui est devant elle.
-const HOST_ONLY: [&str; 8] = [
-    "open", "folder", "code", "terminal", "config", "log", "opener", "browser",
+const HOST_ONLY: [&str; 9] = [
+    "open",
+    "folder",
+    "code",
+    "terminal",
+    "config",
+    "log",
+    "opener",
+    "browser",
+    "reset-code",
 ];
 
 fn ok() -> Response {
@@ -50,7 +58,7 @@ impl crate::app::AppInner {
         self.desktop && (self.local_viewer)(ctx.peer.ip())
     }
 
-    fn host_only(&self, ctx: &Ctx, action: &str) -> Result<(), LocalError> {
+    pub(crate) fn host_only(&self, ctx: &Ctx, action: &str) -> Result<(), LocalError> {
         if !HOST_ONLY.contains(&action) {
             return Ok(());
         }

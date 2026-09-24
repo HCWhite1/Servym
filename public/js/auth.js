@@ -8,6 +8,8 @@ const screen = document.getElementById('auth-screen');
 let instanceName = 'Servynex';
 // Retour d'une connexion ou d'une liaison GitHub (?auth_error=… ou ?auth_done=…).
 let notice = null;
+// Page ouverte devant la machine hôte : un code de réinitialisation peut s'y générer.
+let localCode = false;
 const OAUTH_ERRORS = ['state', 'denied', 'failed', 'unlinked', 'taken'];
 const forever = () => new Promise(() => {});
 
@@ -117,18 +119,33 @@ function showForgot() {
   card(t('forgot.title'), t('forgot.lead'),
     h('div', { class: 'auth-options' },
       option(t('forgot.withKey'), t('forgot.withKeyDesc'), () => showReset('recover')),
-      option(t('forgot.withCode'), t('forgot.withCodeDesc'), () => showReset('reset'))),
-    h('div', { class: 'auth-help' },
+      option(t('forgot.withCode'), t('forgot.withCodeDesc'), () => showReset('reset')),
+      localCode ? option(t('forgot.local'), t('forgot.localDesc'), showLocalCode) : null),
+    localCode ? null : h('div', { class: 'auth-help' },
       h('p', { text: t('forgot.help') }),
       h('pre', {}, h('code', { text: t('forgot.command') }))),
     h('div', { class: 'auth-links' }, link(t('forgot.back'), showLogin)));
 }
 
-function showReset(kind) {
+// Devant la machine hôte : le code est créé ici, puis le formulaire du code s'ouvre déjà rempli.
+function showLocalCode() {
   const [userField, user] = field(t('account.username'), { autocomplete: 'username', autocapitalize: 'none', required: true });
+  const error = errorLine();
+  const form = h('form', { class: 'auth-form' }, userField, error,
+    h('button', { class: 'btn primary auth-submit', type: 'submit', text: t('forgot.localSubmit') }));
+  onSubmit(form, error, async () => {
+    const res = await api('auth/local-code', { method: 'POST', body: { username: user.value } });
+    showReset('reset', res);
+  });
+  card(t('forgot.local'), t('forgot.localLead'), form,
+    h('div', { class: 'auth-links' }, link(t('ob.back'), showForgot)));
+}
+
+function showReset(kind, filled = {}) {
+  const [userField, user] = field(t('account.username'), { autocomplete: 'username', autocapitalize: 'none', required: true, value: filled.username ?? '' });
   const [secretField, secret] = kind === 'recover'
     ? field(t('account.recoveryKey'), { placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX', autocomplete: 'off', spellcheck: 'false', required: true })
-    : field(t('members.code'), { placeholder: 'XXXX-XXXX', autocomplete: 'one-time-code', spellcheck: 'false', required: true });
+    : field(t('members.code'), { placeholder: 'XXXX-XXXX', autocomplete: 'one-time-code', spellcheck: 'false', required: true, value: filled.code ?? '' });
   const [p1Field, p1] = field(t('account.newPassword'), { type: 'password', autocomplete: 'new-password', required: true });
   const [p2Field, p2] = field(t('common.confirm'), { type: 'password', autocomplete: 'new-password', required: true });
   const error = errorLine();
@@ -260,6 +277,7 @@ export async function gate() {
     history.replaceState(null, '', location.pathname + location.hash);
   }
   instanceName = status.name || 'Servynex';
+  localCode = status.localCode === true;
   if (params.has('invite')) {
     await showInvite(params.get('invite'));
     return forever();

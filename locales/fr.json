@@ -253,5 +253,6 @@
   "import.failed": "L’import depuis {dir} a échoué : {error}\n\nServynex démarre sans projets ; l’ancien dossier n’a pas été modifié.",
   "log.imported": "Données importées depuis {dir}",
   "log.importStopped": "Ancienne instance arrêtée ({what}) ; les projets continuent",
-  "log.importTask": "Tâche planifiée « Servynex » désactivée"
+  "log.importTask": "Tâche planifiée « Servynex » désactivée",
+  "audit.localCode": "Code de réinitialisation créé devant la machine"
 }

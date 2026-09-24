@@ -816,6 +816,8 @@ impl AppInner {
                     "methods": methods,
                     "user": session.as_ref().map(|(_, u)| public_user(u)),
                     "locked": locked,
+                    // Mot de passe oublié : code à générer devant la machine.
+                    "localCode": self.host_only(ctx, "reset-code").is_ok(),
                 }),
             ));
         }
@@ -929,6 +931,16 @@ impl AppInner {
                 send(200, &json!({ "ok": true })),
                 &[Self::clear_cookie()],
             ));
+        }
+        if section == "local-code" && post {
+            // Devant la machine hôte (comme « Ouvrir le dossier ») : y être donne déjà la main sur
+            // Servynex (servynex auth reset-password, fichiers). Code de 15 minutes, comme celui
+            // d’un administrateur.
+            self.host_only(ctx, "reset-code")?;
+            let username = text(&body["username"]).trim().to_lowercase();
+            let code = create_reset_code(&mut core.store, &username, now)?;
+            self.auth_audit(Some(&username), "audit.localCode", params![]);
+            return Ok(send(200, &json!({ "code": code, "username": username })));
         }
         if (section == "recover" || section == "reset") && post {
             // recover : clé de secours · reset : code de 15 minutes (servynex auth ou un administrateur).

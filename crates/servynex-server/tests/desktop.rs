@@ -147,3 +147,71 @@ async fn actions_de_la_zone_de_notification() {
     );
     running.close().await;
 }
+
+/// Mot de passe oublié, devant la machine hôte : le code se crée sur place (décidé le 24/09, Q2).
+#[tokio::test]
+async fn code_de_reinitialisation_devant_la_machine() {
+    let s = Servynex::start(
+        "servynex-desktop-",
+        json!({ "instance": { "port": 1 }, "projects": [] }),
+        |b| b,
+    )
+    .await;
+    s.setup_admin().await;
+    let status = s.call("GET", "/api/auth/status").await.json();
+    assert_eq!(status["localCode"], true);
+    let res = s
+        .call_json(
+            "POST",
+            "/api/auth/local-code",
+            json!({ "username": "Alice" }),
+            None,
+        )
+        .await;
+    assert_eq!(res.status, 200);
+    let body = res.json();
+    assert_eq!(body["username"], "alice");
+    let code = body["code"].as_str().unwrap().to_string();
+    let res = s
+        .call_json(
+            "POST",
+            "/api/auth/reset",
+            json!({ "username": "alice", "code": code, "password": "nouveau mot de passe" }),
+            None,
+        )
+        .await;
+    assert_eq!(res.status, 200, "{}", res.body);
+    assert_eq!(
+        s.call_json("POST", "/api/auth/local-code", json!({ "username": "bob" }), None)
+            .await
+            .status,
+        404,
+        "compte inconnu"
+    );
+    let log = read(s.path().join("logs/servynex.log"));
+    assert_match!(
+        log,
+        r"\[audit\] - alice · Code de réinitialisation créé devant la machine"
+    );
+}
+
+#[tokio::test]
+async fn code_de_reinitialisation_refuse_a_distance() {
+    let s = Servynex::start(
+        "servynex-desktop-",
+        json!({ "instance": { "port": 1 }, "projects": [] }),
+        |b| b.local_viewer(Arc::new(|_| false)),
+    )
+    .await;
+    s.setup_admin().await;
+    assert_eq!(s.call("GET", "/api/auth/status").await.json()["localCode"], false);
+    let res = s
+        .call_json(
+            "POST",
+            "/api/auth/local-code",
+            json!({ "username": "alice" }),
+            None,
+        )
+        .await;
+    assert_eq!(res.status, 403);
+}

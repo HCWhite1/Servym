@@ -57,9 +57,24 @@ fn candidates(task: Option<&str>) -> Vec<PathBuf> {
 }
 
 pub fn first_run(data_dir: &Path) -> Option<Imported> {
+    // SERVYNEX_IMPORT_FROM : dossier à importer, choisi explicitement (essais) ; la clé Run et la
+    // tâche planifiée de la machine ne sont alors ni lues ni modifiées.
+    if let Some(dir) = std::env::var_os("SERVYNEX_IMPORT_FROM") {
+        let old = data::old_install(&[PathBuf::from(dir)], data_dir)?;
+        return import_from(&old, data_dir, None, false);
+    }
     let task = task_xml();
     let old = data::old_install(&candidates(task.as_deref()), data_dir)?;
-    let lang = dialog_lang(&old);
+    // Démarrage avec la session : repris s'il était actif (clé Run ou tâche planifiée activée).
+    let task_enabled = task
+        .as_deref()
+        .is_some_and(|xml| !xml.contains("<Enabled>false</Enabled>"));
+    let autostart = servynex_sys::windows::autostart::registered().is_some() || task_enabled;
+    import_from(&old, data_dir, task.as_deref(), autostart)
+}
+
+fn import_from(old: &Path, data_dir: &Path, task: Option<&str>, autostart: bool) -> Option<Imported> {
+    let lang = dialog_lang(old);
     let asked = message(
         &tr("import.title", &params![], lang),
         &tr("import.body", &params![dir = old.display().to_string()], lang),
@@ -71,11 +86,6 @@ pub fn first_run(data_dir: &Path) -> Option<Imported> {
         return None;
     }
     let mut notes = Vec::new();
-    // Démarrage avec la session : repris s'il était actif (clé Run ou tâche planifiée activée).
-    let task_enabled = task
-        .as_deref()
-        .is_some_and(|xml| !xml.contains("<Enabled>false</Enabled>"));
-    let autostart = servynex_sys::windows::autostart::registered().is_some() || task_enabled;
     if task.is_some() && output("schtasks", &["/change", "/tn", "Servynex", "/disable"]).is_some() {
         notes.push(format!("[import] {}", tr("log.importTask", &params![], lang)));
     }
@@ -90,7 +100,7 @@ pub fn first_run(data_dir: &Path) -> Option<Imported> {
             tr("log.importStopped", &params![what = what], lang)
         ));
     }
-    match data::import(&old, data_dir) {
+    match data::import(old, data_dir) {
         Ok(()) => {
             notes.push(format!(
                 "[import] {}",

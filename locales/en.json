@@ -253,5 +253,6 @@
   "import.failed": "Importing from {dir} failed: {error}\n\nServynex starts without projects; the old folder was not modified.",
   "log.imported": "Data imported from {dir}",
   "log.importStopped": "Old instance stopped ({what}); projects keep running",
-  "log.importTask": "Scheduled task \"Servynex\" disabled"
+  "log.importTask": "Scheduled task \"Servynex\" disabled",
+  "audit.localCode": "Reset code created at the host machine"
 }
