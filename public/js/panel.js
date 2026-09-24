@@ -14,6 +14,7 @@ const MAX_LINES = 2000;
 let handlers;
 let currentId = null;
 let logStream = null;
+let run = 'current'; // journal affiché : lancement actuel (en direct) ou précédent
 let tab = 'logs';
 let infoTimer = null;
 let shownState = null; // état au dernier affichage de l'historique
@@ -36,6 +37,7 @@ export function init(hs) {
   }
   $('#log-errors').addEventListener('change', (e) => logBox.classList.toggle('errors-only', e.target.checked));
   $('#log-search').addEventListener('input', (e) => search(e.target.value));
+  $('#log-run').addEventListener('change', (e) => showRun(e.target.value));
   $('#log-copy').addEventListener('click', async () => {
     await navigator.clipboard.writeText(logBox.textContent);
     toast(t('panel.logCopied'));
@@ -77,6 +79,8 @@ export function open(id, which = 'logs') {
   if (p.type === 'file' && (which === 'logs' || which === 'history')) which = 'info';
   if (currentId !== id) {
     currentId = id;
+    run = 'current';
+    $('#log-run').value = run;
     form.fill(p);
     if (p.type === 'file') stopLog();
     else startLog();
@@ -164,8 +168,10 @@ function onAction(e) {
 
 function logNote(p) {
   const note = $('#log-note');
+  $('#log-run').disabled = !p.hasPrevLog && run === 'current';
   let text = '';
-  if (isExternal(p) && p.hasLog) text = t('log.externalOld');
+  if (run === 'prev') text = t('log.prevNote');
+  else if (isExternal(p) && p.hasLog) text = t('log.externalOld');
   else if (isExternal(p)) text = t('log.external');
   else if (!p.hasLog) text = t('log.none');
   note.textContent = text;
@@ -218,6 +224,23 @@ function appendLines(lines, reset) {
   while (logBox.childElementCount > MAX_LINES) logBox.firstElementChild.remove();
   if (query) countMatches();
   if (follow) logBox.scrollTop = logBox.scrollHeight;
+}
+
+// Lancement précédent : journal terminé, lu en une fois ; recherche et filtre
+// s'y appliquent comme au journal en direct.
+async function showRun(value) {
+  run = value;
+  const id = currentId;
+  if (value === 'current') startLog();
+  else stopLog();
+  logNote(current());
+  if (value !== 'prev') return;
+  try {
+    const { lines } = await api(`projects/${encodeURIComponent(id)}/logs?prev`);
+    if (currentId === id && run === 'prev') appendLines(lines, true);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 function startLog() {

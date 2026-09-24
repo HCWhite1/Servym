@@ -556,10 +556,12 @@ dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 .log.errors-only span:not(.err, .warn) { display: none; }
 .log span.miss { display: none; }
 .log mark { background: color-mix(in srgb, var(--warn, #d29922) 45%, transparent); color: inherit; border-radius: 2px; }
-.log-search input { width: 220px; height: 28px; padding-right: 64px; }
+.log-search input { width: 280px; max-width: 100%; height: 28px; padding-right: 64px; }
 .log-search .log-count { position: absolute; right: 9px; pointer-events: none; }
+@media (max-width: 640px) { .pane-tools .log-search { flex: 1 1 100%; } .pane-tools .log-search input { width: 100%; } }
 .pane-tools { flex-wrap: wrap; row-gap: 8px; }
 .pane-tools .check { white-space: nowrap; }
+.select.small { height: 28px; padding: 0 6px; font-size: 12.5px; }
 .log-count { color: var(--text-3); font-size: 12px; white-space: nowrap; }
 
 .form { display: flex; flex-direction: column; gap: 16px; }

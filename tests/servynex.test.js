@@ -464,6 +464,17 @@ describe('serveur et processus', () => {
     await until(() => state('crash').state === 'failed');
   });
 
+  test('journal du lancement précédent', async () => {
+    const view = (id) => get('/api/projects').then((r) => r.json.projects.find((p) => p.id === id));
+    assert.equal((await view('crash')).hasPrevLog, true, 'lancé plusieurs fois');
+    const { lines } = (await get('/api/projects/crash/logs?prev')).json;
+    assert.match(lines[0], /^\[servynex\] /, 'depuis son début');
+    assert.ok(lines.includes('Error: base introuvable'));
+    fs.rmSync(path.join(dir, 'logs', 'sdb.prev.log'), { force: true });
+    assert.equal((await view('sdb')).hasPrevLog, false);
+    assert.deepEqual((await get('/api/projects/sdb/logs?prev')).json, { lines: [] });
+  });
+
   test('une dépendance en échec bloque le lancement', async () => {
     await post('/api/projects/dep/start');
     await until(() => state('dep').state === 'failed');

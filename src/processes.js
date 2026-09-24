@@ -105,6 +105,11 @@ export class Manager extends EventEmitter {
     return path.join(this.logsDir, `${id}.log`);
   }
 
+  // Journal du lancement précédent : le journal est renommé ainsi à chaque lancement.
+  prevLogFile(id) {
+    return path.join(this.logsDir, `${id}.prev.log`);
+  }
+
   view(p) {
     return {
       id: p.id,
@@ -129,6 +134,7 @@ export class Manager extends EventEmitter {
       open: p.open ?? null,
       file: p.type === 'file' ? path.join(p.cwd, p.open) : null,
       hasLog: fs.existsSync(this.logFile(p.id)),
+      hasPrevLog: fs.existsSync(this.prevLogFile(p.id)),
       source: p, // configuration brute, pour le formulaire de l'interface
       ...(p.type === 'file' ? { ...IDLE, state: 'file' } : this.state(p.id)),
     };
@@ -354,7 +360,7 @@ export class Manager extends EventEmitter {
   #spawn(p) {
     const log = this.logFile(p.id);
     try {
-      fs.renameSync(log, path.join(this.logsDir, `${p.id}.prev.log`));
+      fs.renameSync(log, this.prevLogFile(p.id));
     } catch {}
     const argv = [expand(p.cmd, p), ...p.args.map((a) => expand(a, p))];
     const stamp = new Date().toLocaleString(serverLang());

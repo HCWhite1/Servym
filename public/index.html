@@ -169,6 +169,10 @@
       <div class="pane-tools">
         <label class="check" data-i18n="panel.follow"><input type="checkbox" id="log-follow" checked> Défilement automatique</label>
         <label class="check" data-i18n="panel.errorsOnly"><input type="checkbox" id="log-errors"> Erreurs et avertissements</label>
+        <select class="select small" id="log-run" aria-label="Lancement affiché" data-i18n-attr="aria-label:log.run">
+          <option value="current" data-i18n="log.runCurrent">Lancement actuel</option>
+          <option value="prev" data-i18n="log.runPrev">Lancement précédent</option>
+        </select>
         <span class="spacer"></span>
         <label class="search log-search">
           <svg><use href="icons.svg#search"/></svg>

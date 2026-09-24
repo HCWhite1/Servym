@@ -159,6 +159,7 @@ By default, Servynex only listens on this PC. **Access from the private network*
 | GET | `/api/events` | SSE stream: `snapshot`, `state` on every change, `instance` (configuration error) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |
 | POST | `/api/projects/:id/open` | opens the file of a "file" project |
+| GET | `/api/projects/:id/logs?prev` | log of the previous run (`{ "lines": [] }` when there is none) |
 | POST | `/api/projects/:id/folder` · `code` · `terminal` | File Explorer, VS Code, Windows Terminal |
 | GET | `/api/projects/:id/logs` | log as SSE (`?tail`: last 30 lines as JSON) |
 | GET | `/api/projects/:id/history` | state changes, newest first |

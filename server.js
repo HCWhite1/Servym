@@ -630,6 +630,8 @@ export function createApp({
     if (action === 'logs' && method === 'GET') {
       const file = manager.logFile(id);
       if (url.searchParams.has('tail')) return send(res, 200, { lines: tailLines(file, 30) });
+      // Lancement précédent : terminé, envoyé en une fois (sa fin, comme le journal en direct).
+      if (url.searchParams.has('prev')) return send(res, 200, { lines: tailLines(manager.prevLogFile(id)) });
       const { emit, done } = openStream(req, res);
       trackStream(req, res);
       const stop = followLog(file, emit);
