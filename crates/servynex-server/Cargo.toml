@@ -1,0 +1,18 @@
+[package]
+name = "servynex-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+servynex-core = { path = "../servynex-core" }
+
+[[bin]]
+name = "servynex"
+path = "src/main.rs"

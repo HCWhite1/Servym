@@ -6,3 +6,6 @@ projects.json
 projects.json.tmp
 # Fichiers personnels des projets (options de MySQL…), à côté de projects.json
 config/
+# Rust
+/target/
+/spikes/target/

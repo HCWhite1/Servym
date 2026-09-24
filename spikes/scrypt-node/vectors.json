@@ -1,0 +1,30 @@
+[
+  {
+    "secret": "motdepasse123",
+    "hash": "scrypt$32768$8$1$Gkjjf9LqKdxFI0VbMgvj7A==$mt8vJbxXRryMdDprHfhDzGayY/iJB2npoLYF2H5ekZAYP++s+pUUpgds88SIgqnKopXHnnFhNCX/c3rOugTOvA=="
+  },
+  {
+    "secret": "Café crème",
+    "hash": "scrypt$32768$8$1$WHHrLHKqAu3y9WMsCyGq1A==$AerrISzZrRwDjZHDUXzligiH+kZxID2z41yZ8Jrnz4Xco0I6U4x78ujwQXXovsF2RrP817QmWvY3DeJv1tQQtw=="
+  },
+  {
+    "secret": "Café crème",
+    "hash": "scrypt$32768$8$1$FXZFcF6RMB82KPCCS8md6g==$dfkP505yrQDMEbAZl2fTKiIroInkNp/qRq3SjXitKiink2EF7lnstVouJX4CSfZqLvV3VErP4r0NHuBbKqZdyA=="
+  },
+  {
+    "secret": "ﬁnal Ｆｕｌｌ①",
+    "hash": "scrypt$32768$8$1$d7nQ4VZqHpTGL4Noj+Ouuw==$IMqADaUn1MpeGC6pURKoSwos+XVKKwRhyCDuPbhXTmHwUf8vYX8lqJzPUBxWzBzA/kRQaJn9/clyZCtrWSdvhA=="
+  },
+  {
+    "secret": "ABCD-EFGH-JKLM-NPQR-STUV",
+    "hash": "scrypt$32768$8$1$QOJ7rA0s3fhODySlR+PL7w==$CiV1rxJMz6m1c7KeNO++sTb5MRK/Dt7C7N9z+sBWBtCYnir+8rkwP1adPLPVfHkPh7RJOeYoHK9hZwUStxfQEQ=="
+  },
+  {
+    "secret": "",
+    "hash": "scrypt$32768$8$1$W98/UTyEKbDv9wu7eiXKOw==$9IZC6lk5HEolfQ/Y1gdkWTxQnegVc0CpIFWCYqSlHzrfeIvRmrXuoY/Yri3jiBUGRvvrvTbxaLzHFsyYZQ3NbA=="
+  },
+  {
+    "secret": "😀 emoji $ dollar",
+    "hash": "scrypt$32768$8$1$4YjKfDCH0LoN+2XW9V+Wrw==$FVQ1+7Y3OPxWqRXITO0O2Mx7m0gcn+P5+6unTLDt2VVf1dllzNAXQb6j5WEn3vvbjcwaM/H+tBE62BPB3u5RSQ=="
+  }
+]

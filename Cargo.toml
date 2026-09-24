@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+# Les essais de la phase 0 ont leur propre espace de travail : ils ne sont pas construits par la CI.
+exclude = ["spikes"]
+
+[workspace.package]
+version = "2.0.0-dev"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/HCWhite1/Servynex"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true
+# Une requête qui panique ne doit pas arrêter la surveillance des projets.
+panic = "unwind"
