@@ -63,6 +63,9 @@ pub fn builder(dir: &Path, notifier: &Arc<FakeNotifier>, autostart: &Arc<FakeAut
         .notifier(notifier.clone())
         .autostart(autostart.clone())
         .watch(Duration::ZERO)
+        // Machine avec écran, comme un PC de bureau (la CI Linux n'en a pas) ; les tests du
+        // serveur sans écran le demandent eux-mêmes.
+        .desktop(true)
 }
 
 impl Servynex {

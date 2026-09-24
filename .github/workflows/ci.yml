@@ -25,14 +25,11 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
-  # La version Node reste la référence jusqu'à la bascule.
+  # La version Node reste la référence jusqu'à la bascule. Ses tests supposent Windows (chemins
+  # « C:/… ») : ils ne tournent que là.
   node:
-    name: Node (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    name: Node (windows-latest)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

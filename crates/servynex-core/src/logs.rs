@@ -18,7 +18,7 @@ static CONTROL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\x00-\x08\x0b-\
 /// Même motif que `public/js/log-patterns.js` (l’interface colore les mêmes lignes). cmd.exe écrit
 /// « n’est pas reconnu » avec une apostrophe droite ou typographique selon son encodage.
 static ERROR_LINE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)error|erreur|exception|introuvable|n['’]est pas reconnu|EADDRINUSE|EACCES|cannot|impossible|failed|fatal").unwrap()
+    Regex::new(r"(?i)error|erreur|exception|introuvable|n['’]est pas reconnu|is not recognized|EADDRINUSE|EACCES|cannot|impossible|failed|fatal").unwrap()
 });
 /// Avertissements : jamais choisis comme cause d'un arrêt (une dépréciation après la vraie erreur la
 /// masquerait).
