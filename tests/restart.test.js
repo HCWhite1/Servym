@@ -83,7 +83,8 @@ if (runs <= Number(process.env.CRASHES)) setTimeout(() => { console.error('Error
     await servynex.manager.close();
     servynex.server.closeAllConnections();
     await new Promise((r) => servynex.server.close(r));
-    fs.rmSync(dir, { recursive: true, force: true });
+    // Sous Windows, le dossier peut rester verrouillé un instant après l'arrêt du projet.
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   };
   const runs = () => Number(fs.readFileSync(path.join(app, 'runs.txt'), 'utf8'));
   const history = async (id) => (await call('GET', `/api/projects/${id}/history`)).json.entries;

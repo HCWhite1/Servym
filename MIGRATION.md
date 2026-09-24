@@ -214,3 +214,9 @@ avec son PID et son journal, import inscrit au journal.
 Trouvé en route : la clé Run était dite « activée » dès qu'une valeur « Servynex » existait ; elle
 ne l'est plus que si elle lance bien cet exécutable (sinon l'application aurait cru démarrer avec
 Windows alors que la clé lançait encore l'ancien `servynex.exe`).
+
+Trouvé par la CI (Linux) : une sonde gardait l'état lu avant son contrôle de santé ; si une
+relance automatique commençait **et aboutissait** pendant ce contrôle, la sonde écrasait « en
+ligne » par un « arrêté » périmé, et le projet relancé tournait sans surveillance. La sonde
+abandonne désormais son relevé si l'état a changé entre-temps. Côté Node, le nettoyage d'un test
+de relance réessaie la suppression du dossier (verrouillé un instant sous Windows).

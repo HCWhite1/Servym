@@ -894,6 +894,12 @@ impl Manager {
             if st.ops.contains_key(&id) {
                 return; // une action a commencé pendant le contrôle
             }
+            // L'état a changé pendant le contrôle (une relance a commencé et abouti, une sortie est
+            // arrivée…) : ce relevé est périmé, la sonde suivante reprendra de l'état actuel.
+            let now = st.states.get(&id).cloned().unwrap_or_default();
+            if now.state != st0.state || now.pid != st0.pid || now.managed != st0.managed {
+                return;
+            }
             st.relaunch
                 .get(&id)
                 .map(|r| r.active_port.or_else(|| port_of(p)).unwrap_or(0))
