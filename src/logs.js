@@ -1,7 +1,7 @@
 // Journaux des projets : un fichier par projet, lu par la fin et suivi en direct.
 import fs from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
-import { ERROR_LINE } from '../public/js/log-patterns.js';
+import { ERROR_LINE, WARN_LINE } from '../public/js/log-patterns.js';
 
 const ANSI = /\x1b\[[0-9;?]*[ -\/]*[@-~]/g;
 const MAX_LINES = 500;
@@ -29,10 +29,20 @@ function readEnd(file, bytes) {
 
 export const tailLines = (file, count = MAX_LINES) => readEnd(file, 96_000).lines.slice(-count);
 
+const ownLines = (file) => tailLines(file, 60).filter((l) => l.trim() && !l.startsWith('[servynex]'));
+
 // Ligne la plus parlante pour expliquer un arrêt.
 export function lastError(file) {
-  const lines = tailLines(file, 60).filter((l) => l.trim() && !l.startsWith('[servynex]'));
+  const lines = ownLines(file);
   return (lines.findLast((l) => ERROR_LINE.test(l)) ?? lines.at(-1))?.trim().slice(0, 300) ?? null;
+}
+
+// Programme sorti sans erreur pendant son lancement : sa dernière erreur, sinon son
+// dernier avertissement (« The local web server is already running »), sinon rien.
+// La dernière ligne seule n'expliquerait rien (« None »).
+export function startupReason(file) {
+  const lines = ownLines(file);
+  return (lines.findLast((l) => ERROR_LINE.test(l)) ?? lines.findLast((l) => WARN_LINE.test(l)))?.trim().slice(0, 300) ?? null;
 }
 
 // Historique des changements d'état d'un projet (de tous, sans id), lu dans

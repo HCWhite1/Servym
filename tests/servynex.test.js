@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { createProject, describeChanges, formatConfig, loadConfig, patchProject, removeProject, reorderProjects, validate } from '../src/config.js';
-import { lastError } from '../src/logs.js';
+import { lastError, startupReason } from '../src/logs.js';
 import { resolveInside } from '../src/static.js';
 import { Sampler, treeOf, usageOf } from '../src/stats.js';
 import { Manager } from '../src/processes.js';
@@ -294,6 +294,17 @@ describe('fichiers statiques', () => {
   });
 });
 
+test("startupReason : erreur, sinon avertissement, jamais une ligne quelconque", () => {
+  const file = path.join(os.tmpdir(), `servynex-startup-${process.pid}.log`);
+  fs.writeFileSync(file, '[servynex] lancement\n [WARNING] already running\nNone\n');
+  assert.equal(startupReason(file), '[WARNING] already running');
+  fs.writeFileSync(file, 'Warning: deprecated\nError: port pris\nNone\n');
+  assert.equal(startupReason(file), 'Error: port pris');
+  fs.writeFileSync(file, 'None\n');
+  assert.equal(startupReason(file), null);
+  fs.rmSync(file);
+});
+
 test("lastError choisit la ligne qui explique l'arrêt, pas un avertissement", () => {
   const file = path.join(os.tmpdir(), `servynex-test-${process.pid}.log`);
   fs.writeFileSync(file, '[servynex] lancement\nprêt\nError: listen EADDRINUSE :::3000\n    at Server.listen\n(node) Warning: deprecated\n');
@@ -336,6 +347,8 @@ describe('serveur et processus', () => {
         server.closeAllConnections();
       }).listen(process.env.PORT, process.env.HOST || undefined);
     `);
+    // Comme le serveur Symfony déjà lancé depuis le même dossier : avertit et quitte sans erreur.
+    fs.writeFileSync(path.join(dir, 'app', 'launcher.js'), `console.log(' [WARNING] The local web server is already running'); console.log('None');`);
     fs.writeFileSync(path.join(dir, 'app', 'crash.js'), `console.log('ok'); console.error('Error: base introuvable'); process.exit(3);`);
     fs.mkdirSync(path.join(dir, 'site', 'sub'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'site', 'index.html'), 'accueil');
@@ -345,6 +358,7 @@ describe('serveur et processus', () => {
       instance: { port: 1 },
       projects: [
         { id: 'ok', name: 'Factice', cwd: path.join(dir, 'app'), cmd: 'node', args: ['server.js'], port: ports.ok, hostControl: 'env', health: { expect: 'Factice' }, url: 'http://localhost:{port}', env: { SERVYNEX_TEST_ENV: 'bonjour', PORT: '1' } },
+        { id: 'launcher', name: 'Lanceur', cwd: path.join(dir, 'app'), cmd: 'node', args: ['launcher.js'], port: await freePort(), hostControl: 'env' },
         { id: 'crash', name: 'Crash', cwd: path.join(dir, 'app'), cmd: 'node', args: ['crash.js'], port: ports.crash, hostControl: 'env' },
         { id: 'site', name: 'Site', cwd: path.join(dir, 'site'), type: 'static', port: ports.site },
         { id: 'respawn', name: 'Relance', cwd: path.join(dir, 'app'), cmd: 'node', args: ['respawn.js'], port: ports.respawn, hostControl: 'env', health: { expect: 'Relance' } },
@@ -361,7 +375,7 @@ describe('serveur et processus', () => {
       ],
     };
     fs.writeFileSync(path.join(dir, 'projects.json'), JSON.stringify(config));
-    app = createApp({ configFile: path.join(dir, 'projects.json'), logsDir: path.join(dir, 'logs'), runtimeDir: path.join(dir, 'runtime'), tickMs: 500, runningTickMs: 500, startTimeoutMs: 8000, relaunchMs: 10000, bootTime: 1_000_000 });
+    app = createApp({ configFile: path.join(dir, 'projects.json'), logsDir: path.join(dir, 'logs'), runtimeDir: path.join(dir, 'runtime'), tickMs: 500, runningTickMs: 500, startTimeoutMs: 8000, relaunchMs: 10000, launcherMs: 1500, bootTime: 1_000_000 });
     await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
     port = app.server.address().port;
     await app.manager.init();
@@ -453,6 +467,18 @@ describe('serveur et processus', () => {
     const { entries } = (await get('/api/projects/crash/history')).json;
     assert.deepEqual(entries[0], { at: entries[0].at, id: 'crash', from: 'starting', to: 'failed', detail: 'code 3 · Error: base introuvable' });
     assert.equal(entries[1].to, 'starting', 'du plus récent au plus ancien');
+  });
+
+  test('sorti sans erreur pendant le lancement, sans répondre : échec expliqué par son journal', async () => {
+    await post('/api/projects/launcher/start');
+    await until(() => state('launcher').detail?.startsWith('Lanceur terminé'));
+    assert.equal(state('launcher').state, 'starting', 'le serveur a peut-être été laissé en arrière-plan : on attend le port');
+    await until(() => state('launcher').state === 'failed');
+    assert.equal(state('launcher').exitCode, 0);
+    assert.match(state('launcher').error, /^Lanceur s'est arrêté pendant son lancement sans répondre sur le port \d+ : \[WARNING\] The local web server is already running$/);
+    const { entries } = (await get('/api/projects/launcher/history')).json;
+    assert.equal(entries[0].from, 'starting');
+    assert.equal(entries[0].to, 'failed');
   });
 
   test('en échec : relançable tout de suite', async () => {

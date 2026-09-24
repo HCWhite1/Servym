@@ -13,8 +13,10 @@
 //                Tant qu'il existe, tick() ne sonde pas le projet, et #refresh()
 //                le revérifie après la sonde (une action a pu commencer entre-temps).
 // - #relaunch  : fenêtre de relaunchMs après une sortie propre non demandée
-//                (projet qui se relance lui-même) ; #refresh() y cherche le
-//                nouveau PID par le port. start() est refusé pendant ce temps.
+//                (projet qui se relance lui-même), launcherMs si elle survient
+//                pendant le lancement (lanceur qui laisse un serveur en arrière-plan) ;
+//                #refresh() y cherche le nouveau PID par le port. start() est
+//                refusé pendant ce temps.
 // - #checkedAt : date de la dernière sonde, pour la cadence (3 s arrêté, 15 s en ligne).
 // - #ticking   : anti-réentrance de tick() (une sonde lente ne se superpose pas).
 // - #statics   : fonction d'arrêt des projets « static » servis par Servynex.
@@ -34,7 +36,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { expand, hostOf, urlOf } from './config.js';
 import { LocalError, msg, serverLang, tr } from './i18n.js';
-import { lastError } from './logs.js';
+import { lastError, startupReason } from './logs.js';
 import { startStaticSite } from './static-server.js';
 import * as sys from './system.js';
 
@@ -60,7 +62,7 @@ export class Manager extends EventEmitter {
   #retries = new Map(); // relance automatique après un plantage
   #ready = false; // première sonde faite : les changements d'état sont réels
 
-  constructor({ config, logsDir, runtimeDir, tickMs = 3000, runningTickMs = 15000, startTimeoutMs = 60000, relaunchMs = 30000, restartDelaysMs = [2000, 10000, 30000], restartWindowMs = 300_000, exitGraceMs = 1500, bootTime = Date.now() - os.uptime() * 1000 }) {
+  constructor({ config, logsDir, runtimeDir, tickMs = 3000, runningTickMs = 15000, startTimeoutMs = 60000, relaunchMs = 30000, launcherMs = 10000, restartDelaysMs = [2000, 10000, 30000], restartWindowMs = 300_000, exitGraceMs = 1500, bootTime = Date.now() - os.uptime() * 1000 }) {
     super();
     this.#config = config;
     this.logsDir = logsDir;
@@ -68,6 +70,7 @@ export class Manager extends EventEmitter {
     this.bootFile = path.join(runtimeDir, 'autostart.json');
     this.bootTime = bootTime;
     this.relaunchMs = relaunchMs;
+    this.launcherMs = launcherMs;
     this.restartDelaysMs = restartDelaysMs;
     this.restartWindowMs = restartWindowMs;
     this.exitGraceMs = exitGraceMs;
@@ -280,7 +283,11 @@ export class Manager extends EventEmitter {
       }
       if (Date.now() < relaunch.until) return;
       this.#relaunch.delete(p.id);
-      return this.#set(p.id, { ...IDLE, exitCode: relaunch.code });
+      if (!relaunch.starting) return this.#set(p.id, { ...IDLE, exitCode: relaunch.code });
+      // Sorti pendant son lancement sans que rien ne réponde : c'est un échec, et
+      // son journal dit souvent pourquoi (« The local web server is already running »).
+      const params = { name: p.name, port: relaunch.activePort ?? p.port, reason: startupReason(this.logFile(p.id)) };
+      return this.#set(p.id, { ...IDLE, state: 'failed', exitCode: relaunch.code, error: tr(params.reason ? 'process.exitedDuringStartWhy' : 'process.exitedDuringStart', params) });
     }
     if (health === 'ok') {
       this.#set(p.id, { state: 'running', error: null, detail: null });
@@ -314,8 +321,12 @@ export class Manager extends EventEmitter {
     if (st.state !== 'stopping' && (code === 0 || code === null)) {
       // Sortie propre sans demande d'arrêt : le projet se relance peut-être
       // lui-même (bouton « Redémarrer » d’une application). On attend un peu.
-      this.#relaunch.set(id, { until: Date.now() + this.relaunchMs, code, activePort: st.activePort, activeHost: st.activeHost });
-      this.#set(id, { ...IDLE, state: 'starting', detail: tr('process.restarting'), activePort: st.activePort, activeHost: st.activeHost });
+      // Pendant le lancement, c'est un lanceur qui a peut-être laissé tourner le
+      // serveur en arrière-plan : attente plus courte, échec expliqué ensuite.
+      const starting = st.state === 'starting';
+      const port = st.activePort ?? this.project(id).port;
+      this.#relaunch.set(id, { until: Date.now() + (starting ? this.launcherMs : this.relaunchMs), code, starting, activePort: st.activePort, activeHost: st.activeHost });
+      this.#set(id, { ...IDLE, state: 'starting', detail: starting ? tr('process.launcherDone', { port }) : tr('process.restarting'), activePort: st.activePort, activeHost: st.activeHost });
       return this.#savePids();
     }
     const expected = st.state === 'stopping' || code === 0;
