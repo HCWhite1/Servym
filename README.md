@@ -155,6 +155,7 @@ By default, Servynex only listens on this PC. **Access from the private network*
 | PUT | `/api/projects` | new order: `{ "order": ["id", …] }`, each project once |
 | PATCH | `/api/projects/:id` | changes a project (`null` removes an optional field) |
 | DELETE | `/api/projects/:id` | deletes a project: `{ "password": "…" }` if protection is on, otherwise `{ "confirm": "<exact name>" }`; stopped first, removed from the others' `requires`, logs kept |
+| POST | `/api/projects/:id/duplicate` | copy placed right after the project: name "(copy)", next free port, without start at boot, network exposure or fixed port (permission `commands`) |
 | GET | `/api/stats` | CPU and memory of each running project, of Servynex alone (`self`) and of both (`total`); shared sample, at most one every 2 s |
 | GET | `/api/events` | SSE stream: `snapshot`, `state` on every change, `instance` (configuration error) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |

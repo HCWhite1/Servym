@@ -87,6 +87,7 @@ function render(p) {
   }
   if (can('commands')) {
     items.push(h('hr'));
+    items.push(item(t('menu.duplicate'), 'copy', () => handlers.duplicate(p)));
     items.push(item(t('menu.delete'), 'trash-2', () => handlers.remove(p), { danger: true }));
   }
   menu.replaceChildren(...items);

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { ConfigError, createProject, DEFAULT_CONFIG, describeChanges, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig, validate } from './src/config.js';
+import { ConfigError, createProject, DEFAULT_CONFIG, describeChanges, duplicateProject, ROOT_DIR, loadConfig, patchProject, removeProject, reorderProjects, saveConfig, validate } from './src/config.js';
 import { Auth, AuthError } from './src/auth.js';
 import { LANGS, LocalError, langOf, msg, serverLang, setServerLang, tr } from './src/i18n.js';
 import { followLog, history, tailLines } from './src/logs.js';
@@ -98,6 +98,7 @@ function permissionFor(section, id, action, method) {
   if (section === 'projects' && !id && method === 'PUT') return 'edit'; // ordre des projets
   if (section === 'projects' && id && !action && method === 'PATCH') return 'edit';
   if (section === 'projects' && id && !action && method === 'DELETE') return 'commands';
+  if (section === 'projects' && action === 'duplicate' && method === 'POST') return 'commands'; // copie sa commande
   if (section === 'projects' && OPERATE.has(action) && method === 'POST') return 'operate';
   if (section === 'reload') return 'edit';
   if (section === 'instance' && id) return INSTANCE_ACTION_PERMISSION[id] ?? 'admin';
@@ -637,6 +638,14 @@ export function createApp({
       const stop = followLog(file, emit);
       await done;
       return stop();
+    }
+    if (action === 'duplicate' && method === 'POST') {
+      // Port libre après celui de l'original ; nom dans la langue du serveur.
+      const port = project.type === 'file' ? undefined : await freePort((project.port ?? 3000) + 1);
+      const { config: next, id: created } = duplicateProject(diskConfig(), id, { name: tr('project.copyName', { name: project.name }), port });
+      applyConfig(next);
+      audit(created, 'audit.duplicated', { name: project.name });
+      return send(res, 201, manager.view(manager.project(created)));
     }
     if (action === 'history' && method === 'GET') {
       return send(res, 200, { entries: history([ownPrevLog, ownLog], id) });

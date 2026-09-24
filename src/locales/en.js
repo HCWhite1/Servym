@@ -245,4 +245,8 @@ export default {
   'process.commandNotFound': 'Command not found: {cmd}. Check that it is installed and in the PATH.',
   'http.noDesktop': 'Servynex runs without a screen: nothing can open on its machine.',
   'system.noTerminal': 'No known terminal on this machine.',
+
+  // Duplicate a project
+  'project.copyName': '{name} (copy)',
+  'audit.duplicated': 'Duplicated from {name}',
 };

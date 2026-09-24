@@ -245,4 +245,8 @@ export default {
   'process.commandNotFound': 'Commande introuvable : {cmd}. Vérifiez qu’elle est installée et dans le PATH.',
   'http.noDesktop': 'Servynex tourne sans écran : rien ne peut s’ouvrir sur sa machine.',
   'system.noTerminal': 'Aucun terminal reconnu sur cette machine.',
+
+  // Dupliquer un projet
+  'project.copyName': '{name} (copie)',
+  'audit.duplicated': 'Dupliqué depuis {name}',
 };

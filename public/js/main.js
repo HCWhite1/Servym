@@ -85,6 +85,19 @@ async function removeProject(p) {
   if (done) toast(t('delete.done', { name: p.name }));
 }
 
+// Dupliquer : la copie arrive juste après l'original (nouveau nom, port libre),
+// puis ses Réglages s'ouvrent pour l'ajuster.
+async function duplicateProject(p) {
+  try {
+    const created = await api(`projects/${encodeURIComponent(p.id)}/duplicate`, { method: 'POST' });
+    toast(t('duplicate.done', { name: created.name }));
+    for (let i = 0; i < 30 && !projects.has(created.id); i++) await new Promise((r) => setTimeout(r, 100));
+    panel.open(created.id, 'settings');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
 // L'action principale demande la permission « Piloter », sauf ouvrir l'adresse
 // d'un projet déjà en ligne ou consulter le journal d'un conflit.
 const needsOperate = (p) => !((p.state === 'running' && p.type !== 'file' && !p.service) || p.state === 'conflict');
@@ -155,6 +168,7 @@ export const handlers = {
   openPanel: (id, tab) => panel.open(id, tab),
   addProject: () => openAdd(),
   remove: (p) => removeProject(p),
+  duplicate: (p) => duplicateProject(p),
   refreshGit: () => refreshGit(true),
   renderBanners: () => renderBanners(),
   onboarding: () => onboarding.open(),

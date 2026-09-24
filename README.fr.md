@@ -155,6 +155,7 @@ Par défaut, Servynex n'écoute que sur ce PC. **Accès depuis le réseau privé
 | PUT | `/api/projects` | nouvel ordre : `{ "order": ["id", …] }`, chaque projet une fois |
 | PATCH | `/api/projects/:id` | modifie un projet (`null` retire un champ facultatif) |
 | DELETE | `/api/projects/:id` | supprime un projet : `{ "password": "…" }` si la protection est active, sinon `{ "confirm": "<nom exact>" }` ; arrêté d'abord, retiré des `requires` des autres, journaux gardés |
+| POST | `/api/projects/:id/duplicate` | copie placée juste après le projet : nom « (copie) », port libre suivant, sans lancement au démarrage, exposition au réseau ni port fixe (permission `commands`) |
 | GET | `/api/stats` | processeur et mémoire de chaque projet en marche, de Servynex seul (`self`) et des deux (`total`) ; relevé partagé, au plus un toutes les 2 s |
 | GET | `/api/events` | flux SSE : `snapshot`, `state` à chaque changement, `instance` (erreur de configuration) |
 | POST | `/api/projects/:id/start` · `stop` · `restart` | |

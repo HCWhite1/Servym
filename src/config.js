@@ -240,6 +240,21 @@ export function createProject(config, input) {
   return { config: validate(next), id };
 }
 
+// Copie d'un projet, placée juste après lui, sous un nouveau nom et un nouveau port
+// (sauf page locale). Ni lancement au démarrage, ni exposition au réseau, ni port
+// fixe : c'étaient des choix pour l'original. Renvoie { config, id }.
+export function duplicateProject(config, id, { name, port }) {
+  const index = config.projects.findIndex((p) => p.id === id);
+  if (index < 0) throw new ConfigError('project.unknown', {}, 404);
+  const next = structuredClone(config);
+  const { autostart, expose, fixedPort, ...copy } = structuredClone(config.projects[index]);
+  copy.id = slugify(id, new Set(next.projects.map((p) => p.id)));
+  copy.name = name;
+  if (copy.type !== 'file') copy.port = port;
+  next.projects.splice(index + 1, 0, copy);
+  return { config: validate(next), id: copy.id };
+}
+
 // Retire un projet et le supprime des dépendances des autres ; renvoie la nouvelle configuration.
 export function removeProject(config, id) {
   const next = structuredClone(config);
