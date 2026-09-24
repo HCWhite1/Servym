@@ -461,6 +461,10 @@ impl Manager {
             (&mut view, serde_json::to_value(state).unwrap())
         {
             view.extend(fields);
+            // Comme JSON.stringify d'un champ indéfini : une page locale n'a pas de port.
+            if p.get("port").is_none() {
+                view.shift_remove("port");
+            }
         }
         view
     }
@@ -548,8 +552,10 @@ impl Manager {
             .flatten()
             .filter(|p| {
                 let id = id_of(p);
+                // Une action en cours (lancement) compte aussi : le projet serait perdu de vue.
                 !kept.contains(&id)
                     && (st.statics.contains_key(&id)
+                        || st.ops.contains_key(&id)
                         || st.states.get(&id).is_some_and(|s| s.managed && s.state.active()))
             })
             .map(name_of)
@@ -1501,7 +1507,7 @@ impl Manager {
         self.stop_with(id, true, None).await
     }
 
-    fn stop_with<'a>(
+    pub fn stop_with<'a>(
         &'a self,
         id: &'a str,
         cascade: bool,

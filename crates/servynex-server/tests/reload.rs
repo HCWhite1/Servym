@@ -56,7 +56,6 @@ async fn config_error(s: &Servynex) -> Value {
 
 /// JS : reload.test.js › relecture automatique de projects.json › une modification à la main est appliquée seule, et inscrite à l’activité
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn modification_a_la_main_appliquee() {
     let s = make_app().await;
     edit(&s, |c| c["projects"][1]["name"] = json!("Documentation"));
@@ -76,7 +75,6 @@ async fn modification_a_la_main_appliquee() {
 
 /// JS : reload.test.js › relecture automatique de projects.json › fichier invalide : erreur affichée, dernière configuration gardée ; corrigé, appliqué
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn fichier_invalide_puis_corrige() {
     let s = make_app().await;
     let good = read(s.file());
@@ -95,7 +93,6 @@ async fn fichier_invalide_puis_corrige() {
 
 /// JS : reload.test.js › relecture automatique de projects.json › les écritures de Servynex lui-même ne sont pas relues
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn ecritures_de_servynex_non_relues() {
     let s = make_app().await;
     assert_eq!(
@@ -117,7 +114,6 @@ async fn ecritures_de_servynex_non_relues() {
 
 /// JS : reload.test.js › relecture automatique de projects.json › retirer à la main un projet en marche : refusé, signalé
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn retirer_a_la_main_un_projet_en_marche() {
     let s = make_app().await;
     s.call("POST", "/api/projects/site/start").await;

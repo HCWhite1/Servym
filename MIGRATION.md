@@ -100,3 +100,39 @@ Nouveautés (tests dans `crates/servynex-core/tests/manager.rs`) :
 
 Reste à faire au jalon de la phase 5 : le scénario réel (MySQL puis Bogue, MangaFlow exposé, un site
 statique) comparé à l'historique de la version Node, quand Servynex Rust remplacera Node.
+
+## Phase 5 · Serveur axum
+
+`crates/servynex-server` porte `server.js`, `src/auth.js` et `src/oauth.js` : mêmes routes, mêmes
+réponses JSON, mêmes protections (Host, Sec-Fetch-Site, `X-Servynex-Request`, Origin), même table
+des permissions, mêmes codes (415, 413, 400…) et messages traduits. axum ne sert que de plomberie :
+une seule fonction reçoit chaque requête et l'aiguille comme `server.js`, pour garder l'ordre exact
+des contrôles. Interface (`public/`) embarquée dans le binaire (rust-embed).
+
+Les **142 tests JavaScript portés passent tous** (plus 31 tests propres à la version Rust : 173).
+
+Binaire `servynex` (6,3 Mo, interface comprise) :
+
+- `servynex [--data <dossier>]` : données dans `--data`, sinon `SERVYNEX_HOME`, sinon le dossier
+  courant (même disposition que la version Node : `projects.json`, `logs/`, `runtime/`, `config/`) ;
+- `servynex --supervised` : superviseur (mêmes règles que `start-hidden.vbs`) ;
+- `servynex auth list` et `servynex auth reset-password <nom>` (remplacent `npm run auth`).
+
+Mesure du 24/09/2026 sur une copie des données réelles (7 projets, dont Bogue, MangaFlow et MySQL
+repris) : **4,5 Mo de mémoire privée** (Node : 85 Mo, plus 92 Mo pour la sonde PowerShell) ;
+`/api/ports` 0,26 s, `/api/stats` 0,23 s, `/api/network` 0,21 s.
+
+Trouvé en route :
+
+- **Connexion refusée lente sous Windows** : vers un port fermé, Windows réessaie pendant près
+  d'une seconde (806 ms mesurées), là où Node répond en 4 ms. libuv désactive ces réessais pour la
+  boucle locale (`SIO_TCP_INITIAL_RTO`) ; `servynex_sys::net` fait de même (0,9 ms). Sans cela,
+  chaque sonde d'un projet arrêté et chaque recherche de port libre auraient été très lentes.
+- Vue d'un projet : pas de champ `port` pour une page locale (comme `JSON.stringify` d'un champ
+  indéfini).
+- Un projet en cours de lancement ne peut pas être retiré de la configuration (import, relecture) :
+  il serait perdu de vue.
+- `instance.node` vaut `null` (la ligne « Node.js » des Paramètres sera renommée à la phase 7).
+- Superviseur `vbs` accepté le temps de la transition (tâche planifiée actuelle).
+
+Jalon (à faire avec toi) : `servynex.exe` remplace `node server.js` sur ta machine.

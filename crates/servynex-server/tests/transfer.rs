@@ -45,7 +45,6 @@ fn import(body: Value, cookie: Option<&str>) -> Req {
 
 /// JS : transfer.test.js › export et import de la configuration › export : tout projects.json, en fichier à télécharger
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn export() {
     let t = make_app().await;
     assert_eq!(
@@ -70,7 +69,6 @@ async fn export() {
 
 /// JS : transfer.test.js › export et import de la configuration › aperçu : ajouts, retraits, modifications, sans rien écrire
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn apercu() {
     let t = make_app().await;
     let before = read(t.s.file());
@@ -99,7 +97,6 @@ async fn apercu() {
 
 /// JS : transfer.test.js › export et import de la configuration › appliqué : les projets remplacés, la section instance de cette machine gardée
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn applique() {
     let t = make_app().await;
     let projects = json!([t.config["projects"][1], { "id": "blog", "name": "Blog", "type": "file", "cwd": t.site, "open": "index.html" }]);
@@ -127,7 +124,6 @@ async fn applique() {
 
 /// JS : transfer.test.js › export et import de la configuration › refusé : fichier invalide, ou projet en marche retiré
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn refuse() {
     let t = make_app().await;
     let before = read(t.s.file());
@@ -167,7 +163,6 @@ async fn refuse() {
 
 /// JS : transfer.test.js › export et import de la configuration › une grande configuration passe
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn grande_configuration() {
     let t = make_app().await;
     let projects: Vec<Value> = (0..150)
@@ -184,7 +179,6 @@ async fn grande_configuration() {
 
 /// JS : transfer.test.js › export et import de la configuration › permission « commandes » pour exporter comme pour importer
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn permission_commandes() {
     let t = make_app().await;
     let admin = t.s.setup_admin().await;

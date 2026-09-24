@@ -249,7 +249,6 @@ fn target(res: &Res) -> String {
 
 /// JS : oauth.test.js › connexion avec GitHub › absente tant qu’un administrateur ne l’a pas configurée
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn absente_tant_que_non_configuree() {
     let o = OAuth::new().await;
     assert_eq!(
@@ -262,7 +261,6 @@ async fn absente_tant_que_non_configuree() {
 
 /// JS : oauth.test.js › connexion avec GitHub › configuration par un administrateur ; le secret n’est jamais renvoyé
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn configuration_par_un_administrateur() {
     let o = OAuth::new().await;
     let body = json!({ "clientId": "cid", "clientSecret": "secret-123" });
@@ -292,7 +290,6 @@ async fn configuration_par_un_administrateur() {
 
 /// JS : oauth.test.js › connexion avec GitHub › lier son compte : état à usage unique, lié au navigateur
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn lier_son_compte() {
     let o = OAuth::configured().await;
     let s = o.start(Some(&o.admin), true).await;
@@ -344,7 +341,6 @@ async fn link_alice(o: &OAuth) {
 
 /// JS : oauth.test.js › connexion avec GitHub › se connecter avec GitHub : seulement un compte lié
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn se_connecter_compte_lie_seulement() {
     let o = OAuth::configured().await;
     link_alice(&o).await;
@@ -382,7 +378,6 @@ async fn se_connecter_compte_lie_seulement() {
 
 /// JS : oauth.test.js › connexion avec GitHub › état expiré après 10 minutes ; échec chez GitHub
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn etat_expire_et_echec_chez_github() {
     let o = OAuth::configured().await;
     link_alice(&o).await;
@@ -420,7 +415,6 @@ async fn etat_expire_et_echec_chez_github() {
 
 /// JS : oauth.test.js › connexion avec GitHub › page de retour : rien de la requête n’y est recopié
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn page_de_retour_sans_recopie() {
     let o = OAuth::configured().await;
     let s = o.start(None, false).await;
@@ -437,7 +431,6 @@ async fn page_de_retour_sans_recopie() {
 
 /// JS : oauth.test.js › connexion avec GitHub › un compte GitHub ne se lie qu’à un seul compte Servynex ; délier
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn un_seul_compte_servynex_et_delier() {
     let o = OAuth::configured().await;
     link_alice(&o).await;
@@ -478,7 +471,6 @@ async fn un_seul_compte_servynex_et_delier() {
 
 /// JS : oauth.test.js › connexion avec GitHub › retirer la configuration : bouton et démarrage disparaissent
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn retirer_la_configuration() {
     let o = OAuth::configured().await;
     assert_eq!(

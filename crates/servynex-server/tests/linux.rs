@@ -22,7 +22,6 @@ async fn make_app(desktop: Option<bool>) -> Servynex {
 
 /// JS : linux.test.js › Linux : démarrage avec la session (systemd) › superviseur reconnu : Windows (vbs) ou systemd
 #[test]
-#[ignore = "phase 5"]
 fn superviseur_reconnu() {
     assert!(
         is_supervised(Some("servynex")),
@@ -34,7 +33,6 @@ fn superviseur_reconnu() {
 
 /// JS : linux.test.js › Linux : serveur › système indiqué à la page
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn systeme_indique_a_la_page() {
     let s = make_app(None).await;
     assert_eq!(
@@ -46,7 +44,6 @@ async fn systeme_indique_a_la_page() {
 
 /// JS : linux.test.js › Linux : serveur › sans écran : rien ne s’ouvre, même devant la machine
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn sans_ecran_rien_ne_s_ouvre() {
     let s = make_app(Some(false)).await;
     let instance = s.call("GET", "/api/projects").await.json()["instance"].clone();

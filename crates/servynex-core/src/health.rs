@@ -2,8 +2,6 @@
 
 use std::time::Duration;
 
-use tokio::net::TcpStream;
-
 /// Résultat d'une sonde HTTP.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Health {
@@ -14,10 +12,10 @@ pub enum Health {
 }
 
 async fn tcp_open(host: &str, port: u16) -> bool {
-    matches!(
-        tokio::time::timeout(Duration::from_millis(800), TcpStream::connect((host, port))).await,
-        Ok(Ok(_))
-    )
+    let Ok(ip) = host.parse::<std::net::IpAddr>() else {
+        return false;
+    };
+    servynex_sys::net::tcp_open((ip, port).into(), Duration::from_millis(800)).await
 }
 
 /// Quelqu'un écoute-t-il sur ce port ? Un serveur sur `::` accepte aussi 127.0.0.1 ; `::1` couvre
@@ -43,6 +41,10 @@ pub fn client() -> reqwest::Client {
 /// c'est l'application qui échoue. Le corps est lu jusqu'au texte attendu (64 Ko au plus).
 pub async fn http_health(client: &reqwest::Client, port: u16, path: &str, expect: &str, tls: bool) -> Health {
     let scheme = if tls { "https" } else { "http" };
+    // Port fermé : réponse immédiate, sans attendre le client HTTP (voir servynex_sys::net).
+    if !tcp_open("127.0.0.1", port).await {
+        return Health::Down;
+    }
     let url = format!("{scheme}://127.0.0.1:{port}{path}");
     let Ok(mut res) = client
         .get(&url)

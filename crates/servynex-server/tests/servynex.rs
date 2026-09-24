@@ -184,7 +184,6 @@ fn manager_for(s: &Servynex, boot_time: i64) -> Manager {
 
 /// JS : servynex.test.js › serveur et processus › protections HTTP
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn protections_http() {
     let (s, _) = setup(false).await;
     let port = s.port;
@@ -268,7 +267,6 @@ async fn protections_http() {
 
 /// JS : servynex.test.js › serveur et processus › ressources : processeur et mémoire des projets en marche
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn ressources() {
     let (s, _) = setup(false).await;
     assert_eq!(
@@ -313,7 +311,6 @@ async fn ressources() {
 
 /// JS : servynex.test.js › serveur et processus › lance, suit le journal, arrête
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn lance_suit_le_journal_arrete() {
     let (s, ports) = setup(false).await;
     assert_eq!(post(&s, "/api/projects/ok/start").await.status, 200);
@@ -392,7 +389,6 @@ async fn lance_suit_le_journal_arrete() {
 
 /// JS : servynex.test.js › serveur et processus › un plantage passe en échec avec la ligne d'erreur
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn plantage_en_echec() {
     let (s, _) = setup(false).await;
     post(&s, "/api/projects/crash/start").await;
@@ -410,7 +406,6 @@ async fn plantage_en_echec() {
 
 /// JS : servynex.test.js › serveur et processus › sorti sans erreur pendant le lancement, sans répondre : échec expliqué par son journal
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn lanceur_sorti_sans_repondre() {
     let (s, _) = setup(false).await;
     post(&s, "/api/projects/launcher/start").await;
@@ -439,7 +434,6 @@ async fn lanceur_sorti_sans_repondre() {
 
 /// JS : servynex.test.js › serveur et processus › en échec : relançable tout de suite
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn en_echec_relancable() {
     let (s, _) = setup(false).await;
     post(&s, "/api/projects/crash/start").await;
@@ -460,7 +454,6 @@ async fn en_echec_relancable() {
 
 /// JS : servynex.test.js › serveur et processus › journal du lancement précédent
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn journal_du_lancement_precedent() {
     let (s, _) = setup(false).await;
     for _ in 0..2 {
@@ -501,7 +494,6 @@ async fn journal_du_lancement_precedent() {
 
 /// JS : servynex.test.js › serveur et processus › une dépendance en échec bloque le lancement
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn dependance_en_echec() {
     let (s, _) = setup(false).await;
     post(&s, "/api/projects/dep/start").await;
@@ -512,7 +504,6 @@ async fn dependance_en_echec() {
 
 /// JS : servynex.test.js › serveur et processus › port déjà pris, ou pris par un autre site
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn port_deja_pris() {
     let (s, ports) = setup(false).await;
     let blocker = block_port(ports.busy).await;
@@ -542,7 +533,6 @@ async fn port_deja_pris() {
 
 /// JS : servynex.test.js › serveur et processus › site statique intégré
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn site_statique_integre() {
     let (s, ports) = setup(false).await;
     post(&s, "/api/projects/site/start").await;
@@ -558,7 +548,6 @@ async fn site_statique_integre() {
 
 /// JS : servynex.test.js › serveur et processus › un projet qui se relance lui-même est repris, avec son journal
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn projet_qui_se_relance_lui_meme() {
     let (s, ports) = setup(false).await;
     post(&s, "/api/projects/respawn/start").await;
@@ -584,7 +573,6 @@ async fn projet_qui_se_relance_lui_meme() {
 
 /// JS : servynex.test.js › serveur et processus › démarrage automatique : une seule fois par démarrage du PC
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn demarrage_automatique_une_fois_par_demarrage() {
     let (s, _) = setup(true).await;
     until_running(&s, "auto").await;
@@ -609,7 +597,6 @@ async fn demarrage_automatique_une_fois_par_demarrage() {
 
 /// JS : servynex.test.js › serveur et processus › projet « file » : jamais lancé ni arrêté, fichier vérifié avant ouverture
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn projet_file_jamais_lance() {
     let (s, _) = setup(false).await;
     let doc = s.app.manager.view(&s.app.manager.project("doc").unwrap());
@@ -627,7 +614,6 @@ async fn projet_file_jamais_lance() {
 
 /// JS : servynex.test.js › serveur et processus › réglages : enregistrés dans le fichier, champs protégés
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn reglages_enregistres() {
     let (s, ports) = setup(false).await;
     assert_eq!(patch(&s, "ok", json!({ "id": "autre" })).await.status, 400);
@@ -646,7 +632,6 @@ async fn reglages_enregistres() {
 
 /// JS : servynex.test.js › serveur et processus › une modification faite à la main n'est pas écrasée par l'interface
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn modification_a_la_main_gardee() {
     let (s, _) = setup(false).await;
     let mut on_disk = s.disk();
@@ -684,7 +669,6 @@ async fn modification_a_la_main_gardee() {
 
 /// JS : servynex.test.js › serveur et processus › activité : chaque modification de réglage, avec ses valeurs
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn activite_modifications_de_reglages() {
     let (s, _) = setup(false).await;
     assert_eq!(
@@ -755,7 +739,6 @@ async fn create_new_project(s: &Servynex) -> servynex_fixtures::Res {
 
 /// JS : servynex.test.js › serveur et processus › ajout depuis l’interface, puis lancement
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn ajout_puis_lancement() {
     let (s, ports) = setup(false).await;
     let app = s.path().join("app");
@@ -787,7 +770,6 @@ async fn ajout_puis_lancement() {
 
 /// JS : servynex.test.js › serveur et processus › retirer du fichier un projet qui tourne est refusé
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn retirer_un_projet_qui_tourne() {
     let (s, _) = setup(false).await;
     assert_eq!(create_new_project(&s).await.status, 201);
@@ -818,7 +800,6 @@ async fn retirer_un_projet_qui_tourne() {
 
 /// JS : servynex.test.js › serveur et processus › arrêter un projet arrête la dépendance lancée pour lui, pas celle lancée à la main
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn arret_de_la_dependance_lancee_pour_lui() {
     let (s, _) = setup(false).await;
     post(&s, "/api/projects/web/start").await;
@@ -847,7 +828,6 @@ async fn arret_de_la_dependance_lancee_pour_lui() {
 
 /// JS : servynex.test.js › serveur et processus › supprimer : confirmation par le nom, arrêt d’abord, dépendances nettoyées, journal gardé
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn supprimer() {
     let (s, ports) = setup(false).await;
     let delete = |body: Option<Value>| {
@@ -910,7 +890,6 @@ async fn supprimer() {
 
 /// JS : servynex.test.js › serveur et processus › erreurs dans la langue demandée par la page (Accept-Language)
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn erreurs_dans_la_langue_de_la_page() {
     let (s, _) = setup(false).await;
     let del = |lang: &'static str| {
@@ -941,7 +920,6 @@ async fn erreurs_dans_la_langue_de_la_page() {
 
 /// JS : servynex.test.js › serveur et processus › réordonner : écrit dans projects.json, refuse une liste incomplète
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn reordonner() {
     let (s, _) = setup(false).await;
     let order = ids(&s.disk());
@@ -974,7 +952,6 @@ async fn reordonner() {
 
 /// JS : servynex.test.js › serveur et processus › projects.json invalide au démarrage : Servynex démarre avec la dernière configuration valide
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn projects_json_invalide_au_demarrage() {
     let dir = servynex_fixtures::temp_dir("servynex-invalide-");
     let valid = json!({ "instance": { "port": 1 }, "projects": [{ "id": "v", "name": "Valide", "type": "file", "cwd": path_str(dir.path()), "open": "x.html" }] });
@@ -1010,7 +987,6 @@ async fn projects_json_invalide_au_demarrage() {
 
 /// JS : servynex.test.js › serveur et processus › redémarrage de Servynex : refusé sans superviseur, demandé sinon
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn redemarrage_de_servynex() {
     let (s, _) = setup(false).await;
     assert_eq!(
@@ -1054,7 +1030,6 @@ async fn redemarrage_de_servynex() {
 
 /// JS : servynex.test.js › serveur et processus › démarrage avec Windows et présentation, depuis les Paramètres
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn demarrage_avec_windows_et_presentation() {
     let s = Servynex::start(
         "servynex-ui-",
@@ -1096,7 +1071,6 @@ async fn demarrage_avec_windows_et_presentation() {
 
 /// JS : servynex.test.js › serveur et processus › activité : changements d’état de tous les projets
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn activite_changements_d_etat() {
     let (s, _) = setup(false).await;
     post(&s, "/api/projects/ok/start").await;
@@ -1125,7 +1099,6 @@ async fn activite_changements_d_etat() {
 
 /// JS : servynex.test.js › serveur et processus › flux d'évènements
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn flux_d_evenements() {
     let (s, _) = setup(false).await;
     let events = Req::get("/api/events").first_event(s.port).await;

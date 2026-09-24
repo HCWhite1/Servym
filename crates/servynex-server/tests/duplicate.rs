@@ -21,7 +21,6 @@ async fn make_app() -> Servynex {
 
 /// JS : duplicate.test.js › dupliquer : API › copie créée, avec un port libre, inscrite à l’activité
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn copie_creee_avec_un_port_libre() {
     let s = make_app().await;
     let res = s.call("POST", "/api/projects/api/duplicate").await;
@@ -53,7 +52,6 @@ async fn copie_creee_avec_un_port_libre() {
 
 /// JS : duplicate.test.js › dupliquer : API › permission « commandes »
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn permission_commandes() {
     let s = make_app().await;
     let admin = s.setup_admin().await;

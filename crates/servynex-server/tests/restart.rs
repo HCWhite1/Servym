@@ -52,7 +52,6 @@ async fn history(s: &Servynex, id: &str) -> Vec<Value> {
 
 /// JS : restart.test.js › relancer s’il plante › désactivé par défaut : un plantage laisse le projet en échec
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn desactive_par_defaut() {
     let s = make_app(1, false, [100, 200, 300]).await;
     let list = s.call("GET", "/api/projects").await.json();
@@ -84,7 +83,6 @@ async fn desactive_par_defaut() {
 
 /// JS : restart.test.js › relancer s’il plante › un plantage est relancé, sans notification, et inscrit à l’historique
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn plantage_relance() {
     let s = make_app(1, true, [100, 200, 300]).await;
     s.call("POST", "/api/projects/api/start").await;
@@ -130,7 +128,6 @@ async fn plantage_relance() {
 
 /// JS : restart.test.js › relancer s’il plante › plante en boucle : abandon après 3 relances, notifié
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn abandon_apres_trois_relances() {
     let s = make_app(99, true, [100, 200, 300]).await;
     s.call("POST", "/api/projects/api/start").await;
@@ -176,7 +173,6 @@ async fn abandon_apres_trois_relances() {
 
 /// JS : restart.test.js › relancer s’il plante › pas après un échec au lancement
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn pas_apres_un_echec_au_lancement() {
     let s = make_app(99, true, [100, 200, 300]).await;
     s.call("POST", "/api/projects/dead/start").await;
@@ -197,7 +193,6 @@ async fn pas_apres_un_echec_au_lancement() {
 
 /// JS : restart.test.js › relancer s’il plante › arrêté à la main : pas relancé ; relance prévue annulée par « Arrêter » ou en retirant le réglage
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn arret_a_la_main_annule_la_relance() {
     let s = make_app(99, true, [1500, 1500, 1500]).await;
     s.call("POST", "/api/projects/api/start").await;

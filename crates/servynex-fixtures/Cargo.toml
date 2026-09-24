@@ -23,3 +23,6 @@ path = "src/bin/fixture.rs"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Networking_WinSock"] }

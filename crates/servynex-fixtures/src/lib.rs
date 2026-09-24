@@ -82,7 +82,42 @@ pub fn free_port() -> u16 {
 
 /// Un port est-il ouvert (quelqu'un écoute) sur 127.0.0.1 ?
 pub async fn listening(port: u16) -> bool {
-    TcpStream::connect(("127.0.0.1", port)).await.is_ok()
+    connect(port).await.is_ok()
+}
+
+/// Connexion à 127.0.0.1 ; un port fermé est signalé tout de suite, même sous Windows (qui
+/// réessaie sinon pendant une à deux secondes).
+pub async fn connect(port: u16) -> std::io::Result<TcpStream> {
+    let socket = tokio::net::TcpSocket::new_v4()?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawSocket;
+        #[repr(C)]
+        struct InitialRto {
+            rtt: u16,
+            max_syn_retransmissions: u8,
+        }
+        let params = InitialRto {
+            rtt: 0xFE,
+            max_syn_retransmissions: 0xFE,
+        };
+        let mut returned = 0u32;
+        // SAFETY : SIO_TCP_INITIAL_RTO avec une structure valide pendant l'appel.
+        unsafe {
+            windows_sys::Win32::Networking::WinSock::WSAIoctl(
+                socket.as_raw_socket() as usize,
+                0x9800_0011,
+                (&params as *const InitialRto).cast(),
+                size_of::<InitialRto>() as u32,
+                std::ptr::null_mut(),
+                0,
+                &mut returned,
+                std::ptr::null_mut(),
+                None,
+            );
+        }
+    }
+    socket.connect(([127, 0, 0, 1], port).into()).await
 }
 
 /// Chemin du binaire des applications factices (`servynex-fixture`), construit au besoin.
@@ -220,7 +255,7 @@ impl Req {
 
     /// Comme [`Req::send`], mais une connexion refusée est une erreur et non une panique.
     pub async fn try_send(&self, port: u16) -> std::io::Result<Res> {
-        let mut stream = TcpStream::connect(("127.0.0.1", port)).await?;
+        let mut stream = connect(port).await?;
         stream.write_all(self.head(port).as_bytes()).await?;
         if let Some(body) = &self.body {
             stream.write_all(body.as_bytes()).await?;
@@ -232,7 +267,7 @@ impl Req {
 
     /// Premiers octets du corps d'une réponse longue (flux SSE) : jusqu'à la première ligne vide.
     pub async fn first_event(&self, port: u16) -> String {
-        let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        let mut stream = connect(port).await.unwrap();
         stream.write_all(self.head(port).as_bytes()).await.unwrap();
         let mut raw = Vec::new();
         let mut buf = [0u8; 4096];

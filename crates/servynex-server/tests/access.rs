@@ -25,7 +25,6 @@ async fn make_app(
 
 /// JS : access.test.js › accès depuis le réseau privé › adresse d’écoute : le réseau seulement avec la protection par mot de passe
 #[test]
-#[ignore = "phase 5"]
 fn adresse_d_ecoute() {
     assert_eq!(bind_host(&json!({ "access": "lan" }), true), "0.0.0.0");
     assert_eq!(
@@ -43,7 +42,6 @@ fn adresse_d_ecoute() {
 
 /// JS : access.test.js › accès depuis le réseau privé › réglage depuis l’interface › refusé tant que la protection n’est pas active
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn reglage_refuse_sans_protection() {
     let s = make_app(json!({ "port": 1 }), |b| b).await;
     let res = s
@@ -68,7 +66,6 @@ async fn with_admin_and_bob(s: &Servynex) -> (String, String) {
 
 /// JS : access.test.js › accès depuis le réseau privé › réglage depuis l’interface › administrateur et mot de passe ; appliqué au prochain démarrage
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn reglage_administrateur_et_mot_de_passe() {
     let s = make_app(json!({ "port": 1 }), |b| b).await;
     let (admin, bob) = with_admin_and_bob(&s).await;
@@ -121,7 +118,6 @@ async fn reglage_administrateur_et_mot_de_passe() {
 
 /// JS : access.test.js › accès depuis le réseau privé › réglage depuis l’interface › la protection ne peut pas être retirée tant que l’accès réseau est ouvert
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn protection_gardee_tant_que_le_reseau_est_ouvert() {
     let s = make_app(json!({ "port": 1 }), |b| b).await;
     let (admin, _) = with_admin_and_bob(&s).await;
@@ -156,7 +152,6 @@ async fn protection_gardee_tant_que_le_reseau_est_ouvert() {
 
 /// JS : access.test.js › accès depuis le réseau privé › adresses acceptées : celles de la machine en accès réseau, jamais un autre nom
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn adresses_acceptees() {
     let names = Arc::new(|| vec!["192.168.1.50".to_string(), "mon-pc".to_string()]);
     let lan = make_app(json!({ "port": 1, "access": "lan" }), |b| {
@@ -185,7 +180,6 @@ async fn adresses_acceptees() {
 
 /// JS : access.test.js › accès depuis le réseau privé › visiteur distant : rien ne s’ouvre sur la machine de Servynex
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn visiteur_distant_rien_ne_s_ouvre() {
     let s = make_app(json!({ "port": 1 }), |b| b.local_viewer(Arc::new(|_| false))).await;
     assert_eq!(
@@ -209,7 +203,6 @@ async fn visiteur_distant_rien_ne_s_ouvre() {
 
 /// JS : access.test.js › langue du serveur › réglable depuis l’interface : appliquée tout de suite, retirée pour suivre le système
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn langue_reglable_depuis_l_interface() {
     let s = make_app(json!({ "port": 1 }), |b| b).await;
     let put = |lang: Value| s.call_json("PUT", "/api/instance/lang", json!({ "lang": lang }), None);
@@ -234,7 +227,6 @@ async fn langue_reglable_depuis_l_interface() {
 
 /// JS : access.test.js › langue du serveur › permission « Servynex »
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn langue_permission_servynex() {
     let s = make_app(json!({ "port": 1 }), |b| b).await;
     let admin = s.setup_admin().await;

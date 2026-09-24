@@ -25,7 +25,6 @@ async fn make_app(reply: Reply) -> Servynex {
 
 /// JS : notify.test.js › notifications système › désactivées par défaut ; activées, un plantage prévient, un arrêt demandé non
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn desactivees_par_defaut_puis_activees() {
     let s = make_app(Reply::Sent).await;
     assert_eq!(
@@ -86,7 +85,6 @@ async fn desactivees_par_defaut_puis_activees() {
 
 /// JS : notify.test.js › notifications système › essai : envoyé même désactivées ; indisponible signalé
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn essai_envoye_meme_desactivees() {
     let s = make_app(Reply::Sent).await;
     let res = s.call("POST", "/api/instance/notify-test").await;
@@ -104,7 +102,6 @@ async fn essai_envoye_meme_desactivees() {
 
 /// JS : notify.test.js › notifications système › notificateur en échec : consigné, sans effet sur Servynex
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn notificateur_en_echec() {
     let s = make_app(Reply::Fail("toast refusé".into())).await;
     s.call_json("PUT", "/api/instance/notify", json!({ "notify": true }), None)
@@ -129,7 +126,6 @@ async fn notificateur_en_echec() {
 
 /// JS : notify.test.js › notifications système › permission « Servynex »
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn permission_servynex() {
     let s = make_app(Reply::Sent).await;
     let admin = s.setup_admin().await;

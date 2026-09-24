@@ -13,6 +13,7 @@ use std::sync::Arc;
 use serde::Serialize;
 
 pub mod linux;
+pub mod net;
 pub mod notify;
 #[cfg(windows)]
 pub mod windows;
@@ -221,3 +222,22 @@ pub fn boot_time_ms() -> i64 {
 /// Pile des fils qui attendent la fin d'un projet : réservée, pas engagée ; le traitement de la
 /// sortie (journal, état, évènements) y tient même sans optimisation.
 pub(crate) const WATCH_STACK: usize = 1024 * 1024;
+
+/// Langue de l'utilisateur (« fr-FR »), pour la langue du serveur par défaut.
+pub fn system_locale() -> Option<String> {
+    #[cfg(windows)]
+    {
+        let mut buf = [0u16; 85];
+        // SAFETY : tampon de LOCALE_NAME_MAX_LENGTH caractères.
+        let n = unsafe {
+            ::windows_sys::Win32::Globalization::GetUserDefaultLocaleName(buf.as_mut_ptr(), buf.len() as i32)
+        };
+        (n > 1).then(|| String::from_utf16_lossy(&buf[..n as usize - 1]))
+    }
+    #[cfg(unix)]
+    {
+        ["LC_ALL", "LC_MESSAGES", "LANG"]
+            .iter()
+            .find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty() && v != "C"))
+    }
+}

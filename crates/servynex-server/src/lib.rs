@@ -3,19 +3,33 @@
 //! [`App::builder`] reprend les points d'injection de `createApp()` de la version Node : horloge,
 //! relevés, notificateur, démarrage avec la session, cadences, visiteur distant…
 
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use axum::extract::{ConnectInfo, Request, State};
+use axum::http::Method;
+use axum::response::Response;
 use serde_json::Value;
-use servynex_core::i18n::Lang;
+use servynex_core::auth::{AuthStore, create_reset_code};
+use servynex_core::config::{default_config, load_config, save_config};
+use servynex_core::i18n::{Lang, LocalError, detect_lang};
 use servynex_core::manager::{Manager, Timings};
-use servynex_core::stats::SampleFn;
-use servynex_sys::notify::Notifier;
+use servynex_core::params;
+use servynex_core::stats::{SampleFn, Sampler};
+use servynex_sys::notify::{Notifier, Os, notifier_for};
 use servynex_sys::{Autostart, Platform};
+use tokio_util::sync::CancellationToken;
 
+mod api;
+mod app;
+mod auth;
+pub mod http;
 pub mod testing;
+mod ui;
+
+use app::{App as AppRef, AppInner};
 
 /// Adresse d'écoute réelle : ce PC seulement, ou le réseau local.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -33,18 +47,25 @@ pub struct ProviderUrls {
     pub user: String,
 }
 
-/// Adresse d'écoute : le réseau seulement avec la protection par mot de passe.
+/// Adresse d'écoute : tout le réseau seulement si l'accès réseau est demandé ET la protection par
+/// mot de passe active ; sinon n'importe qui sur le réseau aurait la main.
 pub fn bind_host(instance: &Value, protected_by_password: bool) -> &'static str {
-    let _ = (instance, protected_by_password);
-    unimplemented!("phase 5")
+    if instance["access"] == "lan" && protected_by_password {
+        "0.0.0.0"
+    } else {
+        "127.0.0.1"
+    }
 }
 
 /// Servynex est-il lancé par un superviseur qui le relancera (code 75) ?
 /// `SERVYNEX_SUPERVISOR` : `servynex` (mode `--supervised`) ou `systemd`.
 pub fn is_supervised(supervisor: Option<&str>) -> bool {
-    let _ = supervisor;
-    unimplemented!("phase 5")
+    // « vbs » : scripts/start-hidden.vbs de la version Node, le temps de la transition.
+    matches!(supervisor, Some("servynex" | "systemd" | "vbs"))
 }
+
+/// Code de sortie qui demande au superviseur une relance immédiate.
+pub const RESTART_CODE: i32 = 75;
 
 /// Horloge de l'authentification (ms).
 pub type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -132,7 +153,7 @@ impl AppBuilder {
         self.notifier = Some(notifier);
         self
     }
-    /// Système annoncé à la page (« windows », « linux »).
+    /// Système annoncé à la page (« win32 », « linux »).
     pub fn platform_name(mut self, name: &str) -> Self {
         self.platform_name = Some(name.into());
         self
@@ -142,7 +163,7 @@ impl AppBuilder {
         self.desktop = Some(desktop);
         self
     }
-    /// Relecture automatique de `projects.json` (zéro : aucune).
+    /// Relecture automatique de `projects.json` (zéro : aucune ; par défaut : chaque seconde).
     pub fn watch(mut self, interval: Duration) -> Self {
         self.watch = Some(interval);
         self
@@ -165,59 +186,323 @@ impl AppBuilder {
         self
     }
 
-    /// Démarre le serveur sur `addr` (« 127.0.0.1:0 » : port libre). Le gestionnaire n'est pas
-    /// encore initialisé : voir [`Manager::init`].
+    /// Construit l'application (configuration lue, gestionnaire prêt mais pas initialisé).
+    pub fn build(self) -> App {
+        let config_file = self.config_file.unwrap_or_else(|| PathBuf::from("projects.json"));
+        let data_dir = config_file.parent().map(Path::to_path_buf).unwrap_or_default();
+        let logs_dir = self.logs_dir.unwrap_or_else(|| data_dir.join("logs"));
+        let runtime_dir = self.runtime_dir.unwrap_or_else(|| data_dir.join("runtime"));
+        let _ = std::fs::create_dir_all(&logs_dir);
+        let _ = std::fs::create_dir_all(&runtime_dir);
+        let valid_copy = runtime_dir.join("projects.valid.json");
+        // projects.json invalide au démarrage : Servynex démarre quand même, avec la dernière
+        // configuration valide, et l'interface affiche l'erreur (mode dégradé).
+        let (initial, config_error) = match load_config(&config_file) {
+            Ok(config) => (config, None),
+            Err(error) => (
+                load_config(&valid_copy).unwrap_or_else(|_| default_config()),
+                Some(error),
+            ),
+        };
+        let system_lang = self.system_lang.unwrap_or_else(|| {
+            detect_lang(
+                servynex_sys::system_locale().as_deref(),
+                std::env::var("SERVYNEX_LANG").ok().as_deref(),
+            )
+        });
+        let lang = initial["instance"]["lang"]
+            .as_str()
+            .and_then(Lang::pick)
+            .unwrap_or(system_lang);
+        let platform = self.platform.unwrap_or_else(servynex_sys::native);
+        let mut manager = Manager::builder(initial.clone())
+            .logs_dir(&logs_dir)
+            .runtime_dir(&runtime_dir)
+            .timings(self.timings)
+            .lang(lang)
+            .platform(platform.clone())
+            .servynex_dir(&data_dir);
+        if let Some(boot) = self.boot_time {
+            manager = manager.boot_time(boot);
+        }
+        let manager = manager.build();
+        let clock: Clock = self.clock.unwrap_or_else(|| {
+            Arc::new(|| {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_millis() as i64)
+            })
+        });
+        let sample: SampleFn = self.sample.unwrap_or_else(|| {
+            let p = platform.clone();
+            Arc::new(move || {
+                let p = p.clone();
+                Box::pin(async move { p.sample_processes().await })
+            })
+        });
+        let cores = std::thread::available_parallelism().map_or(1, |n| n.get()) as u32;
+        let now: servynex_core::stats::NowFn = Arc::new(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_millis() as i64)
+        });
+        let own_log = logs_dir.join("servynex.log");
+        let own_log_size = std::fs::metadata(&own_log).map_or(0, |m| m.len());
+        let (instance_events, _) = tokio::sync::broadcast::channel(16);
+        let hostnames = self.hostnames.unwrap_or_else(|| Arc::new(default_hostnames));
+        let desktop = self.desktop.unwrap_or_else(|| platform.tools().desktop);
+        let inner = AppInner {
+            known: Mutex::new(std::fs::read_to_string(&config_file).ok()),
+            ui_file: runtime_dir.join("ui.json"),
+            own_prev_log: logs_dir.join("servynex.prev.log"),
+            own_log,
+            valid_copy,
+            auth: tokio::sync::Mutex::new(auth::AuthCore::new(AuthStore::new(
+                &runtime_dir.join("auth.json"),
+            ))),
+            config_error: Mutex::new(config_error.clone()),
+            own_log_size: Mutex::new(own_log_size),
+            actors: Mutex::default(),
+            streams: Mutex::default(),
+            instance_events,
+            sampler: Sampler::new(sample, now, cores, Duration::from_secs(2)),
+            git_cache: tokio::sync::Mutex::default(),
+            network: tokio::sync::Mutex::default(),
+            restart: self.restart,
+            autostart: self.autostart.unwrap_or_else(|| platform.autostart()),
+            clock,
+            notifier: self
+                .notifier
+                .unwrap_or_else(|| Arc::from(notifier_for(Os::current(), servynex_sys::run_command()))),
+            listening: Mutex::new(self.listening),
+            hostnames,
+            local_viewer: self
+                .local_viewer
+                .unwrap_or_else(|| Arc::new(|ip: IpAddr| ip.is_loopback() || is_mapped_loopback(ip))),
+            platform_name: self.platform_name.unwrap_or_else(|| {
+                if cfg!(windows) {
+                    "win32".into()
+                } else {
+                    std::env::consts::OS.into()
+                }
+            }),
+            desktop,
+            system_lang,
+            providers: auth::providers(self.github.as_ref()),
+            platform,
+            manager,
+            config_file,
+            runtime_dir,
+            data_dir,
+        };
+        let app = Arc::new(inner);
+        app::spawn_event_log(&app);
+        app::spawn_watcher(&app, self.watch.unwrap_or(Duration::from_secs(1)));
+        match &config_error {
+            Some(error) => {
+                let text = app.tr("log.degraded", params![error = error.message_in(app.lang())]);
+                app.log(&format!("[config] {text}"));
+            }
+            None => {
+                let _ = save_config(&app.valid_copy, &initial);
+            }
+        }
+        App { inner: app }
+    }
+
+    /// Construit l'application et démarre le serveur sur `addr` (« 127.0.0.1:0 » : port libre).
+    /// Le gestionnaire n'est pas encore initialisé : voir [`Manager::init`].
     pub async fn listen(self, addr: &str) -> std::io::Result<RunningApp> {
-        let _ = addr;
-        let _ = (
-            self.config_file,
-            self.logs_dir,
-            self.runtime_dir,
-            self.restart,
-            self.autostart,
-            self.clock,
-            self.sample,
-            self.github,
-            self.listening,
-            self.hostnames,
-            self.local_viewer,
-            self.notifier,
-            self.platform_name,
-            self.desktop,
-            self.watch,
-            self.timings,
-            self.boot_time,
-            self.system_lang,
-            self.platform,
-        );
-        unimplemented!("phase 5")
+        self.build().listen(addr).await
     }
 }
 
-/// L'application.
-pub struct App;
+fn is_mapped_loopback(ip: IpAddr) -> bool {
+    matches!(ip, IpAddr::V6(v6) if v6.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback()))
+}
+
+/// Noms de cette machine sur le réseau : ses adresses IPv4 et son nom d'ordinateur.
+fn default_hostnames() -> Vec<String> {
+    let mut names: Vec<String> = if_addrs::get_if_addrs()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|i| i.ip().is_ipv4() && !i.is_loopback())
+        .map(|i| i.ip().to_string())
+        .collect();
+    if let Some(host) = std::env::var("COMPUTERNAME")
+        .ok()
+        .or_else(|| std::env::var("HOSTNAME").ok())
+    {
+        names.push(host);
+    }
+    names
+}
+
+/// L'application, prête à écouter.
+pub struct App {
+    inner: AppRef,
+}
 
 impl App {
     pub fn builder() -> AppBuilder {
         AppBuilder::default()
     }
+
+    pub fn manager(&self) -> &Manager {
+        &self.inner.manager
+    }
+
+    /// Protection par mot de passe active (choix de l'adresse d'écoute).
+    pub async fn protected(&self) -> bool {
+        self.inner.auth_enabled().await
+    }
+
+    /// Adresse d'écoute choisie au démarrage (`bind_host`), une fois la configuration lue.
+    pub fn set_listening(&self, listening: Listening) {
+        *self.inner.listening.lock().unwrap_or_else(|e| e.into_inner()) = listening;
+    }
+
+    /// Ligne du journal de Servynex.
+    pub fn log(&self, text: &str) {
+        self.inner.log(text);
+    }
+
+    pub fn tr(&self, key: &str) -> String {
+        self.inner.tr(key, params![])
+    }
+
+    pub async fn listen(&self, addr: &str) -> std::io::Result<RunningApp> {
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        let port = listener.local_addr()?.port();
+        let router = axum::Router::new()
+            .fallback(handle)
+            .with_state(self.inner.clone());
+        let shutdown = CancellationToken::new();
+        let stop = shutdown.clone();
+        let task = tokio::spawn(async move {
+            let _ = axum::serve(
+                listener,
+                router.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(async move { stop.cancelled().await })
+            .await;
+        });
+        Ok(RunningApp {
+            port,
+            manager: self.inner.manager.clone(),
+            app: self.inner.clone(),
+            shutdown,
+            task,
+        })
+    }
+}
+
+async fn handle(
+    State(app): State<AppRef>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    req: Request,
+) -> Response {
+    let mut ctx = http::Ctx::new(req, peer);
+    let mut res = match route(&app, &mut ctx).await {
+        Ok(res) => res,
+        Err(error) => {
+            if error.status == 500 {
+                app.log(&format!(
+                    "[error] {} {} {}",
+                    ctx.method,
+                    ctx.url,
+                    error.message_in(app.lang())
+                ));
+            }
+            // Message dans la langue de la page (Accept-Language), sinon celle du serveur.
+            http::error_response(&error, ctx.lang(app.lang()))
+        }
+    };
+    http::security_headers(res.headers_mut());
+    res
+}
+
+async fn route(app: &AppRef, ctx: &mut http::Ctx) -> Result<Response, LocalError> {
+    let lan = *app.listening.lock().unwrap_or_else(|e| e.into_inner()) == Listening::Lan;
+    let names = lan.then(|| (app.hostnames)());
+    http::guard(ctx, names.as_deref())?;
+    if ctx.path.starts_with("/api/") {
+        return api::api(app, ctx).await;
+    }
+    // Retour d'un fournisseur de connexion : navigation venue de son site, hors de /api/.
+    let segments: Vec<&str> = ctx.path.split('/').collect();
+    if segments.get(1) == Some(&"auth") && segments.get(3) == Some(&"callback") && ctx.method == Method::GET {
+        let provider = segments[2].to_string();
+        return Ok(app.oauth_callback(ctx, &provider).await);
+    }
+    if let Some(res) = ui::serve(&ctx.method, &ctx.path) {
+        return Ok(res);
+    }
+    Err(http::err(404, "http.notFound"))
 }
 
 /// Application en service.
 pub struct RunningApp {
     pub port: u16,
     pub manager: Manager,
+    app: AppRef,
+    shutdown: CancellationToken,
+    task: tokio::task::JoinHandle<()>,
 }
 
 impl RunningApp {
     /// Code de réinitialisation d'un compte (comme `servynex auth reset-password`).
     pub fn create_reset_code(&self, username: &str, now: i64) -> String {
-        let _ = (username, now);
-        unimplemented!("phase 5")
+        let mut core = self.app.auth.blocking_lock_or_try();
+        create_reset_code(&mut core.store, username, now).expect("compte connu")
     }
 
-    /// Ferme le serveur et ses connexions, puis le gestionnaire (les projets continuent).
+    /// Ligne du journal de Servynex.
+    pub fn log(&self, text: &str) {
+        self.app.log(text);
+    }
+
+    /// Attend la fin du serveur.
+    pub async fn wait(&mut self) {
+        let _ = (&mut self.task).await;
+    }
+
+    /// Ferme le serveur et ses connexions (flux compris), puis le gestionnaire (les projets
+    /// continuent).
     pub async fn close(self) {
-        unimplemented!("phase 5")
+        let sessions: Vec<String> = self
+            .app
+            .streams
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect();
+        self.app.revoke_streams(&sessions);
+        self.shutdown.cancel();
+        let mut task = self.task;
+        if tokio::time::timeout(Duration::from_secs(2), &mut task)
+            .await
+            .is_err()
+        {
+            task.abort();
+        }
+        self.app.manager.close().await;
+    }
+}
+
+/// Verrou du fichier des comptes pris depuis un contexte synchrone (tests, commande `auth`).
+trait LockOrTry<T> {
+    fn blocking_lock_or_try(&self) -> tokio::sync::MutexGuard<'_, T>;
+}
+
+impl<T> LockOrTry<T> for tokio::sync::Mutex<T> {
+    fn blocking_lock_or_try(&self) -> tokio::sync::MutexGuard<'_, T> {
+        loop {
+            if let Ok(guard) = self.try_lock() {
+                return guard;
+            }
+            std::thread::yield_now();
+        }
     }
 }

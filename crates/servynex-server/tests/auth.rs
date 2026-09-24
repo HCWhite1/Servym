@@ -72,7 +72,6 @@ async fn with_admin(a: &Auth) -> (String, String) {
 
 /// JS : auth.test.js › authentification › désactivée par défaut : tout est ouvert
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn desactivee_par_defaut() {
     let a = make_app().await;
     assert_eq!(a.s.call("GET", "/api/projects").await.status, 200);
@@ -84,7 +83,6 @@ async fn desactivee_par_defaut() {
 
 /// JS : auth.test.js › authentification › activation : compte administrateur, clé de secours, session
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn activation() {
     let a = make_app().await;
     let setup = |body: Value| a.s.call_json("POST", "/api/auth/setup", body, None);
@@ -126,7 +124,6 @@ async fn activation() {
 
 /// JS : auth.test.js › authentification › sans session : seule la page de connexion répond
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn sans_session() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -149,7 +146,6 @@ async fn sans_session() {
 
 /// JS : auth.test.js › authentification › connexion, erreurs et limite des essais
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn connexion_erreurs_limite() {
     let a = make_app().await;
     with_admin(&a).await;
@@ -178,7 +174,6 @@ async fn connexion_erreurs_limite() {
 
 /// JS : auth.test.js › authentification › invitations et permissions
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn invitations_et_permissions() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -286,7 +281,6 @@ async fn invitations_et_permissions() {
 
 /// JS : auth.test.js › authentification › journal d'audit : qui a fait quoi
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn journal_d_audit() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -317,7 +311,6 @@ async fn journal_d_audit() {
 
 /// JS : auth.test.js › authentification › verrouillage après inactivité, commun à tous
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn verrouillage_apres_inactivite() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -368,7 +361,6 @@ async fn verrouillage_apres_inactivite() {
 
 /// JS : auth.test.js › authentification › dernier administrateur protégé
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn dernier_administrateur_protege() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -420,7 +412,6 @@ async fn dernier_administrateur_protege() {
 
 /// JS : auth.test.js › authentification › réinitialisation par code (npm run auth) : sessions fermées
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn reinitialisation_par_code() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -459,7 +450,6 @@ async fn reinitialisation_par_code() {
 
 /// JS : auth.test.js › authentification › clé de secours : une fois, puis une nouvelle
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn cle_de_secours() {
     let a = make_app().await;
     let (_, recovery) = with_admin(&a).await;
@@ -481,7 +471,6 @@ async fn cle_de_secours() {
 
 /// JS : auth.test.js › authentification › mon compte : mot de passe, sessions, préférences
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn mon_compte() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -540,7 +529,6 @@ async fn mon_compte() {
 
 /// JS : auth.test.js › authentification › nom de l'instance
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn nom_de_l_instance() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -564,7 +552,6 @@ async fn nom_de_l_instance() {
 
 /// JS : auth.test.js › authentification › supprimer : permission « Commandes » et mot de passe ; réordonner : permission « Modifier »
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn supprimer_et_reordonner_permissions() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -630,7 +617,6 @@ async fn supprimer_et_reordonner_permissions() {
 
 /// JS : auth.test.js › authentification › désactiver puis réactiver : comptes conservés
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn desactiver_puis_reactiver() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
@@ -671,7 +657,6 @@ async fn desactiver_puis_reactiver() {
 
 /// JS : auth.test.js › authentification › fichier des comptes illisible : tout est refusé
 #[tokio::test]
-#[ignore = "phase 5"]
 async fn fichier_des_comptes_illisible() {
     let a = make_app().await;
     let (admin, _) = with_admin(&a).await;
