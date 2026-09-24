@@ -446,6 +446,15 @@ describe('serveur et processus', () => {
     assert.equal(entries[1].to, 'starting', 'du plus récent au plus ancien');
   });
 
+  test('en échec : relançable tout de suite', async () => {
+    await until(async () => (await post('/api/projects/crash/start')).status === 200);
+    // Guetté de près : la relance suit l'échec à quelques millisecondes.
+    for (let i = 0; i < 2000 && state('crash').state !== 'failed'; i++) await sleep(5);
+    const again = await post('/api/projects/crash/start');
+    assert.equal(again.status, 200, again.body);
+    await until(() => state('crash').state === 'failed');
+  });
+
   test('une dépendance en échec bloque le lancement', async () => {
     await post('/api/projects/dep/start');
     await until(() => state('dep').state === 'failed');

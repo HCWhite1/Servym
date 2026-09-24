@@ -159,8 +159,7 @@ describe('notifications système', () => {
       assert.equal(JSON.parse(fs.readFileSync(path.join(s.dir, 'projects.json'), 'utf8')).instance.notify, true);
       assert.equal((await s.call('GET', '/api/projects')).json.instance.notify, true);
 
-      // Le lancement précédent se termine peu après l'échec : relancer dès que possible.
-      await until(async () => (await s.call('POST', '/api/projects/crash/start')).status === 200);
+      assert.equal((await s.call('POST', '/api/projects/crash/start')).status, 200);
       await until(() => sent.length === 1);
       assert.match(sent[0].title, /Mon API/);
       assert.equal(sent[0].body, 'Error: base introuvable');

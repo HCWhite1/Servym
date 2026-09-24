@@ -288,6 +288,9 @@ export class Manager extends EventEmitter {
       exitCode: code,
       error: expected ? null : lastError(this.logFile(id)) ?? (code === null ? tr('process.unexpectedExit') : tr('process.unexpectedExitCode', { code })),
     });
+    // Mort pendant le lancement : celui-ci est fini (#waitHealthy le verra au
+    // prochain tour), le projet peut être relancé tout de suite.
+    if (st.state === 'starting') this.#ops.delete(id);
     this.#savePids();
   }
 
