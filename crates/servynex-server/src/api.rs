@@ -26,7 +26,9 @@ use crate::http::{Ctx, err, permission_for, send};
 /// Champs dont la modification revient à choisir ce qui s'exécute (ou s'expose).
 const SENSITIVE: [&str; 7] = ["type", "cwd", "cmd", "args", "env", "stop", "expose"];
 /// Ouvrent quelque chose sur cette machine : réservées à qui est devant elle.
-const HOST_ONLY: [&str; 6] = ["open", "folder", "code", "terminal", "config", "log"];
+const HOST_ONLY: [&str; 8] = [
+    "open", "folder", "code", "terminal", "config", "log", "opener", "browser",
+];
 
 fn ok() -> Response {
     send(200, &json!({ "ok": true }))
@@ -65,6 +67,15 @@ impl crate::app::AppInner {
         read_text(&self.ui_file)
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or(json!({}))
+    }
+
+    /// Fenêtre (par défaut) ou navigateur.
+    pub fn opener(&self) -> &'static str {
+        if self.read_ui()["opener"] == "browser" {
+            "browser"
+        } else {
+            "window"
+        }
     }
 
     /// Premier port libre à partir de `from` (ni Servynex, ni un projet, ni occupé).
@@ -403,6 +414,8 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
             "serverLang": app.lang().code(),
             "notify": instance["notify"] == true,
             "configError": app.config_error_in(lang),
+            // Application de bureau : où « Ouvrir Servynex » ouvre l'interface (réglage de la machine).
+            "app": app.shell.as_ref().map(|_| json!({ "opener": app.opener() })),
         });
         return Ok(send(
             200,
@@ -480,6 +493,37 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
             }
         }
         return Ok(ok());
+    }
+    // Application de bureau, devant la machine : fenêtre ou navigateur.
+    if section == "instance" && matches!(id, Some("opener" | "browser")) {
+        let id = id.unwrap();
+        let Some(shell) = app.shell.clone() else {
+            return Err(err(404, "http.unknownRoute"));
+        };
+        app.host_only(ctx, id)?;
+        if id == "browser" && method == Method::POST {
+            // closeWindow : la page qui demande est dans la fenêtre, qui se ferme ensuite.
+            let body = ctx.read_json_if_any(16_000).await?;
+            shell.open_browser();
+            if body["closeWindow"] == true {
+                shell.close_window();
+            }
+            return Ok(ok());
+        }
+        if id == "opener" && method == Method::PUT {
+            let body = ctx.read_json(16_000).await?;
+            let Some(opener) = body["opener"]
+                .as_str()
+                .filter(|o| ["window", "browser"].contains(o))
+            else {
+                return Err(err(400, "http.badOpener"));
+            };
+            let _ = std::fs::create_dir_all(&app.runtime_dir);
+            let mut ui = app.read_ui();
+            ui["opener"] = json!(opener);
+            std::fs::write(&app.ui_file, ui.to_string()).map_err(|e| raw(e.to_string()))?;
+            return Ok(send(200, &json!({ "opener": opener })));
+        }
     }
     if section == "instance" && id == Some("lang") && method == Method::PUT {
         // Langue des journaux, de l'historique et des états : appliquée tout de suite. null :
@@ -895,18 +939,10 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
             action.filter(|a| ["start", "restart", "stop", "open", "folder", "code", "terminal"].contains(a))
     {
         app.host_only(ctx, action)?;
-        let by = if user.is_some() {
-            format!(" · {}", app.tr("history.by", params![user = who.as_str()]))
-        } else {
-            String::new()
-        };
-        app.log(&format!("[{action}] {id}{by}"));
-        if user.is_some() {
-            app.actors
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .insert(id.to_string(), (who.clone(), (app.clock)()));
-        }
+        let by = user
+            .is_some()
+            .then(|| app.tr("history.by", params![user = who.as_str()]));
+        app.note_actor(id, action, by);
         let cwd = std::path::PathBuf::from(project["cwd"].as_str().unwrap_or_default());
         match action {
             "start" => app.manager.start(id)?,

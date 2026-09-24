@@ -37,7 +37,8 @@ pub struct AppInner {
     /// Contenu de projects.json déjà connu (lu ou écrit par Servynex) : pas à relire.
     pub known: Mutex<Option<String>>,
     pub own_log_size: Mutex<u64>,
-    /// Dernière action demandée par un compte sur chaque projet (« démarré par alice »).
+    /// Auteur de la dernière action sur chaque projet, déjà traduit (« par alice », « via la zone
+    /// de notification »), et son heure.
     pub actors: Mutex<HashMap<String, (String, i64)>>,
     /// Flux SSE ouverts par session : fermés quand la session est révoquée ou verrouillée.
     pub streams: Mutex<HashMap<String, Vec<CancellationToken>>>,
@@ -55,6 +56,8 @@ pub struct AppInner {
     pub local_viewer: Arc<dyn Fn(IpAddr) -> bool + Send + Sync>,
     pub platform_name: String,
     pub desktop: bool,
+    /// Application de bureau autour du serveur (absent : `servynex` sans écran).
+    pub shell: Option<Arc<dyn crate::Shell>>,
     pub system_lang: Lang,
     pub platform: Arc<dyn Platform>,
     pub providers: Vec<Provider>,
@@ -94,6 +97,19 @@ impl AppInner {
             .open(&self.own_log)
         {
             let _ = f.write_all(line.as_bytes());
+        }
+    }
+
+    /// Action demandée sur un projet : « [start] api · par alice » au journal, et l'auteur retenu
+    /// pour la ligne d'historique de la transition qui suit.
+    pub fn note_actor(&self, id: &str, action: &str, by: Option<String>) {
+        let suffix = by.as_ref().map(|b| format!(" · {b}")).unwrap_or_default();
+        self.log(&format!("[{action}] {id}{suffix}"));
+        if let Some(by) = by {
+            self.actors
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(id.to_string(), (by, (self.clock)()));
         }
     }
 
@@ -297,11 +313,11 @@ fn log_transition(app: &AppInner, t: &servynex_core::manager::Transition) {
         .unwrap_or_else(|e| e.into_inner())
         .get(&t.id)
         .cloned();
-    if let Some((user, at)) = actor
+    if let Some((by, at)) = actor
         && moving
         && (app.clock)() - at < 10_000
     {
-        details.push(app.tr("history.by", params![user = user]));
+        details.push(by);
     }
     if t.to == State::Running && !after.managed {
         details.push(app.tr("history.external", params![]));

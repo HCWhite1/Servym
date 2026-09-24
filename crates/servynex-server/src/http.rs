@@ -248,7 +248,8 @@ pub fn permission_for(
         return match id {
             "config" => "commands",
             "log" | "folder" | "lang" | "notify" | "notify-test" => "instance",
-            "onboarded" => "view",
+            // Devant la machine seulement (application de bureau) : qui est devant elle a la main.
+            "onboarded" | "opener" | "browser" => "view",
             _ => "admin",
         };
     }

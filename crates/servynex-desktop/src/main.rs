@@ -1,6 +1,15 @@
-//! Application de bureau (Tauri 2) : fenêtre, zone de notification, démarrage avec la session.
-//! Le contenu arrive à la phase 6.
+//! `Servynex.exe` : l'application de bureau (Windows). Voir `lib.rs`.
 
-fn main() {
-    println!("servynex-desktop {}", env!("CARGO_PKG_VERSION"));
+// Pas de fenêtre de console : Servynex vit dans la zone de notification.
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
+#[cfg(windows)]
+fn main() -> std::process::ExitCode {
+    servynex_desktop::run()
+}
+
+#[cfg(not(windows))]
+fn main() -> std::process::ExitCode {
+    eprintln!("L'application de bureau vise Windows ; ailleurs, utilisez `servynex` (sans écran).");
+    std::process::ExitCode::FAILURE
 }

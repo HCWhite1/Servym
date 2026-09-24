@@ -39,6 +39,8 @@ export function init(hs) {
   radio('#set-theme', setTheme);
   radio('#set-layout', (value) => handlers.setLayout(value));
   radio('#set-access', setAccess);
+  radio('#set-opener', (value) => setOpener(value));
+  $('#open-browser-now').addEventListener('click', () => openInBrowser(false));
   $('#set-server-lang').addEventListener('change', (e) => setServerLang(e.target.value));
   $('#set-notify').addEventListener('change', (e) => setNotify(e.target.checked));
   $('#notify-test').addEventListener('click', testNotify);
@@ -331,9 +333,44 @@ function fillInstance() {
   $('#restart-instance').disabled = !info.restartable || !can('instance');
   renderAccess();
   renderNotify();
+  renderOpener();
   $('#restart-desc').textContent = info.restartable
     ? t('settings.restartDesc')
     : t('settings.restartUnavailable');
+}
+
+// ---- Application de bureau : fenêtre ou navigateur (réglage de ce PC) ----
+
+// La fenêtre de l'application le signale à la page ; aucune fonction native n'y est ouverte.
+export const inAppWindow = window.servynexWindow === true;
+
+// Choix proposé devant la machine, dans l'application de bureau seulement.
+export const openerShown = () => Boolean(handlers.instance().app) && handlers.instance().viewerLocal;
+
+export async function setOpener(opener) {
+  try {
+    const res = await api('instance/opener', { method: 'PUT', body: { opener } });
+    handlers.instance().app.opener = res.opener;
+    for (const sel of ['#set-opener', '#ob-opener']) check(sel, res.opener);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// Ouvre Servynex dans le navigateur ; closeWindow : la fenêtre se ferme ensuite.
+export async function openInBrowser(closeWindow) {
+  try {
+    await api('instance/browser', { method: 'POST', body: { closeWindow } });
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function renderOpener() {
+  $('#opener-setting').hidden = !openerShown();
+  if (!openerShown()) return;
+  check('#set-opener', handlers.instance().app.opener);
+  $('#open-browser-now').hidden = !inAppWindow;
 }
 
 // ---- Accès à la page : ce PC seulement, ou aussi le réseau local ----

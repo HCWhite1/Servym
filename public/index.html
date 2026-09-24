@@ -226,6 +226,19 @@
             </div>
             <input class="switch" type="checkbox" role="switch" id="set-autostart" aria-label="Démarrer Servynex avec Windows" disabled data-i18n-attr="aria-label:settings.autostart">
           </div>
+          <div class="setting stack" id="opener-setting" hidden>
+            <div class="setting-text">
+              <p class="setting-label" data-i18n="settings.opener">Ouvrir Servynex dans</p>
+              <p class="setting-desc" data-i18n="settings.openerDesc">Fenêtre : environ 200 Mo tant qu’elle est ouverte, rendus dès qu’elle se ferme. Navigateur : un onglet de plus, rien d’autre. Réglage de ce PC, suivi par l’icône de la zone de notification.</p>
+            </div>
+            <div class="setting-actions">
+              <div class="segmented" role="radiogroup" aria-label="Ouvrir Servynex dans" id="set-opener" data-i18n-attr="aria-label:settings.opener">
+                <button type="button" role="radio" data-value="window" data-i18n="opener.window"><svg><use href="icons.svg#monitor"/></svg>Fenêtre</button>
+                <button type="button" role="radio" data-value="browser" data-i18n="opener.browser"><svg><use href="icons.svg#globe"/></svg>Navigateur</button>
+              </div>
+              <button class="btn small" type="button" id="open-browser-now" hidden data-i18n="settings.openBrowserNow">Ouvrir dans le navigateur</button>
+            </div>
+          </div>
           <div class="setting stack">
             <div class="setting-text">
               <p class="setting-label" data-i18n="settings.bootProjects">Projets lancés au démarrage</p>
@@ -452,6 +465,13 @@
         <p class="ob-kicker"></p>
         <h2 id="ob-title-4" data-i18n="ob.ready">C’est prêt</h2>
         <p class="ob-lead" data-i18n="ob.readyLead">Quelques repères pour commencer.</p>
+      </div>
+      <div class="ob-opener" id="ob-opener-block" hidden>
+        <span class="choice-label" data-i18n="ob.opener">Ouvrir Servynex dans</span>
+        <div class="choices" role="radiogroup" aria-label="Ouvrir Servynex dans" id="ob-opener" data-i18n-attr="aria-label:ob.opener">
+          <button class="choice" type="button" role="radio" data-value="window"><span class="preview p-app"><span class="chrome"></span><span class="body"><span class="bar"></span><span class="bar short"></span></span></span><span data-i18n="opener.window">Fenêtre<small data-i18n="ob.openerWindowHint">Sa propre fenêtre, sans onglet à retrouver. Environ 200 Mo tant qu’elle est ouverte.</small></span></button>
+          <button class="choice" type="button" role="radio" data-value="browser"><span class="preview p-browser"><span class="chrome"><span class="tab"></span></span><span class="address"></span><span class="body"><span class="bar"></span><span class="bar short"></span></span></span><span data-i18n="opener.browser">Navigateur<small data-i18n="ob.openerBrowserHint">Un onglet de votre navigateur, rien de plus en arrière-plan.</small></span></button>
+        </div>
       </div>
       <ul class="tips">
         <li><svg><use href="icons.svg#layout-grid"/></svg><span data-i18n-rich="ob.tip1"><strong>Un clic sur un projet</strong> ouvre son volet : journal en direct, historique, réglages et infos.</span></li>

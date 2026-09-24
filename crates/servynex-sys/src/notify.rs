@@ -43,6 +43,9 @@ impl Os {
 struct SystemNotifier {
     os: Os,
     run: Runner,
+    /// Windows : application au nom de laquelle la notification s'affiche.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    app_id: String,
 }
 
 impl Notifier for SystemNotifier {
@@ -58,10 +61,13 @@ impl Notifier for SystemNotifier {
                     Ok(true)
                 }
                 #[cfg(windows)]
-                Os::Windows => tokio::task::spawn_blocking(move || crate::windows::toast::show(&n))
-                    .await
-                    .map_err(|e| e.to_string())?
-                    .map(|()| true),
+                Os::Windows => {
+                    let app_id = self.app_id.clone();
+                    tokio::task::spawn_blocking(move || crate::windows::toast::show(&n, &app_id))
+                        .await
+                        .map_err(|e| e.to_string())?
+                        .map(|()| true)
+                }
                 _ => Ok(false),
             }
         })
@@ -69,8 +75,23 @@ impl Notifier for SystemNotifier {
 }
 
 /// Notificateur d'un système. Linux : `notify-send` par `run`, jamais par un shell.
+/// Sous Windows, au nom de Windows PowerShell (connu de Windows sans installation).
 pub fn notifier_for(os: Os, run: Runner) -> Box<dyn Notifier> {
-    Box::new(SystemNotifier { os, run })
+    #[cfg(windows)]
+    let app_id = crate::windows::toast::POWERSHELL_APP_ID.to_string();
+    #[cfg(not(windows))]
+    let app_id = String::new();
+    Box::new(SystemNotifier { os, run, app_id })
+}
+
+/// Notificateur Windows au nom d'une application installée (identifiant déclaré par son raccourci
+/// du menu Démarrer).
+pub fn app_notifier(app_id: &str, run: Runner) -> Box<dyn Notifier> {
+    Box::new(SystemNotifier {
+        os: Os::current(),
+        run,
+        app_id: app_id.to_string(),
+    })
 }
 
 fn escape(text: &str) -> String {

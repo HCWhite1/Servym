@@ -9,3 +9,5 @@ config/
 # Rust
 /target/
 /spikes/target/
+# Schémas régénérés par Tauri à chaque construction
+/crates/servynex-desktop/gen/

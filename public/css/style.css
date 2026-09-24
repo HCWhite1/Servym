@@ -867,6 +867,14 @@ dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 .preview .bar { height: 7px; border-radius: 3px; background: rgb(127 127 127 / 0.3); }
 .preview .bar.short { width: 55%; }
 .preview.p-list, .preview.p-orbit { background: var(--surface-2); }
+/* Fenêtre de l'application (barre de titre seule) ou navigateur (onglet et barre d'adresse). */
+.preview.p-app, .preview.p-browser { background: var(--surface-2); justify-content: flex-start; gap: 0; padding: 0; }
+.preview .chrome { flex: none; display: flex; align-items: flex-end; height: 12px; padding: 0 8px; background: rgb(127 127 127 / 0.2); }
+.preview.p-browser .chrome { height: 14px; }
+.preview .tab { width: 42%; height: 9px; border-radius: 3px 3px 0 0; background: var(--surface-2); }
+.preview .address { flex: none; height: 7px; margin: 5px 8px 0; border-radius: 4px; background: rgb(127 127 127 / 0.2); }
+.preview .body { display: flex; flex-direction: column; gap: 7px; padding: 10px; }
+.ob-opener { display: grid; gap: 16px; }
 .preview.p-orbit::before, .preview.p-orbit::after { content: ''; position: absolute; left: 50%; top: 50%; translate: -50% -50%; border: 1px solid var(--border-strong); border-radius: 50%; }
 .preview.p-orbit::before { width: 34px; height: 34px; }
 .preview.p-orbit::after { width: 62px; height: 62px; }

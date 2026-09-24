@@ -63,9 +63,23 @@ fn delete(key: &str) {
     unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr()) };
 }
 
+/// Commande enregistrée dans la clé Run sous le nom « Servynex », quelle qu’elle soit (une autre
+/// installation de Servynex, par exemple).
+pub fn registered() -> Option<String> {
+    let data = value_exists(RUN, RRF_RT_REG_SZ)?;
+    let wide: Vec<u16> = data
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .take_while(|&c| c != 0)
+        .collect();
+    Some(String::from_utf16_lossy(&wide))
+}
+
 impl RunKey {
+    /// Activé : la clé Run lance bien cette commande (pas une autre installation), sans être
+    /// désactivée dans le Gestionnaire des tâches.
     pub fn enabled_now(&self) -> bool {
-        if value_exists(RUN, RRF_RT_REG_SZ).is_none() {
+        if registered().as_deref() != Some(self.command.as_str()) {
             return false;
         }
         // Premier octet impair : désactivé dans le Gestionnaire des tâches.

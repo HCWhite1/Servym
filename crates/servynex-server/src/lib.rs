@@ -26,6 +26,7 @@ mod api;
 mod app;
 mod auth;
 pub mod http;
+pub mod supervisor;
 pub mod testing;
 mod ui;
 
@@ -66,9 +67,28 @@ pub fn is_supervised(supervisor: Option<&str>) -> bool {
 
 /// Code de sortie qui demande au superviseur une relance immédiate.
 pub const RESTART_CODE: i32 = 75;
+/// Même chose, en rouvrant la fenêtre de l'application de bureau (elle était ouverte).
+pub const RESTART_WINDOW_CODE: i32 = 76;
 
 /// Horloge de l'authentification (ms).
 pub type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
+
+/// Application de bureau autour du serveur. Sa présence ajoute à l'interface le choix « fenêtre
+/// ou navigateur » (réglage de la machine, `runtime/ui.json`).
+pub trait Shell: Send + Sync {
+    /// Ouvre Servynex dans le navigateur par défaut.
+    fn open_browser(&self);
+    /// Ferme la fenêtre de l'application (l'application reste dans la zone de notification).
+    fn close_window(&self) {}
+}
+
+/// Action lancée depuis la zone de notification : sur la machine hôte, sans compte.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrayAction {
+    Start,
+    Restart,
+    Stop,
+}
 
 /// Construction de l'application.
 #[derive(Default)]
@@ -87,6 +107,7 @@ pub struct AppBuilder {
     notifier: Option<Arc<dyn Notifier>>,
     platform_name: Option<String>,
     desktop: Option<bool>,
+    shell: Option<Arc<dyn Shell>>,
     watch: Option<Duration>,
     timings: Timings,
     boot_time: Option<i64>,
@@ -161,6 +182,11 @@ impl AppBuilder {
     /// Session avec écran : sinon rien ne peut s'ouvrir sur cette machine.
     pub fn desktop(mut self, desktop: bool) -> Self {
         self.desktop = Some(desktop);
+        self
+    }
+    /// Lancé par l'application de bureau.
+    pub fn shell(mut self, shell: Arc<dyn Shell>) -> Self {
+        self.shell = Some(shell);
         self
     }
     /// Relecture automatique de `projects.json` (zéro : aucune ; par défaut : chaque seconde).
@@ -289,6 +315,7 @@ impl AppBuilder {
                 }
             }),
             desktop,
+            shell: self.shell,
             system_lang,
             providers: auth::providers(self.github.as_ref()),
             platform,
@@ -340,7 +367,8 @@ fn default_hostnames() -> Vec<String> {
     names
 }
 
-/// L'application, prête à écouter.
+/// L'application, prête à écouter (clonable : les clones partagent le même état).
+#[derive(Clone)]
 pub struct App {
     inner: AppRef,
 }
@@ -371,6 +399,44 @@ impl App {
 
     pub fn tr(&self, key: &str) -> String {
         self.inner.tr(key, params![])
+    }
+
+    /// Dossier des données (`projects.json`, `logs/`, `runtime/`…).
+    pub fn data_dir(&self) -> &Path {
+        &self.inner.data_dir
+    }
+
+    /// Où ouvrir l'interface : `window` (par défaut) ou `browser`.
+    pub fn opener(&self) -> &'static str {
+        self.inner.opener()
+    }
+
+    pub fn autostart(&self) -> Arc<dyn Autostart> {
+        self.inner.autostart.clone()
+    }
+
+    /// Démarrer, redémarrer ou arrêter depuis la zone de notification : même chemin que l'interface,
+    /// inscrit au journal et à l'historique « via la zone de notification ». Erreur : message dans
+    /// la langue de Servynex.
+    pub async fn tray_action(&self, id: &str, action: TrayAction) -> Result<(), String> {
+        let app = &self.inner;
+        let name = match action {
+            TrayAction::Start => "start",
+            TrayAction::Restart => "restart",
+            TrayAction::Stop => "stop",
+        };
+        app.note_actor(id, name, Some(app.tr("history.viaTray", params![])));
+        let result = match action {
+            TrayAction::Start => app.manager.start(id),
+            TrayAction::Restart => app.manager.restart(id).await,
+            TrayAction::Stop => app.manager.stop_cascade(id).await,
+        };
+        result.map_err(|e| e.message_in(app.lang()))
+    }
+
+    /// Texte du serveur avec paramètres, dans sa langue.
+    pub fn tr_with(&self, key: &str, params: servynex_core::i18n::Params) -> String {
+        self.inner.tr(key, params)
     }
 
     pub async fn listen(&self, addr: &str) -> std::io::Result<RunningApp> {

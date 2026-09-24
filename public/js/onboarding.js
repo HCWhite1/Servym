@@ -2,7 +2,7 @@
 // repères. Chaque choix s'applique tout de suite ; « Passer » garde l'existant.
 import { t } from './i18n.js';
 import { api, can, store } from './lib.js';
-import { loadAutostart, projectSwitches, setInstanceAutostart, setProjectAutostart, setTheme } from './settings.js';
+import { inAppWindow, loadAutostart, openerShown, openInBrowser, projectSwitches, setInstanceAutostart, setOpener, setProjectAutostart, setTheme } from './settings.js';
 
 const $ = (sel) => document.querySelector(sel);
 const dialog = $('#onboarding');
@@ -25,6 +25,7 @@ export function init(hs) {
   $('#ob-autostart').addEventListener('change', (e) => setInstanceAutostart(e.target.checked, e.target));
   $('#ob-projects').addEventListener('change', (e) => setProjectAutostart(e.target.dataset.id, e.target.checked, e.target));
   pick('#ob-theme', setTheme);
+  pick('#ob-opener', setOpener);
   pick('#ob-layout', (value) => {
     handlers.setLayout(value);
     check('#ob-layout', value);
@@ -51,6 +52,8 @@ export async function open() {
   for (const input of $('#ob-projects').querySelectorAll('input')) input.disabled = !can('edit');
   check('#ob-theme', store.get('theme', 'system'));
   check('#ob-layout', handlers.prefs().layout);
+  $('#ob-opener-block').hidden = !openerShown();
+  if (openerShown()) check('#ob-opener', handlers.instance().app.opener);
   go(0);
   if (!dialog.open) dialog.showModal();
   $('#ob-next').focus();
@@ -82,4 +85,6 @@ function go(n) {
 async function finish() {
   dialog.close();
   await api('instance/onboarded', { method: 'POST' }).catch(() => {});
+  // Navigateur choisi depuis la fenêtre : Servynex s'y ouvre et la fenêtre se ferme.
+  if (inAppWindow && openerShown() && handlers.instance().app.opener === 'browser') await openInBrowser(true);
 }

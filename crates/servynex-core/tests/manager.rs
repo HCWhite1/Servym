@@ -413,6 +413,61 @@ async fn plantage_d_un_projet_repris() {
     next.close().await;
 }
 
+/// Données importées d'une autre installation pendant qu'un projet tourne : son journal reste
+/// là-bas (le processus le garde ouvert) et il est suivi jusqu'au prochain lancement.
+#[tokio::test]
+async fn journal_reste_dans_l_ancienne_installation() {
+    let old = temp_dir("servynex-m-");
+    let app = app_dir(&old);
+    let projects = vec![program(
+        "api",
+        &app,
+        "server",
+        free_port(),
+        json!({ "health": { "expect": "Factice" } }),
+    )];
+    let first = manager(&old, projects.clone());
+    first.init().await;
+    first.start("api").unwrap();
+    until_state(&first, "api", |s| s.state == State::Running).await;
+    first.close().await;
+    drop(first);
+
+    // Import : pids.json recopié, avec le chemin du journal resté dans l'ancien dossier.
+    let new = temp_dir("servynex-m-");
+    let old_log = old.path().join("logs").join("api.log");
+    let mut pids: Value = serde_json::from_str(&read(old.path().join("runtime/pids.json"))).unwrap();
+    pids["api"]["log"] = json!(old_log);
+    write(new.path().join("runtime/pids.json"), pids.to_string());
+    std::fs::create_dir_all(new.path().join("logs")).unwrap();
+    std::fs::copy(&old_log, new.path().join("logs/api.log")).unwrap();
+
+    let next = manager(&new, projects);
+    next.init().await;
+    assert!(next.state("api").managed, "repris");
+    assert_eq!(next.log_file("api"), old_log);
+    let saved: Value = serde_json::from_str(&read(new.path().join("runtime/pids.json"))).unwrap();
+    assert_eq!(
+        saved["api"]["log"],
+        json!(old_log),
+        "gardé au prochain redémarrage de Servynex"
+    );
+
+    next.stop("api").await.unwrap();
+    std::fs::write(&old_log, "dernière ligne de l'ancien lancement\n").unwrap();
+    next.start("api").unwrap();
+    until_state(&next, "api", |s| s.state == State::Running).await;
+    assert_eq!(next.log_file("api"), new.path().join("logs/api.log"));
+    assert_eq!(
+        read(next.prev_log_file("api")),
+        "dernière ligne de l'ancien lancement\n",
+        "journal précédent : celui de l'ancienne installation"
+    );
+    let saved: Value = serde_json::from_str(&read(new.path().join("runtime/pids.json"))).unwrap();
+    assert!(saved["api"].get("log").is_none());
+    stop_all(&next, &["api"]).await;
+}
+
 #[tokio::test]
 async fn demarrage_automatique_une_fois_par_demarrage() {
     let dir = temp_dir("servynex-m-");

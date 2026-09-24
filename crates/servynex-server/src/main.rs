@@ -11,16 +11,14 @@
 //! (5 plantages rapides : abandon) et tout de suite quand l'interface le demande (code 75), comme
 //! `scripts/start-hidden.vbs`.
 
-use std::path::{Path, PathBuf};
-use std::process::ExitCode;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-
 use servynex_core::auth::{AuthStore, create_reset_code, role_of};
 use servynex_core::config::load_config;
 use servynex_core::i18n::{Lang, detect_lang, tr};
 use servynex_core::params;
-use servynex_server::{App, Listening, RESTART_CODE, bind_host, is_supervised};
+use servynex_server::{App, Listening, RESTART_CODE, bind_host, is_supervised, supervisor};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+use std::sync::Arc;
 
 fn data_dir(args: &[String]) -> PathBuf {
     if let Some(i) = args.iter().position(|a| a == "--data")
@@ -116,61 +114,16 @@ fn auth_command(data: &Path, args: &[String]) -> ExitCode {
     }
 }
 
-/// Superviseur : relance Servynex après un plantage, mais abandonne s'il plante en boucle (port
-/// déjà pris par une autre instance, projects.json invalide…) ; code 75 : redémarrage demandé
-/// depuis l'interface, relancé aussitôt et non compté comme un plantage.
+/// Mode `--supervised` : lancé à l'ouverture de session, sans fenêtre de console.
 fn supervise(args: &[String]) -> ExitCode {
     #[cfg(windows)]
     {
-        // Lancé à l'ouverture de session : pas de fenêtre de console.
         // SAFETY : détache le processus de sa console, sans autre effet.
         unsafe { windows_sys::Win32::System::Console::FreeConsole() };
     }
     let exe = std::env::current_exe().expect("chemin de servynex");
-    let child_args: Vec<&String> = args.iter().filter(|a| *a != "--supervised").collect();
-    let mut failures = 0;
-    loop {
-        let started = Instant::now();
-        let mut command = std::process::Command::new(&exe);
-        // Sans console, les sorties standard du superviseur ne sont plus valides : celles du serveur
-        // vont nulle part (il écrit son journal dans logs/servynex.log).
-        command
-            .args(&child_args)
-            .env("SERVYNEX_SUPERVISOR", "servynex")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-        }
-        let code = match command.status() {
-            Ok(status) => status.code().unwrap_or(1),
-            Err(error) => {
-                supervisor_log(&data_dir(args), &format!("[supervisor] {error}"));
-                return ExitCode::FAILURE;
-            }
-        };
-        if code == 0 {
-            return ExitCode::SUCCESS;
-        }
-        if code != RESTART_CODE {
-            failures = if started.elapsed() > Duration::from_secs(60) {
-                0
-            } else {
-                failures + 1
-            };
-            if failures >= 5 {
-                supervisor_log(
-                    &data_dir(args),
-                    "[supervisor] 5 plantages rapides : abandon (voir les lignes précédentes)",
-                );
-                return ExitCode::FAILURE;
-            }
-            std::thread::sleep(Duration::from_secs(5));
-        }
-    }
+    let child_args: Vec<String> = args.iter().filter(|a| *a != "--supervised").cloned().collect();
+    supervisor::supervise(&exe, &data_dir(args), |_| child_args.clone())
 }
 
 fn main() -> ExitCode {
@@ -243,21 +196,4 @@ async fn serve(data: PathBuf) -> ExitCode {
     };
     running.close().await;
     ExitCode::from(code as u8)
-}
-
-/// Ligne dans logs/servynex.log, écrite par le superviseur (il n'a pas de console).
-fn supervisor_log(data: &Path, text: &str) {
-    use std::io::Write;
-    let dir = data.join("logs");
-    let _ = std::fs::create_dir_all(&dir);
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(dir.join("servynex.log"))
-    {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-        let _ = writeln!(f, "{}ms {text}", now.as_millis());
-    }
 }
