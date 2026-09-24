@@ -269,7 +269,9 @@ impl AppBuilder {
             git_cache: tokio::sync::Mutex::default(),
             network: tokio::sync::Mutex::default(),
             restart: self.restart,
-            autostart: self.autostart.unwrap_or_else(|| platform.autostart()),
+            autostart: self
+                .autostart
+                .unwrap_or_else(|| default_autostart(&platform, &data_dir)),
             clock,
             notifier: self
                 .notifier
@@ -504,5 +506,25 @@ impl<T> LockOrTry<T> for tokio::sync::Mutex<T> {
             }
             std::thread::yield_now();
         }
+    }
+}
+
+/// Démarrage avec la session : sous Windows, la clé Run lance `servynex --supervised` avec le
+/// dossier des données (lancé depuis la clé Run, le dossier courant est System32). Ailleurs, celui
+/// du système (systemd : `WorkingDirectory`).
+fn default_autostart(platform: &Arc<dyn Platform>, data_dir: &Path) -> Arc<dyn Autostart> {
+    #[cfg(windows)]
+    {
+        let _ = platform;
+        let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("servynex.exe"));
+        let data = std::path::absolute(data_dir).unwrap_or_else(|_| data_dir.to_path_buf());
+        Arc::new(servynex_sys::windows::autostart::RunKey {
+            command: format!("\"{}\" --supervised --data \"{}\"", exe.display(), data.display()),
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = data_dir;
+        platform.autostart()
     }
 }
