@@ -90,6 +90,11 @@ export function open(id, which = 'logs') {
   if (!dialog.open) dialog.showModal();
 }
 
+// Réglages d'une copie qui partage le dossier de l'original (voir warnSameFolder).
+export function warnSameFolder(original) {
+  form.warnSameFolder(original);
+}
+
 function stopLog() {
   logStream?.close();
   logStream = null;

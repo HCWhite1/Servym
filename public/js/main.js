@@ -93,6 +93,7 @@ async function duplicateProject(p) {
     toast(t('duplicate.done', { name: created.name }));
     for (let i = 0; i < 30 && !projects.has(created.id); i++) await new Promise((r) => setTimeout(r, 100));
     panel.open(created.id, 'settings');
+    if (p.type === 'process' && created.cwd === p.cwd) panel.warnSameFolder(p);
   } catch (err) {
     toast(err.message, 'error');
   }

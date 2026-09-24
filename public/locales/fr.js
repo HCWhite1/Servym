@@ -129,6 +129,7 @@ export default {
   "delete.zone": "Supprimer ce projet",
   "delete.zoneDesc": "Arrêté s’il tourne, puis retiré de projects.json et des dépendances des autres projets. Ses journaux sont conservés.",
   "duplicate.done": "{name} créé : ajustez ses réglages",
+  "duplicate.sameFolder": "La copie utilise le même dossier que {name} ({path}). Certains outils n’acceptent qu’un seul serveur par dossier : copiez le projet dans un autre dossier et indiquez-le ci-dessous pour les faire tourner en même temps.",
   "error.status": "Erreur {status}",
   "expose.body": "{name} écoutera sur 0.0.0.0:{port} : toute machine du réseau actuel pourra s’y connecter{reachable}.",
   "expose.bodyNew": "Il écoutera sur 0.0.0.0:{port} : toute machine du réseau actuel pourra s’y connecter.",

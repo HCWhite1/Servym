@@ -39,11 +39,13 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
   const findPort = h('button', { class: 'btn', type: 'button', text: t('form.findPort') });
   const submit = h('button', { class: 'btn primary', type: 'submit', text: submitLabel });
   const notice = h('p', { class: 'alert', hidden: true });
+  const folderNotice = h('div', { class: 'alert warn', role: 'status', hidden: true });
 
   const section = (title, cls, ...children) => h('section', { class: `form-section ${cls}`.trim() }, h('h3', { text: title }), ...children);
 
   form.append(
     notice,
+    folderNotice,
     section(t('settings.general'), 'first',
       h('div', { class: 'form-row' },
         field(t('col.name'), input('name', { maxlength: '40', required: true, placeholder: t('form.namePlaceholder') }), null, 'grow'),
@@ -169,6 +171,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
     form.querySelector('details').open = Boolean(s.stop);
     message.textContent = '';
     message.className = 'hint';
+    folderNotice.hidden = true;
     applyPermissions();
     hints();
     if (!p) {
@@ -304,6 +307,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
   };
   form.addEventListener('input', (e) => {
     touch(e.target.name);
+    if (e.target.name === 'cwd') folderNotice.hidden = true;
     if (e.target.name === 'name' && !PROJECT_ICONS.includes(picker.dataset.value)) {
       picker.firstElementChild.replaceChildren(h('span', { text: (val('name')[0] ?? '?').toUpperCase() }));
     }
@@ -359,6 +363,12 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
     element: form,
     fill,
     refresh,
+    // Copie qui vient d'être créée dans le même dossier que l'original : certains
+    // outils (serveur Symfony) n'y acceptent qu'un serveur. Masqué dès que le dossier change.
+    warnSameFolder(original) {
+      folderNotice.replaceChildren(icon('triangle-alert'), h('span', { text: t('duplicate.sameFolder', { name: original.name, path: original.cwd }) }));
+      folderNotice.hidden = false;
+    },
     get project() {
       return project;
     },

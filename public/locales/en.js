@@ -129,6 +129,7 @@ export default {
   "delete.zone": "Delete this project",
   "delete.zoneDesc": "Stopped if it is running, then removed from projects.json and from the dependencies of other projects. Its logs are kept.",
   "duplicate.done": "{name} created: adjust its settings",
+  "duplicate.sameFolder": "The copy uses the same folder as {name} ({path}). Some tools accept only one server per folder: copy the project to another folder and enter it below to run both at the same time.",
   "error.status": "Error {status}",
   "expose.body": "{name} will listen on 0.0.0.0:{port}: any machine on the current network will be able to connect to it{reachable}.",
   "expose.bodyNew": "It will listen on 0.0.0.0:{port}: any machine on the current network will be able to connect to it.",
