@@ -35,3 +35,10 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.sha2]
 opt-level = 3
+
+# Développement : informations de débogage réduites pour les dépendances (cache de compilation
+# bien plus petit), complètes pour le code de Servynex.
+[profile.dev]
+debug = "line-tables-only"
+[profile.dev.package."*"]
+debug = false
