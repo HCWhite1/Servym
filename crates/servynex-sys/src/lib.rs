@@ -196,3 +196,28 @@ pub fn run_command() -> linux::Runner {
         },
     )
 }
+
+/// Heure de démarrage du PC (ms depuis l'époque Unix).
+pub fn boot_time_ms() -> i64 {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64);
+    #[cfg(windows)]
+    {
+        // SAFETY : lecture du temps écoulé depuis le démarrage.
+        let uptime = unsafe { ::windows_sys::Win32::System::SystemInformation::GetTickCount64() };
+        now - uptime as i64
+    }
+    #[cfg(unix)]
+    {
+        let uptime = std::fs::read_to_string("/proc/uptime")
+            .ok()
+            .and_then(|t| t.split_whitespace().next().and_then(|s| s.parse::<f64>().ok()))
+            .unwrap_or(0.0);
+        now - (uptime * 1000.0) as i64
+    }
+}
+
+/// Pile des fils qui attendent la fin d'un projet : réservée, pas engagée ; le traitement de la
+/// sortie (journal, état, évènements) y tient même sans optimisation.
+pub(crate) const WATCH_STACK: usize = 1024 * 1024;

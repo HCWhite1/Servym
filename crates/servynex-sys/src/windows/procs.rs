@@ -16,7 +16,7 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, TerminateProcess, WaitForSingleObject,
 };
 
-use crate::{OnExit, ProcSample, ProcTable, tree_of};
+use crate::{OnExit, ProcSample, ProcTable, WATCH_STACK, tree_of};
 
 /// Handle fermé à la fin de sa portée.
 pub struct Owned(pub HANDLE);
@@ -189,7 +189,7 @@ pub fn kill_tree(pid: u32) -> Result<(), String> {
 pub fn watch_handle(handle: Owned, pid: u32, on_exit: OnExit) {
     let spawned = std::thread::Builder::new()
         .name(format!("sortie {pid}"))
-        .stack_size(64 * 1024)
+        .stack_size(WATCH_STACK)
         .spawn(move || {
             // SAFETY : attente puis lecture du code sur un handle valide, fermé par `Owned`.
             let code = unsafe {

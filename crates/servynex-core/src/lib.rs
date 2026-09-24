@@ -3,10 +3,12 @@
 
 pub mod auth;
 pub mod config;
+pub mod health;
 pub mod i18n;
 pub mod logs;
 pub mod manager;
 pub mod static_files;
+pub mod static_site;
 pub mod stats;
 
 pub use servynex_sys::BoxFuture;

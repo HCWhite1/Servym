@@ -378,7 +378,7 @@ mod real {
     };
     use crate::{
         Autostart, BoxFuture, LaunchError, LaunchOptions, Listener, NetworkProfile, OnExit, Platform,
-        ProcTable, Tools, clean_env, run_command,
+        ProcTable, Tools, WATCH_STACK, clean_env, run_command,
     };
 
     const PROC: &str = "/proc";
@@ -516,7 +516,7 @@ mod real {
         fn watch_exit(&self, pid: u32, on_exit: OnExit) {
             // Processus repris : pas enfant de Servynex, son code de sortie est inconnu.
             std::thread::Builder::new()
-                .stack_size(64 * 1024)
+                .stack_size(WATCH_STACK)
                 .spawn(move || {
                     while alive(pid) {
                         std::thread::sleep(Duration::from_millis(500));
@@ -597,7 +597,7 @@ mod real {
         let pid = child.id();
         let on_exit = options.on_exit;
         std::thread::Builder::new()
-            .stack_size(64 * 1024)
+            .stack_size(WATCH_STACK)
             .spawn(move || {
                 let code = child.wait().ok().and_then(|s| exit_code(s.code(), s.signal()));
                 on_exit(pid, code);

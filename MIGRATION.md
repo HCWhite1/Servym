@@ -64,3 +64,39 @@ Décisions :
   `cargo clippy --target x86_64-unknown-linux-gnu`), exécutée par la CI.
 
 Vérification à la main : `cargo run --release --example check -p servynex-sys [notify]`.
+
+## Phase 4 · Gestionnaire de processus
+
+`crates/servynex-core/src/manager.rs` porte `processes.js` : mêmes états, mêmes règles (jetons
+d'action, relance d'un projet qui se relance lui-même, lanceur sorti pendant le lancement,
+dépendances en cascade, relance après plantage, « autostart » une fois par démarrage du PC).
+L'état est derrière un verrou jamais tenu pendant une attente : le compilateur a refusé deux
+endroits qui le faisaient, corrigés.
+
+Nouveautés (tests dans `crates/servynex-core/tests/manager.rs`) :
+
+- `pids.json` garde l'heure de création du processus (`createdAt`) : un PID réutilisé n'est jamais
+  repris. Fichier de la version Node (sans `createdAt`) : repris seulement si le processus a été
+  créé au plus 10 s après le lancement enregistré.
+- Un projet repris qui plante passe en échec avec son code de sortie (Windows) ; la version Node y
+  voyait une sortie propre.
+- Chaque PID managed est surveillé : sa fin arrive avec son code, même pour la nouvelle instance
+  d'un projet qui se relance lui-même.
+
+Écarts et corrections trouvés en route :
+
+- Un plantage immédiat (commande introuvable) peut être signalé avant que le PID soit enregistré :
+  la sortie est gardée de côté et traitée dès l'enregistrement.
+- `start()` pose l'état « starting » avant de rendre la main, comme en JavaScript (où c'était la
+  partie synchrone de `#start`).
+- Pendant un arrêt demandé, la sortie du processus est laissée à `stop` (en JavaScript, elle
+  arrivait toujours après) : l'historique ne montre pas de code de sortie pour un arrêt.
+- cmd.exe écrit « n’est pas reconnu » avec une apostrophe typographique en UTF-8 : le motif des
+  lignes d'erreur accepte les deux apostrophes (`public/js/log-patterns.js` aussi, même motif pour
+  l'interface).
+- Sites statiques : servis par axum dans `servynex-core` (au lieu d'un module du serveur), puisque
+  c'est le gestionnaire qui les ouvre et les ferme.
+- Pile des fils qui attendent la fin des projets : 1 Mo réservé (64 Ko débordaient en debug).
+
+Reste à faire au jalon de la phase 5 : le scénario réel (MySQL puis Bogue, MangaFlow exposé, un site
+statique) comparé à l'historique de la version Node, quand Servynex Rust remplacera Node.
