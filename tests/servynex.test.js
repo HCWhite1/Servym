@@ -214,6 +214,15 @@ describe('configuration', () => {
   });
 });
 
+describe('exemple publié', () => {
+  test('projects.example.json : valide, sans fichier de config/ (non publié)', () => {
+    const file = path.join(import.meta.dirname, '..', 'projects.example.json');
+    assert.doesNotThrow(() => loadConfig(file));
+    const text = fs.readFileSync(file, 'utf8');
+    assert.ok(!text.includes('{servynex}/config/'), 'config/ n’est pas publié');
+  });
+});
+
 describe('processeur et mémoire', () => {
   // Relevé : PID → { pid, ppid, start (ms), cpu (ms cumulées), memory (octets) }.
   const proc = (pid, ppid, start, cpu, memory) => [pid, { pid, ppid, start, cpu, memory }];

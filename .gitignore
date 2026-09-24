@@ -4,3 +4,5 @@ runtime/
 # Configuration personnelle : voir projects.example.json
 projects.json
 projects.json.tmp
+# Fichiers personnels des projets (options de MySQL…), à côté de projects.json
+config/
