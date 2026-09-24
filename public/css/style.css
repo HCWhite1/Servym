@@ -554,6 +554,13 @@ dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 .log .warn { color: var(--busy); }
 .log .own { color: var(--accent); }
 .log.errors-only span:not(.err, .warn) { display: none; }
+.log span.miss { display: none; }
+.log mark { background: color-mix(in srgb, var(--warn, #d29922) 45%, transparent); color: inherit; border-radius: 2px; }
+.log-search input { width: 220px; height: 28px; padding-right: 64px; }
+.log-search .log-count { position: absolute; right: 9px; pointer-events: none; }
+.pane-tools { flex-wrap: wrap; row-gap: 8px; }
+.pane-tools .check { white-space: nowrap; }
+.log-count { color: var(--text-3); font-size: 12px; white-space: nowrap; }
 
 .form { display: flex; flex-direction: column; gap: 16px; }
 .form-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }

@@ -35,6 +35,7 @@ export function init(hs) {
     button.addEventListener('click', () => showTab(button.id.slice(4)));
   }
   $('#log-errors').addEventListener('change', (e) => logBox.classList.toggle('errors-only', e.target.checked));
+  $('#log-search').addEventListener('input', (e) => search(e.target.value));
   $('#log-copy').addEventListener('click', async () => {
     await navigator.clipboard.writeText(logBox.textContent);
     toast(t('panel.logCopied'));
@@ -173,7 +174,41 @@ function logNote(p) {
 
 function lineNode(line) {
   const cls = line.startsWith('[servynex]') ? 'own' : ERROR_LINE.test(line) ? 'err' : WARN_LINE.test(line) ? 'warn' : '';
-  return h('span', cls ? { class: cls } : {}, `${line}\n`);
+  const node = h('span', cls ? { class: cls } : {});
+  node.line = line;
+  showMatch(node);
+  return node;
+}
+
+// ---- Recherche dans le journal : lignes qui contiennent le texte, surligné ----
+
+let query = '';
+
+// Texte de la ligne, avec <mark> autour de chaque occurrence ; « miss » la masque.
+function showMatch(node) {
+  const { line } = node;
+  const at = query ? line.toLowerCase().indexOf(query) : -1;
+  node.classList.toggle('miss', Boolean(query) && at < 0);
+  if (at < 0) return node.replaceChildren(`${line}\n`);
+  const parts = [];
+  let from = 0;
+  for (let i = at; i >= 0; i = line.toLowerCase().indexOf(query, from)) {
+    parts.push(line.slice(from, i), h('mark', { text: line.slice(i, i + query.length) }));
+    from = i + query.length;
+  }
+  node.replaceChildren(...parts, `${line.slice(from)}\n`);
+}
+
+function search(text) {
+  query = text.trim().toLowerCase();
+  for (const node of logBox.children) showMatch(node);
+  countMatches();
+}
+
+function countMatches() {
+  const count = $('#log-count');
+  count.hidden = !query;
+  if (query) count.textContent = tn('log.matches', logBox.querySelectorAll('span:not(.miss)').length);
 }
 
 function appendLines(lines, reset) {
@@ -181,6 +216,7 @@ function appendLines(lines, reset) {
   if (reset) logBox.replaceChildren();
   logBox.append(...lines.map(lineNode));
   while (logBox.childElementCount > MAX_LINES) logBox.firstElementChild.remove();
+  if (query) countMatches();
   if (follow) logBox.scrollTop = logBox.scrollHeight;
 }
 

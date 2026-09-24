@@ -170,6 +170,11 @@
         <label class="check" data-i18n="panel.follow"><input type="checkbox" id="log-follow" checked> Défilement automatique</label>
         <label class="check" data-i18n="panel.errorsOnly"><input type="checkbox" id="log-errors"> Erreurs et avertissements</label>
         <span class="spacer"></span>
+        <label class="search log-search">
+          <svg><use href="icons.svg#search"/></svg>
+          <span class="log-count" id="log-count" hidden></span>
+          <input id="log-search" type="search" placeholder="Rechercher dans le journal" aria-label="Rechercher dans le journal" data-i18n-attr="placeholder:log.search;aria-label:log.search" autocomplete="off">
+        </label>
         <button class="btn small" type="button" id="log-copy" data-i18n="common.copy"><svg><use href="icons.svg#copy"/></svg>Copier</button>
       </div>
       <p class="note" id="log-note" hidden></p>
