@@ -191,25 +191,21 @@ binaire sans écran `servynex` reste la version à utiliser.
 - **Notifications** au nom de l'application une fois installée (le raccourci du menu Démarrer
   déclare son identifiant), sinon au nom de Windows PowerShell comme avant.
 
-### Données et import
+### Données
 
 Dossier des données : `--data`, `SERVYNEX_HOME`, mode portable (`projects.json` à côté de
 l'exécutable), sinon `%LOCALAPPDATA%\Servynex`. L'installateur pose aussi le programme dans ce
 dossier : c'est sans risque, sa désinstallation ne supprime que `Servynex.exe` et
 `uninstall.exe` (le dossier n'est retiré que s'il est vide).
 
-Premier lancement sans `projects.json` : l'ancienne installation est cherchée (dossier `--data`
-de la clé Run, dossier de travail de la tâche planifiée, `C:\Servynex`) et l'import proposé. Oui :
-l'ancien superviseur (wscript ou servynex) puis l'ancien serveur (node ou servynex) sont arrêtés,
-et eux seuls ; la tâche planifiée est désactivée ; `projects.json`, `runtime/`, `logs/` et
-`config/` sont copiés. L'ancien dossier n'est pas modifié. Les projets en marche gardent leur
-journal ouvert dans l'ancien dossier : `pids.json` retient ce chemin (`log`), suivi jusqu'au
-prochain lancement du projet. `SERVYNEX_IMPORT_FROM` désigne le dossier à importer sans toucher
-à la clé Run ni à la tâche.
+### Bascule de la machine de développement (25/09/2026)
 
-Essai de bout en bout (25/09/2026) sur un Servynex factice : ancien `servynex --supervised` avec un
-projet en marche, puis `Servynex.exe` : ancienne instance arrêtée (2 processus), projet repris
-avec son PID et son journal, import inscrit au journal.
+Un import a servi une seule fois : au premier lancement, `Servynex.exe` a repris `C:\Servynex`
+(projets, comptes, réglages, journaux) dans `%LOCALAPPDATA%\Servynex`, arrêté l'ancien
+`servynex --supervised` sans ses projets, désactivé la tâche planifiée, et suivi le journal des
+projets repris resté dans l'ancien dossier. Bogue, MangaFlow et MySQL ont été repris sans
+redémarrage. Servynex n'ayant pas d'autre utilisateur, ce code a ensuite été retiré (commit
+« Import retiré ») : il ne se déclencherait plus jamais. L'historique Git le garde.
 
 Trouvé en route : la clé Run était dite « activée » dès qu'une valeur « Servynex » existait ; elle
 ne l'est plus que si elle lance bien cet exécutable (sinon l'application aurait cru démarrer avec

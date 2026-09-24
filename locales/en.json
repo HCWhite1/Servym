@@ -248,11 +248,5 @@
   "tray.actionFailed": "{name}: {error}",
   "app.portInUse": "Port {port} is already in use: another Servynex instance may be running (for example the windowless version). Stop it, then start Servynex again.",
   "app.startFailed": "Servynex could not start: {error}",
-  "import.title": "Import your projects?",
-  "import.body": "A Servynex installation was found in {dir}.\n\nImport its projects, accounts, settings and logs? The old version will be stopped; running projects keep running and are taken over. The old folder is not modified.",
-  "import.failed": "Importing from {dir} failed: {error}\n\nServynex starts without projects; the old folder was not modified.",
-  "log.imported": "Data imported from {dir}",
-  "log.importStopped": "Old instance stopped ({what}); projects keep running",
-  "log.importTask": "Scheduled task \"Servynex\" disabled",
   "audit.localCode": "Reset code created at the host machine"
 }

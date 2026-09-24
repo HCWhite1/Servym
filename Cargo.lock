@@ -3552,7 +3552,6 @@ dependencies = [
 name = "servynex-desktop"
 version = "2.0.0"
 dependencies = [
- "serde_json",
  "servynex-core",
  "servynex-fixtures",
  "servynex-server",

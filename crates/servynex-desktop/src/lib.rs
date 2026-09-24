@@ -10,14 +10,11 @@
 //! - Superviseur : lancé sans `SERVYNEX_SUPERVISOR`, `Servynex.exe` se relance lui-même comme
 //!   enfant et le relance après un plantage ou un redémarrage demandé.
 //! - Instance unique : un 2ᵉ lancement ouvre l'interface de la première.
-//! - Premier lancement : import d'une installation existante (voir [`data`]).
 
 pub mod data;
 
 #[cfg(windows)]
 mod app;
-#[cfg(windows)]
-mod migrate;
 #[cfg(windows)]
 mod tray;
 #[cfg(windows)]

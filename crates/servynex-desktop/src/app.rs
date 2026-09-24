@@ -1,18 +1,17 @@
-//! Démarrage : superviseur, puis application (import éventuel, serveur, zone de notification,
-//! fenêtre).
+//! Démarrage : superviseur, puis application (serveur, zone de notification, fenêtre).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicI32, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 
-use servynex_core::i18n::{Lang, detect_lang, tr};
+use servynex_core::i18n::tr;
 use servynex_core::params;
 use servynex_server::supervisor::{self, Launch};
 use servynex_server::{App, Listening, RESTART_CODE, RESTART_WINDOW_CODE, RunningApp, Shell, bind_host};
 use tauri::{AppHandle, Manager, RunEvent};
 
-use crate::{data, migrate};
+use crate::data;
 
 /// État de l'application, rangé dans Tauri.
 pub struct Desktop {
@@ -54,40 +53,22 @@ impl Shell for DesktopShell {
     }
 }
 
-/// Langue des boîtes de dialogue d'avant le serveur : `instance.lang`, sinon celle du système.
-pub fn dialog_lang(data: &Path) -> Lang {
-    let system = detect_lang(
-        servynex_sys::system_locale().as_deref(),
-        std::env::var("SERVYNEX_LANG").ok().as_deref(),
-    );
-    servynex_core::config::load_config(&data.join("projects.json"))
-        .ok()
-        .and_then(|c| c["instance"]["lang"].as_str().and_then(Lang::pick))
-        .unwrap_or(system)
-}
-
-/// Boîte de message de Windows (avant la fenêtre, ou sans elle).
-pub fn message(title: &str, text: &str, flags: u32) -> i32 {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW};
+/// Boîte d'erreur de Windows (avant la fenêtre, ou sans elle).
+fn error_box(text: &str) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        MB_ICONERROR, MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW,
+    };
     let wide = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
-    let (title, text) = (wide(title), wide(text));
+    let (title, text) = (wide("Servynex"), wide(text));
     // SAFETY : textes UTF-16 terminés par un zéro, vivants pendant l'appel.
     unsafe {
         MessageBoxW(
             std::ptr::null_mut(),
             text.as_ptr(),
             title.as_ptr(),
-            flags | MB_SETFOREGROUND | MB_TOPMOST,
-        )
+            MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST,
+        );
     }
-}
-
-fn error_box(text: &str) {
-    message(
-        "Servynex",
-        text,
-        windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONERROR,
-    );
 }
 
 /// Raccourci du menu Démarrer posé par l'installateur : il déclare l'identifiant de l'application,
@@ -214,12 +195,6 @@ fn setup(tauri_app: &mut tauri::App, start: Start, identifier: &str) -> Result<(
     let _ = std::fs::create_dir_all(&data);
     let _enter = runtime.enter();
 
-    let imported = if data.join("projects.json").exists() {
-        None
-    } else {
-        migrate::first_run(&data)
-    };
-
     let port_cell = Arc::new(AtomicU16::new(0));
     let restart_handle = handle.clone();
     let restart: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
@@ -246,14 +221,6 @@ fn setup(tauri_app: &mut tauri::App, start: Start, identifier: &str) -> Result<(
         )));
     }
     let app = builder.build();
-    if let Some(import) = &imported {
-        for line in &import.notes {
-            app.log(line);
-        }
-        if import.autostart {
-            let _ = runtime.block_on(app.autostart().set(true));
-        }
-    }
 
     let config = app.manager().config();
     let port: u16 = std::env::var("SERVYNEX_PORT")

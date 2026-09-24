@@ -23,8 +23,7 @@
 //!
 //! Seuls les projets managed sont gardés dans `runtime/pids.json`, avec l'heure de création de
 //! leur processus : un PID réutilisé par un autre programme (après un redémarrage du PC) n'est
-//! jamais repris. Champ facultatif `log` : journal d'un projet repris resté dans une autre
-//! installation (import des données), suivi jusqu'au prochain lancement.
+//! jamais repris.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -201,9 +200,6 @@ struct Inner {
     boot_time: i64,
     lang: RwLock<Lang>,
     servynex_dir: String,
-    /// Journal d'un projet repris qui écrit ailleurs que dans `logs_dir` (données importées d'une
-    /// autre installation) : suivi jusqu'au prochain lancement du projet.
-    moved_logs: Mutex<HashMap<String, PathBuf>>,
     ticking: AtomicBool,
     ticker: Mutex<Option<JoinHandle<()>>>,
     /// Environnement asynchrone : les fils qui attendent la fin des projets y programment la suite.
@@ -288,7 +284,6 @@ impl ManagerBuilder {
                 boot_time: self.boot_time.unwrap_or_else(servynex_sys::boot_time_ms),
                 lang: RwLock::new(self.lang),
                 servynex_dir,
-                moved_logs: Mutex::default(),
                 ticking: AtomicBool::new(false),
                 ticker: Mutex::new(None),
                 runtime: tokio::runtime::Handle::current(),
@@ -385,11 +380,7 @@ impl Manager {
     }
 
     pub fn log_file(&self, id: &str) -> PathBuf {
-        let moved = self.inner.moved_logs.lock().unwrap_or_else(|e| e.into_inner());
-        moved
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| self.inner.logs_dir.join(format!("{id}.log")))
+        self.inner.logs_dir.join(format!("{id}.log"))
     }
 
     /// Journal du lancement précédent : le journal est renommé ainsi à chaque lancement.
@@ -521,26 +512,23 @@ impl Manager {
 
     fn save_pids(&self, st: &St) {
         let mut pids = serde_json::Map::new();
-        let moved = self.inner.moved_logs.lock().unwrap_or_else(|e| e.into_inner());
         for p in st.config["projects"].as_array().into_iter().flatten() {
             let id = id_of(p);
             let Some(s) = st.states.get(&id) else { continue };
             if s.managed && kind_of(p) != Some("static") {
-                let mut entry = json!({
-                    "pid": s.pid,
-                    "startedAt": s.started_at,
-                    "activePort": s.active_port,
-                    "activeHost": s.active_host,
-                    "dependency": s.dependency,
-                    "createdAt": st.created.get(&id),
-                });
-                if let Some(log) = moved.get(&id) {
-                    entry["log"] = json!(log);
-                }
-                pids.insert(id.clone(), entry);
+                pids.insert(
+                    id.clone(),
+                    json!({
+                        "pid": s.pid,
+                        "startedAt": s.started_at,
+                        "activePort": s.active_port,
+                        "activeHost": s.active_host,
+                        "dependency": s.dependency,
+                        "createdAt": st.created.get(&id),
+                    }),
+                );
             }
         }
-        drop(moved);
         let _ = std::fs::write(
             &self.inner.pids_file,
             serde_json::to_string_pretty(&Value::Object(pids)).unwrap(),
@@ -655,10 +643,6 @@ impl Manager {
                 let created = platform.process_start(pid);
                 if let Some(c) = created {
                     st.created.insert(id.clone(), c);
-                }
-                if let Some(log) = s["log"].as_str() {
-                    let mut moved = self.inner.moved_logs.lock().unwrap_or_else(|e| e.into_inner());
-                    moved.insert(id.clone(), PathBuf::from(log));
                 }
                 self.set(&mut st, id, |state| {
                     *state = ProjectState {
@@ -1421,24 +1405,8 @@ impl Manager {
 
     async fn spawn(&self, p: &Value) -> Result<u32, String> {
         let id = id_of(p);
-        let log = self.inner.logs_dir.join(format!("{id}.log"));
-        let moved = self
-            .inner
-            .moved_logs
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .remove(&id);
-        match moved {
-            // Lancement précédent écrit dans l'ancienne installation : c'est lui le journal précédent
-            // (la copie faite à l'import s'est arrêtée à ce moment-là).
-            Some(old) => {
-                let _ = std::fs::copy(&old, self.prev_log_file(&id));
-                let _ = std::fs::remove_file(&log);
-            }
-            None => {
-                let _ = std::fs::rename(&log, self.prev_log_file(&id));
-            }
-        }
+        let log = self.log_file(&id);
+        let _ = std::fs::rename(&log, self.prev_log_file(&id));
         let dir = &self.inner.servynex_dir;
         let mut argv = vec![expand(p["cmd"].as_str().unwrap_or_default(), p, dir)];
         argv.extend(

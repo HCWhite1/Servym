@@ -63,9 +63,8 @@ fn delete(key: &str) {
     unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr()) };
 }
 
-/// Commande enregistrée dans la clé Run sous le nom « Servynex », quelle qu’elle soit (une autre
-/// installation de Servynex, par exemple).
-pub fn registered() -> Option<String> {
+/// Commande enregistrée dans la clé Run sous le nom « Servynex », quelle qu'elle soit.
+fn registered() -> Option<String> {
     let data = value_exists(RUN, RRF_RT_REG_SZ)?;
     let wide: Vec<u16> = data
         .chunks_exact(2)
