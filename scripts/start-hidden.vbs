@@ -1,12 +1,12 @@
-' Lance Servynex sans fenêtre (tâche planifiée « Servynex », à l'ouverture de session).
+' Lance Servym sans fenêtre (tâche planifiée « Servym », à l'ouverture de session).
 ' Relance après un plantage, mais abandonne s'il plante en boucle (port déjà pris
-' par une autre instance, projects.json invalide...) : voir logs\servynex.log.
+' par une autre instance, projects.json invalide...) : voir logs\servym.log.
 ' Code 75 : redémarrage demandé depuis l'interface, relancé aussitôt et non compté
-' comme un plantage. SERVYNEX_SUPERVISOR indique à Servynex qu'il peut le demander.
+' comme un plantage. SERVYM_SUPERVISOR indique à Servym qu'il peut le demander.
 Set sh = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 sh.CurrentDirectory = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
-sh.Environment("Process")("SERVYNEX_SUPERVISOR") = "vbs"
+sh.Environment("Process")("SERVYM_SUPERVISOR") = "vbs"
 failures = 0
 Do
   started = Now

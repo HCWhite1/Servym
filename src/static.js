@@ -1,4 +1,4 @@
-// Fichiers statiques : l'interface de Servynex (public/) et le portfolio.
+// Fichiers statiques : l'interface de Servym (public/) et le portfolio.
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';

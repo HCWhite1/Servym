@@ -1,4 +1,4 @@
-// Configuration unique de Servynex : projects.json. Le serveur la valide au
+// Configuration unique de Servym : projects.json. Le serveur la valide au
 // chargement et à chaque modification depuis l'interface : un projet n'est
 // enregistré que si la configuration entière reste valide.
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -88,7 +88,7 @@ function checkProject(p, ids) {
   check(p.fixedPort === undefined || isText(p.fixedPort, 300), 'config.badFixedPort', where);
   check(p.autostart === undefined || typeof p.autostart === 'boolean', 'config.badAutostart', where);
   check(!(p.autostart && p.type === 'file'), 'config.fileAutostart', where);
-  // Relance après un plantage : seul un programme lancé par Servynex peut planter.
+  // Relance après un plantage : seul un programme lancé par Servym peut planter.
   check(p.restartOnCrash === undefined || typeof p.restartOnCrash === 'boolean', 'config.badRestartOnCrash', where);
   check(!(p.restartOnCrash && p.type !== undefined), 'config.restartNotProgram', where);
 }
@@ -304,7 +304,7 @@ export function expand(text, p) {
   return text
     .replaceAll('{port}', String(p.port))
     .replaceAll('{host}', hostOf(p))
-    .replaceAll('{servynex}', ROOT_DIR.replaceAll('\\', '/'));
+    .replaceAll('{servym}', ROOT_DIR.replaceAll('\\', '/'));
 }
 
 export const urlOf = (p) => (p.url ? expand(p.url, p) : null);

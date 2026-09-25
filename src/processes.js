@@ -1,7 +1,7 @@
 // Gestionnaire de processus : lance, surveille et arrête les projets.
 //
 // États : stopped, starting, running, stopping, failed, conflict.
-// « managed » : Servynex connaît le PID (lancé par lui). Un projet qui répond
+// « managed » : Servym connaît le PID (lancé par lui). Un projet qui répond
 // sans être managed a été lancé ailleurs (tâche planifiée, start.bat…).
 //
 // Structures d'état du Manager (toutes indexées par id de projet) :
@@ -19,14 +19,14 @@
 //                refusé pendant ce temps.
 // - #checkedAt : date de la dernière sonde, pour la cadence (3 s arrêté, 15 s en ligne).
 // - #ticking   : anti-réentrance de tick() (une sonde lente ne se superpose pas).
-// - #statics   : fonction d'arrêt des projets « static » servis par Servynex.
+// - #statics   : fonction d'arrêt des projets « static » servis par Servym.
 // - #watched   : PID lancés par cette instance, dont la sortie arrivera avec son code
 //                (onExit) ; #refresh() l'attend un peu avant de conclure sans lui.
 // - #retries   : relance automatique après un plantage (restartOnCrash) : dates des
 //                plantages des restartWindowMs dernières ms, minuterie de la
 //                prochaine relance, et « dependency » du lancement qui a planté.
 // - #ready     : faux jusqu'à la première sonde ; l'état trouvé au démarrage de
-//                Servynex n'est pas émis comme « transition » (historique).
+//                Servym n'est pas émis comme « transition » (historique).
 // Seuls les projets managed sont persistés dans runtime/pids.json (#savePids).
 // « dependency » : démarré automatiquement pour un projet qui en dépend (une base
 // de données pour une application) ; il s'arrête avec le dernier projet qui l'utilisait.
@@ -85,7 +85,7 @@ export class Manager extends EventEmitter {
     return this.#config;
   }
 
-  // Refuse de retirer un projet que Servynex fait tourner : il continuerait sans
+  // Refuse de retirer un projet que Servym fait tourner : il continuerait sans
   // surveillance, en gardant son port.
   assertCanApply(config) {
     const kept = new Set(config.projects.map((p) => p.id));
@@ -174,7 +174,7 @@ export class Manager extends EventEmitter {
     if (!p) return;
     this.emit('change', this.view(p));
     // Avant la première sonde, l'état « stopped » n'est qu'une valeur par défaut :
-    // trouver un projet déjà en ligne au démarrage de Servynex n'est pas un changement.
+    // trouver un projet déjà en ligne au démarrage de Servym n'est pas un changement.
     // Une action lancée entre-temps (jeton dans #ops) en est bien un.
     const real = this.#ready || this.#ops.has(id);
     if (before.state !== after.state && real) this.emit('transition', { id, from: before.state, to: after.state, ...after });
@@ -187,12 +187,12 @@ export class Manager extends EventEmitter {
     try {
       saved = JSON.parse(fs.readFileSync(this.pidsFile, 'utf8'));
     } catch {}
-    // Projets lancés par une instance précédente de Servynex : on les reprend.
+    // Projets lancés par une instance précédente de Servym : on les reprend.
     for (const p of this.#config.projects) {
       const s = saved[p.id];
       if (s && sys.isAlive(s.pid)) this.#set(p.id, { ...s, managed: true, state: 'running' });
     }
-    // Projet retiré du fichier pendant que Servynex était arrêté : il tourne toujours.
+    // Projet retiré du fichier pendant que Servym était arrêté : il tourne toujours.
     for (const [id, s] of Object.entries(saved)) {
       if (!this.#config.projects.some((p) => p.id === id) && sys.isAlive(s.pid)) {
         this.emit('warning', `[config] ${tr('process.orphan', { id, pid: s.pid })}`);
@@ -206,7 +206,7 @@ export class Manager extends EventEmitter {
   }
 
   // Lance les projets « autostart » une fois par démarrage du PC : un simple
-  // redémarrage de Servynex ne relance pas un projet arrêté volontairement.
+  // redémarrage de Servym ne relance pas un projet arrêté volontairement.
   #autostart() {
     let last = null;
     try {
@@ -461,7 +461,7 @@ export class Manager extends EventEmitter {
     } catch {}
     const argv = [expand(p.cmd, p), ...p.args.map((a) => expand(a, p))];
     const stamp = new Date().toLocaleString(serverLang());
-    fs.writeFileSync(log, `[servynex] ${stamp} · ${argv.join(' ')} · ${hostOf(p)}:${p.port}\n`);
+    fs.writeFileSync(log, `[servym] ${stamp} · ${argv.join(' ')} · ${hostOf(p)}:${p.port}\n`);
 
     const env = sys.cleanEnv({ ...p.env, PORT: String(p.port), NO_COLOR: '1' });
     delete env.HOST;

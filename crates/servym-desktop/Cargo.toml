@@ -1,0 +1,40 @@
+[package]
+name = "servym-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "Servym : application de bureau (Tauri 2) autour du serveur"
+
+[lints]
+workspace = true
+
+[lib]
+name = "servym_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "servym-desktop"
+path = "src/main.rs"
+
+# L'application de bureau vise Windows ; ailleurs, le binaire sans écran `servym` suffit.
+[target.'cfg(windows)'.dependencies]
+servym-core = { path = "../servym-core" }
+servym-server = { path = "../servym-server" }
+servym-sys = { path = "../servym-sys" }
+tokio = { version = "1", features = ["full"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(windows)'.build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+servym-fixtures = { path = "../servym-fixtures" }

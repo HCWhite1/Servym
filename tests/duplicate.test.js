@@ -8,7 +8,7 @@ import { createApp } from '../server.js';
 import { duplicateProject } from '../src/config.js';
 import { setServerLang } from '../src/i18n.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 const base = {
@@ -50,7 +50,7 @@ describe('dupliquer un projet', () => {
 
 describe('dupliquer : API', () => {
   async function makeApp() {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-dup-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-dup-'));
     const config = {
       instance: { port: 1 },
       projects: [
@@ -63,7 +63,7 @@ describe('dupliquer : API', () => {
     await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
     const port = app.server.address().port;
     const call = (method, p, { cookie, body } = {}) => new Promise((resolve, reject) => {
-      const headers = { host: `localhost:${port}`, 'x-servynex-request': '1' };
+      const headers = { host: `localhost:${port}`, 'x-servym-request': '1' };
       const raw = body === undefined ? undefined : JSON.stringify(body);
       if (raw) Object.assign(headers, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(raw) });
       if (cookie) headers.cookie = cookie;
@@ -71,7 +71,7 @@ describe('dupliquer : API', () => {
         let data = '';
         res.on('data', (c) => (data += c));
         res.on('end', () => {
-          const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servynex_session='));
+          const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servym_session='));
           resolve({ status: res.statusCode, json: JSON.parse(data || 'null'), cookie: set ?? null });
         });
       });

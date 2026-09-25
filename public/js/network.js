@@ -1,4 +1,4 @@
-// Page Réseau : réseaux connectés, ports en écoute sur ce PC (projets de Servynex et
+// Page Réseau : réseaux connectés, ports en écoute sur ce PC (projets de Servym et
 // reste de la machine), et détection d'un projet exposé sur un réseau public.
 import { t, tn } from './i18n.js';
 import { api, exposure, h, icon, tile, toast } from './lib.js';
@@ -53,7 +53,7 @@ function render() {
 function row(r) {
   const p = r.project ? handlers.get(r.project) : null;
   const owner = r.port === data.instance
-    ? h('span', { class: 'owner', text: 'Servynex' })
+    ? h('span', { class: 'owner', text: 'Servym' })
     : p ? h('span', { class: 'owner' }, tile(p, 'sm'), p.name) : '';
   return h('tr', { class: r.exposed ? 'exposed' : '' },
     h('td', { class: 'num', text: String(r.port) }),

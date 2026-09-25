@@ -6,7 +6,7 @@ export default {
 
   // Configuration (projects.json)
   'config.where': 'Project "{name}"',
-  'config.instance': 'Servynex',
+  'config.instance': 'Servym',
   'config.invalidProject': 'Invalid project',
   'config.badId': 'Invalid identifier: {id} (lowercase letters, digits and hyphens)',
   'config.duplicateId': '{where}: duplicate identifier',
@@ -60,7 +60,7 @@ export default {
 
   // Processes
   'process.stillRunning': '{names} is still running: stop it before removing it from projects.json.',
-  'process.builtinServer': 'File server built into Servynex',
+  'process.builtinServer': 'File server built into Servym',
   'process.openedInBrowser': 'None: opened in the browser',
   'process.orphan': '"{id}" is no longer in projects.json but its process {pid} is still running',
   'process.wrongService': 'Port {port} answers, but it is not {name}.',
@@ -95,9 +95,9 @@ export default {
   'process.fileMissing': 'File not found: {path}',
   'process.staticFiles': 'files from {root}',
 
-  // History and Servynex log
+  // History and Servym log
   'history.by': 'by {user}',
-  'history.external': 'started outside Servynex',
+  'history.external': 'started outside Servym',
   'history.exitCode': 'code {code}',
   'history.deleted': 'Project deleted',
   'log.degraded': 'invalid projects.json, using the last valid configuration: {error}',
@@ -106,9 +106,9 @@ export default {
   'log.deleted': '{id} deleted',
   'log.reordered': 'project order changed',
   'log.reloaded': 'reloaded from the file',
-  'log.autostartOn': 'starting Servynex with the session: on',
-  'log.autostartOff': 'starting Servynex with the session: off',
-  'log.portInUse': 'port {port} is already in use (is another Servynex instance running?)',
+  'log.autostartOn': 'starting Servym with the session: on',
+  'log.autostartOff': 'starting Servym with the session: off',
+  'log.portInUse': 'port {port} is already in use (is another Servym instance running?)',
 
   // Requests
   'http.jsonExpected': 'JSON expected',
@@ -121,7 +121,7 @@ export default {
   'http.noFreePort': 'No free port found',
   'http.badEnabled': 'enabled must be true or false',
   'http.nameTooLong': 'Name too long (40 characters at most)',
-  'http.notRestartable': 'Servynex was started by hand (npm start): restart it from its terminal.',
+  'http.notRestartable': 'Servym was started by hand (npm start): restart it from its terminal.',
   'http.unknownRoute': 'Unknown route',
   'http.notFound': 'Not found',
   'http.confirmName': 'Type "{name}" to confirm the deletion.',
@@ -218,8 +218,8 @@ export default {
   'config.badInstanceAccess': 'projects.json: instance.access must be "local" or "lan"',
   'http.badAccess': 'Unknown access: "local" or "lan"',
   'http.lanNeedsProtection': 'Turn on password protection first: without it, the whole network would control this machine.',
-  'http.hostOnly': 'This action opens a window on the Servynex machine: it is only possible in front of it.',
-  'auth.disableLan': 'The page is open to the local network: switch access back to "This PC only" first (Settings › Servynex).',
+  'http.hostOnly': 'This action opens a window on the Servym machine: it is only possible in front of it.',
+  'auth.disableLan': 'The page is open to the local network: switch access back to "This PC only" first (Settings › Servym).',
   'audit.accessLan': 'Access from the local network turned on (at next start)',
   'audit.accessLocal': 'Access limited to this PC (at next start)',
   'log.lanRefused': 'network access requested, but password protection is off: listening on this PC only',
@@ -241,7 +241,7 @@ export default {
   'notify.crashed': '{name} stopped unexpectedly',
   'notify.failedStart': '{name} could not start',
   'notify.gaveUp': '{name} keeps crashing, gave up restarting',
-  'notify.testTitle': 'Servynex notifications',
+  'notify.testTitle': 'Servym notifications',
   'notify.testBody': 'This is how they will look when a project crashes.',
 
   // Configuration export and import
@@ -252,7 +252,7 @@ export default {
 
   // Linux
   'process.commandNotFound': 'Command not found: {cmd}. Check that it is installed and in the PATH.',
-  'http.noDesktop': 'Servynex runs without a screen: nothing can open on its machine.',
+  'http.noDesktop': 'Servym runs without a screen: nothing can open on its machine.',
   'system.noTerminal': 'No known terminal on this machine.',
 
   // Duplicate a project

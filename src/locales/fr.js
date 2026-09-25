@@ -6,7 +6,7 @@ export default {
 
   // Configuration (projects.json)
   'config.where': 'Projet « {name} »',
-  'config.instance': 'Servynex',
+  'config.instance': 'Servym',
   'config.invalidProject': 'Projet invalide',
   'config.badId': 'Identifiant invalide : {id} (lettres minuscules, chiffres et tirets)',
   'config.duplicateId': '{where} : identifiant en double',
@@ -60,7 +60,7 @@ export default {
 
   // Processus
   'process.stillRunning': '{names} tourne encore : arrêtez-le avant de le retirer de projects.json.',
-  'process.builtinServer': 'Serveur de fichiers intégré à Servynex',
+  'process.builtinServer': 'Serveur de fichiers intégré à Servym',
   'process.openedInBrowser': 'Aucune : ouvert dans le navigateur',
   'process.orphan': '« {id} » ne figure plus dans projects.json mais son processus {pid} tourne encore',
   'process.wrongService': 'Le port {port} répond, mais ce n\'est pas {name}.',
@@ -95,9 +95,9 @@ export default {
   'process.fileMissing': 'Fichier introuvable : {path}',
   'process.staticFiles': 'fichiers de {root}',
 
-  // Historique et journal de Servynex
+  // Historique et journal de Servym
   'history.by': 'par {user}',
-  'history.external': 'lancé hors de Servynex',
+  'history.external': 'lancé hors de Servym',
   'history.exitCode': 'code {code}',
   'history.deleted': 'Projet supprimé',
   'log.degraded': 'projects.json invalide, dernière configuration valide utilisée : {error}',
@@ -106,9 +106,9 @@ export default {
   'log.deleted': '{id} supprimé',
   'log.reordered': 'ordre des projets modifié',
   'log.reloaded': 'rechargée depuis le fichier',
-  'log.autostartOn': 'démarrage de Servynex avec la session activé',
-  'log.autostartOff': 'démarrage de Servynex avec la session désactivé',
-  'log.portInUse': 'le port {port} est déjà utilisé (une autre instance de Servynex tourne ?)',
+  'log.autostartOn': 'démarrage de Servym avec la session activé',
+  'log.autostartOff': 'démarrage de Servym avec la session désactivé',
+  'log.portInUse': 'le port {port} est déjà utilisé (une autre instance de Servym tourne ?)',
 
   // Requêtes
   'http.jsonExpected': 'JSON attendu',
@@ -121,7 +121,7 @@ export default {
   'http.noFreePort': 'Aucun port libre trouvé',
   'http.badEnabled': 'enabled doit valoir true ou false',
   'http.nameTooLong': 'Nom trop long (40 caractères au plus)',
-  'http.notRestartable': 'Servynex lancé à la main (npm start) : relancez-le depuis son terminal.',
+  'http.notRestartable': 'Servym lancé à la main (npm start) : relancez-le depuis son terminal.',
   'http.unknownRoute': 'Route inconnue',
   'http.notFound': 'Introuvable',
   'http.confirmName': 'Tapez « {name} » pour confirmer la suppression.',
@@ -218,8 +218,8 @@ export default {
   'config.badInstanceAccess': 'projects.json : instance.access doit valoir « local » ou « lan »',
   'http.badAccess': 'Accès inconnu : « local » ou « lan »',
   'http.lanNeedsProtection': 'Activez d’abord la protection par mot de passe : sans elle, tout le réseau aurait la main sur cette machine.',
-  'http.hostOnly': 'Cette action ouvre une fenêtre sur la machine de Servynex : elle n’est possible que devant elle.',
-  'auth.disableLan': 'La page est ouverte au réseau local : repassez d’abord l’accès à « Ce PC seulement » (Paramètres › Servynex).',
+  'http.hostOnly': 'Cette action ouvre une fenêtre sur la machine de Servym : elle n’est possible que devant elle.',
+  'auth.disableLan': 'La page est ouverte au réseau local : repassez d’abord l’accès à « Ce PC seulement » (Paramètres › Servym).',
   'audit.accessLan': 'Accès depuis le réseau local activé (au prochain démarrage)',
   'audit.accessLocal': 'Accès limité à ce PC (au prochain démarrage)',
   'log.lanRefused': 'accès réseau demandé, mais la protection par mot de passe n\'est pas active : écoute sur ce PC seulement',
@@ -241,7 +241,7 @@ export default {
   'notify.crashed': '{name} s\'est arrêté de façon inattendue',
   'notify.failedStart': '{name} n\'a pas pu démarrer',
   'notify.gaveUp': '{name} plante en boucle, relance abandonnée',
-  'notify.testTitle': 'Notifications de Servynex',
+  'notify.testTitle': 'Notifications de Servym',
   'notify.testBody': 'Elles s\'afficheront ainsi quand un projet plante.',
 
   // Export et import de la configuration
@@ -252,7 +252,7 @@ export default {
 
   // Linux
   'process.commandNotFound': 'Commande introuvable : {cmd}. Vérifiez qu’elle est installée et dans le PATH.',
-  'http.noDesktop': 'Servynex tourne sans écran : rien ne peut s’ouvrir sur sa machine.',
+  'http.noDesktop': 'Servym tourne sans écran : rien ne peut s’ouvrir sur sa machine.',
   'system.noTerminal': 'Aucun terminal reconnu sur cette machine.',
 
   // Dupliquer un projet

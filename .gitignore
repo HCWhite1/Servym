@@ -10,4 +10,4 @@ config/
 /target/
 /spikes/target/
 # Schémas régénérés par Tauri à chaque construction
-/crates/servynex-desktop/gen/
+/crates/servym-desktop/gen/

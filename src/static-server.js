@@ -1,4 +1,4 @@
-// Projets « static » : Servynex sert lui-même les fichiers de cwd sur un port,
+// Projets « static » : Servym sert lui-même les fichiers de cwd sur un port,
 // avec des URL propres (comme GitHub Pages) et un journal des requêtes.
 import fs from 'node:fs';
 import http from 'node:http';
@@ -9,7 +9,7 @@ import { staticHandler } from './static.js';
 export async function startStaticSite({ root, port, host, logFile }) {
   const serve = staticHandler(root, { cleanUrls: true });
   const log = fs.createWriteStream(logFile, { flags: 'w' });
-  log.write(`[servynex] ${new Date().toLocaleString(serverLang())} · ${tr('process.staticFiles', { root })} · ${host}:${port}\n`);
+  log.write(`[servym] ${new Date().toLocaleString(serverLang())} · ${tr('process.staticFiles', { root })} · ${host}:${port}\n`);
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.on('finish', () => log.write(`${res.statusCode} ${req.method} ${req.url}\n`));

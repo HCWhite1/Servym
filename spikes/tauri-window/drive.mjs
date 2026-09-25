@@ -55,8 +55,8 @@ switch (step) {
     break;
   case 'export':
     console.log('export :', await p.evaluate(`(async () => {
-      const res = await fetch('/api/config/export', { headers: { 'X-Servynex-Request': '1' } });
-      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'servynex-projects.json';
+      const res = await fetch('/api/config/export', { headers: { 'X-Servym-Request': '1' } });
+      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'servym-projects.json';
       const a = document.createElement('a');
       a.href = URL.createObjectURL(await res.blob());
       a.download = name;
@@ -67,8 +67,8 @@ switch (step) {
     })()`));
     break;
   case 'github':
-    console.log('cookie posé :', await p.evaluate(`document.cookie = 'servynex_essai=1; path=/; SameSite=Lax'; document.cookie`));
-    await p.evaluate(`location.href = 'https://github.com/login/oauth/authorize?client_id=servynex-essai&redirect_uri=http%3A%2F%2Flocalhost%3A9000%2F'`);
+    console.log('cookie posé :', await p.evaluate(`document.cookie = 'servym_essai=1; path=/; SameSite=Lax'; document.cookie`));
+    await p.evaluate(`location.href = 'https://github.com/login/oauth/authorize?client_id=servym-essai&redirect_uri=http%3A%2F%2Flocalhost%3A9000%2F'`);
     break;
   case 'github-check': {
     const g = await page('github.com');

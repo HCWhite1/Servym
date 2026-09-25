@@ -147,7 +147,7 @@ export function exitCode(code, signal) {
 }
 
 // Lance argv directement, sans shell : aucun caractère n'est interprété. Nouveau
-// groupe de processus (detached) : le projet survit à un redémarrage de Servynex
+// groupe de processus (detached) : le projet survit à un redémarrage de Servym
 // et killTree l'arrête avec ses enfants. Sortie ajoutée au journal.
 // → PID du projet ; onExit(pid, code) à sa fin.
 export function launch(argv, { cwd, env, log, onExit }) {
@@ -214,7 +214,7 @@ export function openInCode(dir) {
   detach('code', [dir], { env: cleanEnv() });
 }
 
-// Fichier texte (projects.json, servynex.log) : VS Code, sinon l'éditeur par défaut.
+// Fichier texte (projects.json, servym.log) : VS Code, sinon l'éditeur par défaut.
 export function openInEditor(file) {
   if (tools.code) detach('code', [file], { env: cleanEnv() });
   else openFile(file);
@@ -228,14 +228,14 @@ export function openTerminal(dir) {
 
 // ---- Démarrage avec la session : service systemd utilisateur ----
 
-// Service « servynex » : démarre à l'ouverture de session, relancé s'il plante
+// Service « servym » : démarre à l'ouverture de session, relancé s'il plante
 // (5 échecs rapides : abandon, comme sous Windows). KillMode=process : arrêter
-// Servynex laisse tourner les projets, repris au démarrage suivant.
+// Servym laisse tourner les projets, repris au démarrage suivant.
 export function unitFile({ node = process.execPath, root = ROOT_DIR } = {}) {
   const q = (text) => text.replaceAll('%', '%%'); // % introduit une variable pour systemd
   return [
     '[Unit]',
-    `Description=Servynex (${q(root)})`,
+    `Description=Servym (${q(root)})`,
     'After=network.target',
     'StartLimitIntervalSec=300',
     'StartLimitBurst=5',
@@ -244,7 +244,7 @@ export function unitFile({ node = process.execPath, root = ROOT_DIR } = {}) {
     'Type=simple',
     `WorkingDirectory=${q(root)}`,
     `ExecStart="${q(node)}" "${q(root)}/server.js"`,
-    'Environment=SERVYNEX_SUPERVISOR=systemd',
+    'Environment=SERVYM_SUPERVISOR=systemd',
     '# Code 75 : redémarrage demandé depuis l’interface.',
     'Restart=on-failure',
     'RestartSec=2',
@@ -262,12 +262,12 @@ export function systemdTask({
   node,
   root,
 } = {}) {
-  const file = path.join(dir, 'servynex.service');
+  const file = path.join(dir, 'servym.service');
   const systemctl = (...args) => exec('systemctl', ['--user', ...args]);
   return {
     async enabled() {
       // is-enabled répond « disabled » avec un code d'erreur : sa sortie suffit.
-      const { stdout } = await systemctl('is-enabled', 'servynex.service').catch((err) => ({ stdout: err.stdout ?? '' }));
+      const { stdout } = await systemctl('is-enabled', 'servym.service').catch((err) => ({ stdout: err.stdout ?? '' }));
       return stdout.trim() === 'enabled';
     },
     async set(on) {
@@ -275,9 +275,9 @@ export function systemdTask({
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(file, unitFile({ node, root }));
         await systemctl('daemon-reload');
-        await systemctl('enable', 'servynex.service');
+        await systemctl('enable', 'servym.service');
       } else {
-        await systemctl('disable', 'servynex.service');
+        await systemctl('disable', 'servym.service');
         fs.rmSync(file, { force: true });
         await systemctl('daemon-reload');
       }

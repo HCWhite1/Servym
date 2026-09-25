@@ -19,7 +19,7 @@ const scryptAsync = promisify(crypto.scrypt);
 
 // view : tout voir · operate : démarrer, arrêter, ouvrir · edit : réglages sans
 // risque · commands : commande, dossier, environnement, exposition, ajout de
-// projet (autant dire un accès complet à la machine) · instance : redémarrer Servynex,
+// projet (autant dire un accès complet à la machine) · instance : redémarrer Servym,
 // démarrage avec Windows, nom de l'instance · admin : tout, comptes et sécurité.
 export const PERMISSIONS = ['view', 'operate', 'edit', 'commands', 'instance', 'admin'];
 export const ROLES = {
@@ -54,8 +54,8 @@ const RESET_TTL = 15 * 60e3;
 const INVITE_TTL = 48 * 3600e3;
 const MAX_SESSIONS = 20;
 const USERNAME = /^[a-z0-9][a-z0-9._-]{1,31}$/;
-const COOKIE = 'servynex_session';
-const OAUTH_COOKIE = 'servynex_oauth';
+const COOKIE = 'servym_session';
+const OAUTH_COOKIE = 'servym_oauth';
 const OAUTH_TTL = 10 * 60e3; // pour revenir du fournisseur
 
 // Message : clé de src/locales/<langue>.js ; extra : champs ajoutés à la réponse ({ auth: 'login' }).
@@ -354,7 +354,7 @@ export class Auth {
   }
 
   // Retour du fournisseur (GET /auth/<fournisseur>/callback, navigation venue de son
-  // site) : jamais d'erreur HTTP, toujours une page qui renvoie vers Servynex avec un
+  // site) : jamais d'erreur HTTP, toujours une page qui renvoie vers Servym avec un
   // code fixe (rien de la requête n'y est recopié).
   async callback(req, res, key, url) {
     const back = (target) => {
@@ -362,9 +362,9 @@ export class Auth {
       const session = res.getHeader('Set-Cookie');
       if (session) cookies.unshift(session);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': cookies });
-      // Redirection par la page elle-même : la navigation suivante part de Servynex,
+      // Redirection par la page elle-même : la navigation suivante part de Servym,
       // donc le cookie de session (SameSite=Strict) l'accompagne.
-      res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${target}"><title>Servynex</title></head><body></body></html>`);
+      res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${target}"><title>Servym</title></head><body></body></html>`);
     };
     const fail = (code) => back(`/?auth_error=${code}`);
     const provider = this.providers[key];

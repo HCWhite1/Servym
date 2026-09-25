@@ -65,9 +65,9 @@ export function launch(argv, { cwd, env, log, onExit }) {
   const child = spawn('powershell.exe', [...PS, '-ExecutionPolicy', 'Bypass', '-File', LAUNCHER], {
     env: {
       ...env,
-      SERVYNEX_CMDLINE: argv.map((a) => `"${a}"`).join(' '),
-      SERVYNEX_LOG: log,
-      SERVYNEX_CWD: cwd,
+      SERVYM_CMDLINE: argv.map((a) => `"${a}"`).join(' '),
+      SERVYM_LOG: log,
+      SERVYM_CWD: cwd,
     },
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -78,7 +78,7 @@ export function launch(argv, { cwd, env, log, onExit }) {
     let pid = null;
     child.stdout.setEncoding('utf8').on('data', (d) => {
       out += d;
-      const m = !pid && out.match(/^SERVYNEX_PID=(\d+)\r?\n/m); // écrit par launch.ps1
+      const m = !pid && out.match(/^SERVYM_PID=(\d+)\r?\n/m); // écrit par launch.ps1
       if (m) resolve((pid = Number(m[1])));
     });
     child.stderr.setEncoding('utf8').on('data', (d) => (err += d));
@@ -122,7 +122,7 @@ export function openInCode(dir) {
   detach(VSCODE, [path.normalize(dir)], { env: cleanEnv() });
 }
 
-// Fichier texte (projects.json, servynex.log) : VS Code, sinon le Bloc-notes.
+// Fichier texte (projects.json, servym.log) : VS Code, sinon le Bloc-notes.
 export function openInEditor(file) {
   if (VSCODE) detach(VSCODE, [path.normalize(file)], { env: cleanEnv() });
   else detach('notepad.exe', [path.normalize(file)], { windowsHide: false });
@@ -133,11 +133,11 @@ export function openTerminal(dir) {
   else detach('powershell.exe', ['-NoExit'], { cwd: dir, env: cleanEnv(), windowsHide: false });
 }
 
-// Tâche planifiée « Servynex » (scripts/install-autostart.ps1) : Servynex démarre à
+// Tâche planifiée « Servym » (scripts/install-autostart.ps1) : Servym démarre à
 // l'ouverture de session. Même effet que autostart.bat ON / OFF.
 export const autostartTask = {
   async enabled() {
-    const script = "$t = Get-ScheduledTask -TaskName Servynex -ErrorAction SilentlyContinue; if ($t -and $t.State -ne 'Disabled') { 'on' } else { 'off' }";
+    const script = "$t = Get-ScheduledTask -TaskName Servym -ErrorAction SilentlyContinue; if ($t -and $t.State -ne 'Disabled') { 'on' } else { 'off' }";
     const { stdout } = await runQuiet('powershell.exe', [...PS, '-Command', script]);
     return stdout.trim() === 'on';
   },
@@ -145,7 +145,7 @@ export const autostartTask = {
     if (on) {
       await runQuiet('powershell.exe', [...PS, '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT_DIR, 'scripts', 'install-autostart.ps1')], { timeout: 30000 });
     } else {
-      await runQuiet('powershell.exe', [...PS, '-Command', 'if (Get-ScheduledTask -TaskName Servynex -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName Servynex -Confirm:$false }']);
+      await runQuiet('powershell.exe', [...PS, '-Command', 'if (Get-ScheduledTask -TaskName Servym -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName Servym -Confirm:$false }']);
     }
   },
 };

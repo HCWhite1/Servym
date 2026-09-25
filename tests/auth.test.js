@@ -9,13 +9,13 @@ import { createApp } from '../server.js';
 import { setServerLang } from '../src/i18n.js';
 
 // Messages attendus en français, quelle que soit la langue de la machine qui lance les tests.
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 function request(port, { method = 'GET', path: p = '/', cookie, body, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const h = { host: `localhost:${port}`, ...headers };
-    if (method !== 'GET') h['x-servynex-request'] = '1';
+    if (method !== 'GET') h['x-servym-request'] = '1';
     if (body !== undefined) Object.assign(h, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(JSON.stringify(body)) });
     if (cookie) h.cookie = cookie;
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: h }, (res) => {
@@ -36,7 +36,7 @@ function request(port, { method = 'GET', path: p = '/', cookie, body, headers = 
 }
 
 describe('authentification', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-auth-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-auth-'));
   let app;
   let port;
   let now = 1_800_000_000_000;
@@ -81,7 +81,7 @@ describe('authentification', () => {
     const res = await call('POST', '/api/auth/setup', { body: { username: 'Alice', name: 'Alice M.', password: 'mot de passe 1' } });
     assert.equal(res.status, 201);
     assert.match(res.json.recovery, /^([A-Z2-9]{4}-){4}[A-Z2-9]{4}$/);
-    assert.match(res.setCookie, /^servynex_session=[^;]+; .*HttpOnly; SameSite=Strict/);
+    assert.match(res.setCookie, /^servym_session=[^;]+; .*HttpOnly; SameSite=Strict/);
     assert.equal(res.json.user.username, 'alice');
     assert.equal(res.json.user.role, 'admin');
     admin = res.cookie;
@@ -128,7 +128,7 @@ describe('authentification', () => {
     assert.equal((await call('PATCH', '/api/projects/site', { cookie: ed, body: { desc: 'modifié' } })).status, 200);
     assert.equal((await call('PATCH', '/api/projects/site', { cookie: ed, body: { cwd: 'C:/Windows' } })).status, 403, 'dossier : permission Commandes');
     assert.equal((await call('POST', '/api/projects', { cookie: ed, body: { name: 'X', cwd: dir, type: 'file', open: 'a.html' } })).status, 403);
-    assert.equal((await call('POST', '/api/restart', { cookie: ed })).status, 403, 'redémarrer Servynex : permission Servynex');
+    assert.equal((await call('POST', '/api/restart', { cookie: ed })).status, 403, 'redémarrer Servym : permission Servym');
 
     const ro = (await join(await invite([]), 'lecteur')).cookie;
     assert.equal((await call('GET', '/api/projects', { cookie: ro })).status, 200);
@@ -256,7 +256,7 @@ describe('authentification', () => {
 });
 
 test('fichier des comptes changé sur le disque : relu même à la même date de modification', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-store-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-store-'));
   const file = path.join(dir, 'auth.json');
   const store = new AuthStore(file);
   store.load().enabled = true;

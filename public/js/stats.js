@@ -9,7 +9,7 @@ const KEEP = 60; // 5 minutes
 let handlers;
 let onUpdate = () => {};
 let latest = {};
-let sums = null; // { self, total } : Servynex seul, et avec ses projets
+let sums = null; // { self, total } : Servym seul, et avec ses projets
 const history = new Map(); // id → [{ at, cpu, memory }]
 let timer = null;
 

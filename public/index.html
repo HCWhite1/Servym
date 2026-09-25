@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>Servynex</title>
+  <title>Servym</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
@@ -16,9 +16,9 @@
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
-        <svg class="logo" viewBox="0 0 32 32"><use href="icons.svg#servynex-logo"/></svg>
+        <svg class="logo" viewBox="0 0 32 32"><use href="icons.svg#servym-logo"/></svg>
         <div>
-          <p class="brand-name" id="brand-name">Servynex</p>
+          <p class="brand-name" id="brand-name">Servym</p>
           <p class="brand-sub" id="brand-sub">localhost</p>
         </div>
       </div>
@@ -76,7 +76,7 @@
           <div class="card empty-state" id="no-projects" hidden>
             <svg class="empty-icon"><use href="icons.svg#layout-grid"/></svg>
             <h2 data-i18n="projects.emptyTitle">Aucun projet pour l’instant</h2>
-            <p data-i18n="projects.emptyText">Ajoutez un site, une application ou un service (base de données…) : Servynex pourra le lancer, le surveiller et l’arrêter.</p>
+            <p data-i18n="projects.emptyText">Ajoutez un site, une application ou un service (base de données…) : Servym pourra le lancer, le surveiller et l’arrêter.</p>
             <button class="btn primary" type="button" data-add data-i18n="projects.addProject"><svg><use href="icons.svg#plus"/></svg>Ajouter un projet</button>
           </div>
         </div>
@@ -89,7 +89,7 @@
         <header class="view-head">
           <div>
             <h1 id="activity-title" data-i18n="nav.activity">Activité</h1>
-            <p class="view-sub" data-i18n="activity.sub">Démarrages, arrêts et plantages vus par Servynex, du plus récent au plus ancien.</p>
+            <p class="view-sub" data-i18n="activity.sub">Démarrages, arrêts et plantages vus par Servym, du plus récent au plus ancien.</p>
           </div>
           <div class="view-tools">
             <label><span class="visually-hidden" data-i18n="activity.filterLabel">Filtrer par projet</span><select class="select" id="activity-filter"><option value="" data-i18n="activity.allProjects">Tous les projets</option></select></label>
@@ -209,7 +209,7 @@
       <button class="nav-item" type="button" data-section="config" data-i18n="settings.config"><svg><use href="icons.svg#file-cog"/></svg>Configuration</button>
       <button class="nav-item" type="button" data-section="security" data-i18n="settings.security"><svg><use href="icons.svg#shield-check"/></svg>Sécurité</button>
       <button class="nav-item" type="button" data-section="members" hidden data-i18n="settings.members"><svg><use href="icons.svg#users"/></svg>Membres</button>
-      <button class="nav-item" type="button" data-section="instance"><svg><use href="icons.svg#power"/></svg>Servynex</button>
+      <button class="nav-item" type="button" data-section="instance"><svg><use href="icons.svg#power"/></svg>Servym</button>
       <button class="nav-item" type="button" data-section="keys" data-i18n="settings.keys"><svg><use href="icons.svg#keyboard"/></svg>Raccourcis</button>
     </nav>
     <div class="settings-main">
@@ -221,18 +221,18 @@
         <section data-section="general">
           <div class="setting">
             <div class="setting-text">
-              <p class="setting-label" data-i18n="settings.autostart">Démarrer Servynex avec Windows</p>
-              <p class="setting-desc" id="autostart-desc" data-i18n="settings.autostartDesc">Tâche planifiée « Servynex » : Servynex se lance sans fenêtre à l’ouverture de session et se relance s’il plante.</p>
+              <p class="setting-label" data-i18n="settings.autostart">Démarrer Servym avec Windows</p>
+              <p class="setting-desc" id="autostart-desc" data-i18n="settings.autostartDesc">Tâche planifiée « Servym » : Servym se lance sans fenêtre à l’ouverture de session et se relance s’il plante.</p>
             </div>
-            <input class="switch" type="checkbox" role="switch" id="set-autostart" aria-label="Démarrer Servynex avec Windows" disabled data-i18n-attr="aria-label:settings.autostart">
+            <input class="switch" type="checkbox" role="switch" id="set-autostart" aria-label="Démarrer Servym avec Windows" disabled data-i18n-attr="aria-label:settings.autostart">
           </div>
           <div class="setting stack" id="opener-setting" hidden>
             <div class="setting-text">
-              <p class="setting-label" data-i18n="settings.opener">Ouvrir Servynex dans</p>
+              <p class="setting-label" data-i18n="settings.opener">Ouvrir Servym dans</p>
               <p class="setting-desc" data-i18n="settings.openerDesc">Fenêtre : environ 200 Mo tant qu’elle est ouverte, rendus dès qu’elle se ferme. Navigateur : un onglet de plus, rien d’autre. Réglage de ce PC, suivi par l’icône de la zone de notification.</p>
             </div>
             <div class="setting-actions">
-              <div class="segmented" role="radiogroup" aria-label="Ouvrir Servynex dans" id="set-opener" data-i18n-attr="aria-label:settings.opener">
+              <div class="segmented" role="radiogroup" aria-label="Ouvrir Servym dans" id="set-opener" data-i18n-attr="aria-label:settings.opener">
                 <button type="button" role="radio" data-value="window" data-i18n="opener.window"><svg><use href="icons.svg#monitor"/></svg>Fenêtre</button>
                 <button type="button" role="radio" data-value="browser" data-i18n="opener.browser"><svg><use href="icons.svg#globe"/></svg>Navigateur</button>
               </div>
@@ -242,10 +242,10 @@
           <div class="setting stack">
             <div class="setting-text">
               <p class="setting-label" data-i18n="settings.bootProjects">Projets lancés au démarrage</p>
-              <p class="setting-desc" data-i18n="settings.bootProjectsDesc">Servynex les lance une fois par démarrage du PC, dès qu’il est lui-même démarré.</p>
+              <p class="setting-desc" data-i18n="settings.bootProjectsDesc">Servym les lance une fois par démarrage du PC, dès qu’il est lui-même démarré.</p>
             </div>
             <div class="sub-list" id="set-projects"></div>
-            <p class="hint warn" id="set-projects-warn" hidden data-i18n="settings.bootProjectsWarn">Servynex ne démarre pas avec Windows : ces projets ne seront lancés qu’à son prochain démarrage. Activer « Démarrer Servynex avec Windows » ci-dessus.</p>
+            <p class="hint warn" id="set-projects-warn" hidden data-i18n="settings.bootProjectsWarn">Servym ne démarre pas avec Windows : ces projets ne seront lancés qu’à son prochain démarrage. Activer « Démarrer Servym avec Windows » ci-dessus.</p>
           </div>
           <div class="setting">
             <div class="setting-text">
@@ -302,7 +302,7 @@
           <div class="setting">
             <div class="setting-text">
               <p class="setting-label" data-i18n="settings.motion">Animation de l’orbite</p>
-              <p class="setting-desc" data-i18n="settings.motionDesc">Les projets en ligne tournent autour de Servynex. Toujours immobile si Windows réduit les animations.</p>
+              <p class="setting-desc" data-i18n="settings.motionDesc">Les projets en ligne tournent autour de Servym. Toujours immobile si Windows réduit les animations.</p>
             </div>
             <input class="switch" type="checkbox" role="switch" id="set-motion" aria-label="Animation de l’orbite" data-i18n-attr="aria-label:settings.motion">
           </div>
@@ -323,7 +323,7 @@
           <div class="setting">
             <div class="setting-text">
               <p class="setting-label" data-i18n="transfer.title">Exporter ou importer</p>
-              <p class="setting-desc" data-i18n="transfer.desc">Pour retrouver ses projets sur un autre PC. Le fichier contient aussi leurs variables d’environnement. L’import remplace la liste des projets, après un aperçu ; les réglages de Servynex (port, accès, nom) restent ceux de ce PC.</p>
+              <p class="setting-desc" data-i18n="transfer.desc">Pour retrouver ses projets sur un autre PC. Le fichier contient aussi leurs variables d’environnement. L’import remplace la liste des projets, après un aperçu ; les réglages de Servym (port, accès, nom) restent ceux de ce PC.</p>
             </div>
             <div class="setting-actions">
               <button class="btn" type="button" id="config-export" data-i18n="transfer.export"><svg><use href="icons.svg#download"/></svg>Exporter</button>
@@ -333,14 +333,14 @@
           </div>
           <div class="setting">
             <div class="setting-text">
-              <p class="setting-label" data-i18n="settings.ownLog">Journal de Servynex</p>
-              <p class="setting-desc" data-i18n="settings.ownLogDesc">Actions et changements d’état (logs/servynex.log).</p>
+              <p class="setting-label" data-i18n="settings.ownLog">Journal de Servym</p>
+              <p class="setting-desc" data-i18n="settings.ownLogDesc">Actions et changements d’état (logs/servym.log).</p>
             </div>
             <button class="btn" type="button" id="open-instance-log" data-i18n="common.open"><svg><use href="icons.svg#scroll-text"/></svg>Ouvrir</button>
           </div>
           <div class="setting">
             <div class="setting-text">
-              <p class="setting-label" data-i18n="settings.ownDir">Dossier de Servynex</p>
+              <p class="setting-label" data-i18n="settings.ownDir">Dossier de Servym</p>
               <code class="path" id="instance-dir"></code>
             </div>
             <button class="btn" type="button" id="open-instance-dir" data-i18n="common.open"><svg><use href="icons.svg#folder-open"/></svg>Ouvrir</button>
@@ -357,7 +357,7 @@
             <div class="setting-head">
               <div class="setting-text">
                 <p class="setting-label" data-i18n="access.title">Accès à la page</p>
-                <p class="setting-desc" data-i18n="access.desc">Réseau local : la page s’ouvre aussi depuis les autres appareils de votre réseau (Wi-Fi, Tailscale). Appliqué au prochain redémarrage de Servynex.</p>
+                <p class="setting-desc" data-i18n="access.desc">Réseau local : la page s’ouvre aussi depuis les autres appareils de votre réseau (Wi-Fi, Tailscale). Appliqué au prochain redémarrage de Servym.</p>
               </div>
               <div class="segmented" role="radiogroup" id="set-access" aria-label="Accès à la page" data-i18n-attr="aria-label:access.title">
                 <button type="button" role="radio" data-value="local" data-i18n="access.local">Ce PC seulement</button>
@@ -380,16 +380,16 @@
           <div class="setting">
             <div class="setting-text">
               <p class="setting-label" data-i18n="settings.instanceName">Nom de l’instance</p>
-              <p class="setting-desc" data-i18n="settings.instanceNameDesc">Affiché dans la barre latérale et sur la page de connexion. Utile quand on a plusieurs instances de Servynex.</p>
+              <p class="setting-desc" data-i18n="settings.instanceNameDesc">Affiché dans la barre latérale et sur la page de connexion. Utile quand on a plusieurs instances de Servym.</p>
             </div>
             <form class="inline-form" id="instance-form">
-              <input class="input" id="instance-name" maxlength="40" placeholder="Servynex" aria-label="Nom de l’instance" data-i18n-attr="aria-label:settings.instanceName">
+              <input class="input" id="instance-name" maxlength="40" placeholder="Servym" aria-label="Nom de l’instance" data-i18n-attr="aria-label:settings.instanceName">
               <button class="btn" type="submit" data-i18n="common.save">Enregistrer</button>
             </form>
           </div>
           <div class="setting">
             <div class="setting-text">
-              <p class="setting-label" data-i18n="settings.restart">Redémarrer Servynex</p>
+              <p class="setting-label" data-i18n="settings.restart">Redémarrer Servym</p>
               <p class="setting-desc" id="restart-desc" data-i18n="settings.restartDesc">Les projets lancés continuent de tourner et sont repris au redémarrage.</p>
             </div>
             <button class="btn danger" type="button" id="restart-instance" data-i18n="action.restart"><svg><use href="icons.svg#power"/></svg>Redémarrer</button>
@@ -415,9 +415,9 @@
   <!-- Présentation au premier lancement -->
   <dialog class="modal onboarding" id="onboarding" aria-labelledby="ob-title-1">
     <section class="ob-step" data-step="1">
-      <svg class="ob-logo" viewBox="0 0 32 32"><use href="icons.svg#servynex-logo"/></svg>
+      <svg class="ob-logo" viewBox="0 0 32 32"><use href="icons.svg#servym-logo"/></svg>
       <div>
-        <h2 id="ob-title-1" data-i18n="ob.welcome">Bienvenue dans Servynex</h2>
+        <h2 id="ob-title-1" data-i18n="ob.welcome">Bienvenue dans Servym</h2>
         <p class="ob-lead" data-i18n="ob.lead">Le tableau de bord de vos projets locaux : les lancer, les suivre et les arrêter depuis une seule page.</p>
       </div>
       <ul class="features">
@@ -433,7 +433,7 @@
         <p class="ob-lead" data-i18n="ob.bootLead">Choisissez ce qui se lance tout seul quand vous allumez le PC. Tout reste modifiable dans les Paramètres.</p>
       </div>
       <label class="setting-line">
-        <span><strong data-i18n="settings.autostart">Démarrer Servynex avec Windows</strong><span class="hint" id="ob-autostart-hint" data-i18n="ob.autostartHint">Sans fenêtre, à l’ouverture de session. Sans droits administrateur.</span></span>
+        <span><strong data-i18n="settings.autostart">Démarrer Servym avec Windows</strong><span class="hint" id="ob-autostart-hint" data-i18n="ob.autostartHint">Sans fenêtre, à l’ouverture de session. Sans droits administrateur.</span></span>
         <input class="switch" type="checkbox" role="switch" id="ob-autostart" disabled>
       </label>
       <div>
@@ -457,7 +457,7 @@
       <span class="choice-label" data-i18n="ob.layout">Vue des projets</span>
       <div class="choices" role="radiogroup" aria-label="Vue des projets" id="ob-layout" data-i18n-attr="aria-label:ob.layout">
         <button class="choice" type="button" role="radio" data-value="list"><span class="preview p-list"><span class="bar"></span><span class="bar"></span><span class="bar short"></span></span><span data-i18n="layout.list">Liste<small data-i18n="ob.listHint">Recommandée : tout se lit d’un coup d’œil.</small></span></button>
-        <button class="choice" type="button" role="radio" data-value="orbit"><span class="preview p-orbit"><span class="pdot a"></span><span class="pdot b"></span></span><span data-i18n="layout.orbit">Orbite<small data-i18n="ob.orbitHint">Les projets en ligne tournent autour de Servynex.</small></span></button>
+        <button class="choice" type="button" role="radio" data-value="orbit"><span class="preview p-orbit"><span class="pdot a"></span><span class="pdot b"></span></span><span data-i18n="layout.orbit">Orbite<small data-i18n="ob.orbitHint">Les projets en ligne tournent autour de Servym.</small></span></button>
       </div>
     </section>
     <section class="ob-step" data-step="4" hidden>
@@ -467,8 +467,8 @@
         <p class="ob-lead" data-i18n="ob.readyLead">Quelques repères pour commencer.</p>
       </div>
       <div class="ob-opener" id="ob-opener-block" hidden>
-        <span class="choice-label" data-i18n="ob.opener">Ouvrir Servynex dans</span>
-        <div class="choices" role="radiogroup" aria-label="Ouvrir Servynex dans" id="ob-opener" data-i18n-attr="aria-label:ob.opener">
+        <span class="choice-label" data-i18n="ob.opener">Ouvrir Servym dans</span>
+        <div class="choices" role="radiogroup" aria-label="Ouvrir Servym dans" id="ob-opener" data-i18n-attr="aria-label:ob.opener">
           <button class="choice" type="button" role="radio" data-value="window"><span class="preview p-app"><span class="chrome"></span><span class="body"><span class="bar"></span><span class="bar short"></span></span></span><span data-i18n="opener.window">Fenêtre<small data-i18n="ob.openerWindowHint">Sa propre fenêtre, sans onglet à retrouver. Environ 200 Mo tant qu’elle est ouverte.</small></span></button>
           <button class="choice" type="button" role="radio" data-value="browser"><span class="preview p-browser"><span class="chrome"><span class="tab"></span></span><span class="address"></span><span class="body"><span class="bar"></span><span class="bar short"></span></span></span><span data-i18n="opener.browser">Navigateur<small data-i18n="ob.openerBrowserHint">Un onglet de votre navigateur, rien de plus en arrière-plan.</small></span></button>
         </div>
@@ -476,7 +476,7 @@
       <ul class="tips">
         <li><svg><use href="icons.svg#layout-grid"/></svg><span data-i18n-rich="ob.tip1"><strong>Un clic sur un projet</strong> ouvre son volet : journal en direct, historique, réglages et infos.</span></li>
         <li><svg><use href="icons.svg#ellipsis"/></svg><span data-i18n-rich="ob.tip2"><strong>Le bouton …</strong> d’une ligne regroupe les autres actions : dossier, VS Code, terminal.</span></li>
-        <li><svg><use href="icons.svg#settings"/></svg><span data-i18n-rich="ob.tip3"><strong>Paramètres</strong>, en bas à gauche : démarrage, thème, fichier projects.json et redémarrage de Servynex.</span></li>
+        <li><svg><use href="icons.svg#settings"/></svg><span data-i18n-rich="ob.tip3"><strong>Paramètres</strong>, en bas à gauche : démarrage, thème, fichier projects.json et redémarrage de Servym.</span></li>
         <li><svg><use href="icons.svg#keyboard"/></svg><span data-i18n-rich="ob.tip4"><strong>Raccourcis</strong> : <kbd>/</kbd> pour rechercher, <kbd>1</kbd>…<kbd>9</kbd> pour démarrer ou ouvrir un projet, <kbd>,</kbd> pour les paramètres.</span></li>
       </ul>
     </section>

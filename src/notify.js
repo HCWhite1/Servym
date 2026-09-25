@@ -12,17 +12,17 @@ const runFile = (cmd, args, options) => exec(cmd, args, { timeout: 15000, ...opt
 
 // send({ title, body, source }) → true si envoyée, false si le système n'en a pas.
 export function notifier({ platform = process.platform, run = runFile } = {}) {
-  return async ({ title, body = '', source = 'Servynex' }) => {
+  return async ({ title, body = '', source = 'Servym' }) => {
     if (platform === 'win32') {
       await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT_DIR, 'src', 'notify.ps1')], {
         windowsHide: true,
-        env: { ...process.env, SERVYNEX_NOTIFY_TITLE: title, SERVYNEX_NOTIFY_BODY: body, SERVYNEX_NOTIFY_SOURCE: source },
+        env: { ...process.env, SERVYM_NOTIFY_TITLE: title, SERVYM_NOTIFY_BODY: body, SERVYM_NOTIFY_SOURCE: source },
       });
       return true;
     }
     if (platform === 'linux') {
       try {
-        await run('notify-send', ['--app-name=Servynex', title, body], {});
+        await run('notify-send', ['--app-name=Servym', title, body], {});
       } catch (err) {
         if (err.code === 'ENOENT') return false; // notify-send absent (libnotify)
         throw err;

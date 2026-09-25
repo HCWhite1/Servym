@@ -1,4 +1,4 @@
-/* Servynex : interface sobre, thème clair et sombre (light-dark), une seule couleur
+/* Servym : interface sobre, thème clair et sombre (light-dark), une seule couleur
    d'accent. La couleur d'un projet (--c, posée par le JS) ne sert qu'à son icône. */
 
 @font-face { font-family: 'Inter'; src: url('../fonts/inter.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
@@ -1107,7 +1107,7 @@ body.auth-open .app { visibility: hidden; }
 .provider-steps .key-value { margin-top: 6px; padding: 6px 8px 6px 12px; }
 .provider-steps .key-value code { font-size: 12.5px; letter-spacing: 0; }
 .provider-form .input { flex: 1; min-width: 0; }
-/* Paramètres › Servynex › Accès à la page */
+/* Paramètres › Servym › Accès à la page */
 .access-note { display: grid; gap: 8px; }
 .access-note:empty { display: none; }
 .access-urls { margin: 4px 0 0; padding-left: 18px; color: var(--text-2); font-size: 12.5px; }

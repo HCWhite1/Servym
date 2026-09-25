@@ -29,7 +29,7 @@ function readEnd(file, bytes) {
 
 export const tailLines = (file, count = MAX_LINES) => readEnd(file, 96_000).lines.slice(-count);
 
-const ownLines = (file) => tailLines(file, 60).filter((l) => l.trim() && !l.startsWith('[servynex]'));
+const ownLines = (file) => tailLines(file, 60).filter((l) => l.trim() && !l.startsWith('[servym]'));
 
 // Ligne la plus parlante pour expliquer un arrêt.
 export function lastError(file) {
@@ -46,7 +46,7 @@ export function startupReason(file) {
 }
 
 // Historique des changements d'état d'un projet (de tous, sans id), lu dans
-// servynex.log et le précédent : lignes « <date> [state] <id> <avant> → <après>[ · détail] »
+// servym.log et le précédent : lignes « <date> [state] <id> <avant> → <après>[ · détail] »
 // ([état] dans les journaux écrits avant la traduction).
 const TRANSITION = /^(\S+) \[(?:state|état)\] ([a-z0-9-]+) (\w+) → (\w+)(?: · (.*))?$/;
 // Journal d'audit : « <date> [audit] <projet ou -> <compte ou -> · <texte> ».

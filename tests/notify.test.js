@@ -12,7 +12,7 @@ import { validate } from '../src/config.js';
 import { setServerLang } from '../src/i18n.js';
 import { notifier } from '../src/notify.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,7 +35,7 @@ function freePort() {
 
 function request(port, { method = 'GET', path: p = '/', cookie, body } = {}) {
   return new Promise((resolve, reject) => {
-    const headers = { host: `localhost:${port}`, 'x-servynex-request': '1' };
+    const headers = { host: `localhost:${port}`, 'x-servym-request': '1' };
     if (body !== undefined) Object.assign(headers, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(JSON.stringify(body)) });
     if (cookie) headers.cookie = cookie;
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers }, (res) => {
@@ -46,7 +46,7 @@ function request(port, { method = 'GET', path: p = '/', cookie, body } = {}) {
         try {
           json = JSON.parse(data);
         } catch {}
-        const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servynex_session='));
+        const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servym_session='));
         resolve({ status: res.statusCode, json, cookie: set ?? null });
       });
     });
@@ -55,9 +55,9 @@ function request(port, { method = 'GET', path: p = '/', cookie, body } = {}) {
   });
 }
 
-// Servynex de test avec un projet qui plante et un qui tourne ; notify : notificateur factice.
+// Servym de test avec un projet qui plante et un qui tourne ; notify : notificateur factice.
 async function makeApp(notify) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-notify-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-notify-'));
   fs.mkdirSync(path.join(dir, 'app'));
   fs.writeFileSync(path.join(dir, 'app', 'crash.js'), `console.error('Error: base introuvable'); process.exit(3);`);
   fs.writeFileSync(path.join(dir, 'app', 'server.js'), `require('node:http').createServer((q, s) => s.end('<title>Factice</title>')).listen(process.env.PORT, process.env.HOST);`);
@@ -90,7 +90,7 @@ async function makeApp(notify) {
 }
 
 describe('notificateur du système', () => {
-  const title = 'Servynex · « Mon API »';
+  const title = 'Servym · « Mon API »';
   const body = `Error: $(Remove-Item x) ' " <b>&amp;`;
 
   test('Windows : PowerShell caché, les textes par variables d’environnement', async () => {
@@ -102,9 +102,9 @@ describe('notificateur du système', () => {
     assert.equal(args.at(-2), '-File');
     assert.ok(args.at(-1).endsWith(path.join('src', 'notify.ps1')));
     assert.equal(options.windowsHide, true);
-    assert.equal(options.env.SERVYNEX_NOTIFY_TITLE, title);
-    assert.equal(options.env.SERVYNEX_NOTIFY_BODY, body);
-    assert.equal(options.env.SERVYNEX_NOTIFY_SOURCE, 'Serveur maison');
+    assert.equal(options.env.SERVYM_NOTIFY_TITLE, title);
+    assert.equal(options.env.SERVYM_NOTIFY_BODY, body);
+    assert.equal(options.env.SERVYM_NOTIFY_SOURCE, 'Serveur maison');
     assert.ok(!args.join(' ').includes('Mon API'), 'jamais dans la ligne de commande');
   });
 
@@ -113,7 +113,7 @@ describe('notificateur du système', () => {
     const send = notifier({ platform: 'linux', run: async (cmd, args, options) => calls.push({ cmd, args, options }) });
     assert.equal(await send({ title, body }), true);
     assert.equal(calls[0].cmd, 'notify-send');
-    assert.deepEqual(calls[0].args, ['--app-name=Servynex', title, body]);
+    assert.deepEqual(calls[0].args, ['--app-name=Servym', title, body]);
   });
 
   test('ailleurs : rien n’est envoyé', async () => {
@@ -126,8 +126,8 @@ describe('notificateur du système', () => {
   test('notify.ps1 : textes insérés comme nœuds XML, script valide', { skip: process.platform !== 'win32' }, async () => {
     const file = path.join(import.meta.dirname, '..', 'src', 'notify.ps1');
     const script = fs.readFileSync(file, 'utf8');
-    assert.match(script, /CreateTextNode\(\$env:SERVYNEX_NOTIFY_TITLE\)/);
-    assert.match(script, /CreateTextNode\(\$env:SERVYNEX_NOTIFY_BODY\)/);
+    assert.match(script, /CreateTextNode\(\$env:SERVYM_NOTIFY_TITLE\)/);
+    assert.match(script, /CreateTextNode\(\$env:SERVYM_NOTIFY_BODY\)/);
     assert.doesNotMatch(script, /LoadXml\([^)]*\$env/, 'jamais concaténés dans le XML');
     // Analyse seulement : aucune notification n'est affichée.
     const check = `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${file.replaceAll("'", "''")}', [ref]$null, [ref]$e); $e.Count`;
@@ -163,7 +163,7 @@ describe('notifications système', () => {
       await until(() => sent.length === 1);
       assert.match(sent[0].title, /Mon API/);
       assert.equal(sent[0].body, 'Error: base introuvable');
-      assert.equal(sent[0].source, 'Servynex');
+      assert.equal(sent[0].source, 'Servym');
 
       await s.call('POST', '/api/projects/ok/start');
       await until(() => s.state('ok').state === 'running');
@@ -193,7 +193,7 @@ describe('notifications système', () => {
       assert.equal(res.status, 200);
       assert.equal(res.json.sent, true);
       assert.equal(sent.length, 1);
-      assert.match(sent[0].title, /Servynex/);
+      assert.match(sent[0].title, /Servym/);
       supported = false;
       assert.equal((await s.call('POST', '/api/instance/notify-test')).json.sent, false);
     } finally {
@@ -201,7 +201,7 @@ describe('notifications système', () => {
     }
   });
 
-  test('notificateur en échec : consigné, sans effet sur Servynex', async () => {
+  test('notificateur en échec : consigné, sans effet sur Servym', async () => {
     const s = await makeApp(async () => {
       throw new Error('toast refusé');
     });
@@ -209,7 +209,7 @@ describe('notifications système', () => {
       await s.call('PUT', '/api/instance/notify', { body: { notify: true } });
       await s.call('POST', '/api/projects/crash/start');
       await until(() => s.state('crash').state === 'failed');
-      await until(() => fs.readFileSync(path.join(s.dir, 'logs', 'servynex.log'), 'utf8').includes('toast refusé'));
+      await until(() => fs.readFileSync(path.join(s.dir, 'logs', 'servym.log'), 'utf8').includes('toast refusé'));
       assert.equal((await s.call('GET', '/api/projects')).status, 200);
       const res = await s.call('POST', '/api/instance/notify-test');
       assert.equal(res.status, 502);
@@ -219,7 +219,7 @@ describe('notifications système', () => {
     }
   });
 
-  test('permission « Servynex »', async () => {
+  test('permission « Servym »', async () => {
     const s = await makeApp(async () => true);
     try {
       const admin = (await s.call('POST', '/api/auth/setup', { body: { username: 'alice', password: 'mot de passe 1' } })).cookie;

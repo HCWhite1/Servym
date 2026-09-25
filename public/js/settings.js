@@ -1,4 +1,4 @@
-// Paramètres : démarrage, apparence, fichier de configuration, Servynex, raccourcis.
+// Paramètres : démarrage, apparence, fichier de configuration, Servym, raccourcis.
 import { renderAccount, renderMembers, renderSecurity } from './accounts.js';
 import { choice, setChoice, t, tn } from './i18n.js';
 import { api, applyTheme, ask, can, confirmDialog, h, session, store, tile, toast, viewer } from './lib.js';
@@ -8,7 +8,7 @@ const $ = (sel) => document.querySelector(sel);
 const dialog = $('#settings');
 const TITLES = {
   account: t('user.account'), general: t('settings.general'), appearance: t('settings.appearance'), config: t('settings.config'),
-  security: t('settings.security'), members: t('settings.members'), instance: 'Servynex', keys: t('settings.keysTitle'),
+  security: t('settings.security'), members: t('settings.members'), instance: 'Servym', keys: t('settings.keysTitle'),
 };
 const RENDER = { account: renderAccount, security: renderSecurity, members: renderMembers };
 
@@ -64,7 +64,7 @@ export function init(hs) {
     try {
       const { name } = await api('instance', { method: 'PATCH', body: { name: $('#instance-name').value.trim() || null } });
       handlers.instance().name = name;
-      document.dispatchEvent(new CustomEvent('servynex:user'));
+      document.dispatchEvent(new CustomEvent('servym:user'));
       toast(t('settings.nameSaved'));
     } catch (err) {
       toast(err.message, 'error');
@@ -129,7 +129,7 @@ function applyPermissions() {
   off('#open-instance-log', 'instance', needs('instance'));
   off('#open-instance-dir', 'instance', needs('instance'));
   $('#instance-name').disabled = !can('instance');
-  // Ouvrent une fenêtre sur la machine de Servynex : seulement pour qui est devant.
+  // Ouvrent une fenêtre sur la machine de Servym : seulement pour qui est devant.
   for (const id of ['open-config', 'open-instance-log', 'open-instance-dir']) $(`#${id}`).hidden = !viewer.local;
   $('#instance-form button').disabled = !can('instance');
   for (const input of document.querySelectorAll('#set-projects input')) input.disabled = !can('edit');
@@ -230,7 +230,7 @@ export function update(p) {
   for (const input of document.querySelectorAll(`.sub-item input[data-id="${CSS.escape(p.id)}"]`)) input.checked = p.autostart;
 }
 
-// ---- Configuration et Servynex ----
+// ---- Configuration et Servym ----
 
 async function instanceAction(action) {
   try {
@@ -256,7 +256,7 @@ async function reloadConfig() {
 async function exportConfig() {
   try {
     const res = await api('config/export', { raw: true });
-    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'servynex-projects.json';
+    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'servym-projects.json';
     const url = URL.createObjectURL(await res.blob());
     h('a', { href: url, download: name }).click();
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -342,7 +342,7 @@ function fillInstance() {
 // ---- Application de bureau : fenêtre ou navigateur (réglage de ce PC) ----
 
 // La fenêtre de l'application le signale à la page ; aucune fonction native n'y est ouverte.
-export const inAppWindow = window.servynexWindow === true;
+export const inAppWindow = window.servymWindow === true;
 
 // Choix proposé devant la machine, dans l'application de bureau seulement.
 export const openerShown = () => Boolean(handlers.instance().app) && handlers.instance().viewerLocal;
@@ -357,7 +357,7 @@ export async function setOpener(opener) {
   }
 }
 
-// Ouvre Servynex dans le navigateur ; closeWindow : la fenêtre se ferme ensuite.
+// Ouvre Servym dans le navigateur ; closeWindow : la fenêtre se ferme ensuite.
 export async function openInBrowser(closeWindow) {
   try {
     await api('instance/browser', { method: 'POST', body: { closeWindow } });
@@ -480,7 +480,7 @@ async function testNotify() {
 }
 
 // Les projets continuent de tourner et sont repris. La page attend que l'ancien
-// Servynex soit tombé puis que le nouveau réponde, et se recharge (l'interface a pu changer).
+// Servym soit tombé puis que le nouveau réponde, et se recharge (l'interface a pu changer).
 async function restartInstance() {
   const ok = await confirmDialog({
     title: t('settings.restartTitle'),

@@ -43,7 +43,7 @@ entrée vide. Arborescence : node → cmd → ping, node → php -S (WAMP), conh
 
 ### Trouvé : héritage des handles
 
-Le projet lancé hérite de **tous les handles héritables** de Servynex (Rust appelle
+Le projet lancé hérite de **tous les handles héritables** de Servym (Rust appelle
 `CreateProcessW` avec `bInheritHandles = TRUE`). Pendant l'essai, le tube de sortie de l'essai
 (vers `grep`) est resté ouvert tant que le projet tournait. Rust crée ses propres fichiers et sockets
 non héritables, mais un handle reçu du parent (superviseur, console, tube) serait transmis au projet
@@ -79,15 +79,15 @@ aucune capability. Piloté par le protocole de débogage de WebView2 (`drive.mjs
 | `window.open` vers une autre origine | ouvert dans le navigateur par défaut, `null` rendu à la page |
 | `window.open('/wait.html?id=bogue')` | petite fenêtre Tauri (même session), puis l'adresse du projet part dans le navigateur et la fenêtre se ferme |
 | Export de la configuration (`blob:` + `download`) | enregistré dans Téléchargements, événements début et fin reçus |
-| Navigation vers github.com puis retour | pages GitHub affichées dans la fenêtre, retour sur Servynex, cookie gardé |
+| Navigation vers github.com puis retour | pages GitHub affichées dans la fenêtre, retour sur Servym, cookie gardé |
 | Fermer la fenêtre | WebView détruite, l'application reste dans la zone de notification |
 
 ### Décision 1 : la page d'attente en mode fenêtre
 
 `wait.html` lit `/api/events`, qui demande d'être connecté quand la protection est active. Ouverte
 dans le navigateur, elle n'aurait pas la session de la fenêtre (cookies séparés). Solution validée :
-une page de Servynex ouverte par `window.open` s'affiche dans une petite fenêtre Tauri (mêmes
-cookies) ; dès qu'elle quitte l'origine de Servynex, l'adresse part dans le navigateur. L'interface
+une page de Servym ouverte par `window.open` s'affiche dans une petite fenêtre Tauri (mêmes
+cookies) ; dès qu'elle quitte l'origine de Servym, l'adresse part dans le navigateur. L'interface
 n'a pas à changer.
 
 ### Décision 2 : la mémoire de la fenêtre, plus élevée que prévu
@@ -105,7 +105,7 @@ présentation.
 
 ### Non vérifié automatiquement
 
-- Rouvrir la fenêtre depuis l'icône de la zone de notification (menu « Ouvrir Servynex ») : code en
+- Rouvrir la fenêtre depuis l'icône de la zone de notification (menu « Ouvrir Servym ») : code en
   place, à cliquer une fois à la main.
 - Connexion GitHub complète : GitHub n'est pas configuré sur l'instance actuelle. L'aller-retour de
   navigation et la conservation des cookies, qui sont les deux conditions, sont vérifiés.

@@ -182,7 +182,7 @@ export async function renderAccount() {
       h('div', { class: 'inline-form' }, name, button(t('common.save'), null, async () => {
         const res = await api('auth/me', { method: 'PATCH', body: { name: name.value } });
         Object.assign(session.user, res.user);
-        document.dispatchEvent(new CustomEvent('servynex:user'));
+        document.dispatchEvent(new CustomEvent('servym:user'));
         toast(t('settings.nameSaved'));
       }))),
     setting(t('account.password'), t('account.passwordDesc'), button(t('account.change'), 'key-round', async () => {

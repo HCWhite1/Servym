@@ -1,4 +1,4 @@
-// Page Activité : changements d'état de tous les projets (lus dans servynex.log), groupés par jour.
+// Page Activité : changements d'état de tous les projets (lus dans servym.log), groupés par jour.
 import { lang, t } from './i18n.js';
 import { api, h, initials, tile } from './lib.js';
 import { transition } from './panel.js';
@@ -40,7 +40,7 @@ export function show() {
   load();
 }
 
-// Un projet a changé d'état : nouvelle ligne dans servynex.log.
+// Un projet a changé d'état : nouvelle ligne dans servym.log.
 export function changed() {
   if (view.hidden) return;
   clearTimeout(reloadTimer);

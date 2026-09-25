@@ -3,7 +3,7 @@
 // {nom} y est remplacé par le paramètre du même nom.
 //
 // Langue du serveur (journaux, états en direct) : instance.lang dans
-// projects.json, sinon SERVYNEX_LANG, sinon celle du système, sinon l'anglais.
+// projects.json, sinon SERVYM_LANG, sinon celle du système, sinon l'anglais.
 // Une erreur renvoyée à la page est retraduite dans la langue de la page
 // (en-tête Accept-Language, posé par l'interface).
 import en from './locales/en.js';
@@ -14,7 +14,7 @@ const MESSAGES = { en, fr };
 
 const pick = (value) => LANGS.find((l) => String(value ?? '').trim().toLowerCase().startsWith(l)) ?? null;
 
-export function detectLang(locale = Intl.DateTimeFormat().resolvedOptions().locale, env = process.env.SERVYNEX_LANG) {
+export function detectLang(locale = Intl.DateTimeFormat().resolvedOptions().locale, env = process.env.SERVYM_LANG) {
   return pick(env) ?? pick(locale) ?? 'en';
 }
 

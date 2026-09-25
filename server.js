@@ -1,4 +1,4 @@
-// Servynex : portail local qui lance, surveille et arrête des projets.
+// Servym : portail local qui lance, surveille et arrête des projets.
 // Aucune dépendance : node:http suffit pour une page et une API JSON.
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -79,7 +79,7 @@ function openStream(req, res) {
 const COSTLY_GET = /^\/api\/(free-port|git|ports|network|autostart|stats|config\/export)(\?|$)/;
 
 // Host : bloque le DNS rebinding (seuls les noms de cette machine sont acceptés, voir
-// hostAllowed). En-tête X-Servynex-Request et Origin : bloquent le CSRF (un site
+// hostAllowed). En-tête X-Servym-Request et Origin : bloquent le CSRF (un site
 // tiers ne peut pas poser l'en-tête sans pré-vol CORS, refusé).
 function guard(req, hostAllowed) {
   const host = String(req.headers.host ?? '').replace(/:\d+$/, '').toLowerCase();
@@ -87,7 +87,7 @@ function guard(req, hostAllowed) {
   const site = req.headers['sec-fetch-site'];
   if (req.url.startsWith('/api/') && site && site !== 'same-origin' && site !== 'none') throw new HttpError(403, 'http.crossSite');
   if ((req.method === 'GET' || req.method === 'HEAD') && !COSTLY_GET.test(req.url)) return;
-  if (req.headers['x-servynex-request'] !== '1') throw new HttpError(403, 'http.forbidden');
+  if (req.headers['x-servym-request'] !== '1') throw new HttpError(403, 'http.forbidden');
   const { origin } = req.headers;
   if (origin === undefined) return;
   let sameHost = false;
@@ -123,8 +123,8 @@ export function createApp({
   configFile = path.join(ROOT_DIR, 'projects.json'),
   logsDir = path.join(ROOT_DIR, 'logs'),
   runtimeDir = path.join(ROOT_DIR, 'runtime'),
-  restart = null, // arrêt de Servynex pour qu'un superviseur le relance (null : impossible)
-  task = sys.autostartTask, // tâche planifiée qui démarre Servynex avec la session
+  restart = null, // arrêt de Servym pour qu'un superviseur le relance (null : impossible)
+  task = sys.autostartTask, // tâche planifiée qui démarre Servym avec la session
   clock = () => Date.now(), // horloge de l'authentification (remplacée dans les tests)
   sample = sys.sampleProcesses, // relevé des processus (processeur et mémoire)
   oauth = {}, // adresses des fournisseurs de connexion (tests : faux fournisseur)
@@ -137,7 +137,7 @@ export function createApp({
   watchMs = 1000, // relecture automatique de projects.json : intervalle de surveillance (0 : aucune)
   ...options
 } = {}) {
-  // projects.json invalide au démarrage : Servynex démarre quand même, avec la
+  // projects.json invalide au démarrage : Servym démarre quand même, avec la
   // dernière configuration valide, et l'interface affiche l'erreur (mode dégradé).
   const validCopy = path.join(runtimeDir, 'projects.valid.json');
   const events = new EventEmitter();
@@ -159,8 +159,8 @@ export function createApp({
   const serveUi = staticHandler(path.join(ROOT_DIR, 'public'));
   const sampler = new Sampler({ sample, cores: sys.cores });
   const gitCache = new Map();
-  const ownLog = path.join(logsDir, 'servynex.log');
-  const ownPrevLog = path.join(logsDir, 'servynex.prev.log');
+  const ownLog = path.join(logsDir, 'servym.log');
+  const ownPrevLog = path.join(logsDir, 'servym.prev.log');
   // Préférences de l'interface communes à tous les navigateurs (présentation vue ou non).
   const uiFile = path.join(runtimeDir, 'ui.json');
   const readUi = () => {
@@ -200,7 +200,7 @@ export function createApp({
   function applyConfig(next) {
     manager.assertCanApply(next);
     saveConfig(configFile, next);
-    known = readText(configFile); // écrit par Servynex : pas à relire
+    known = readText(configFile); // écrit par Servym : pas à relire
     manager.setConfig(next);
     setServerLang(next.instance.lang);
     rememberValid(next);
@@ -238,7 +238,7 @@ export function createApp({
 
   // Relecture automatique : projects.json modifié à la main (éditeur, git pull…) est
   // relu dès qu'il ne bouge plus (même contenu deux tours de suite), comme avec
-  // « Relire ». known : le contenu déjà connu, lu ou écrit par Servynex lui-même.
+  // « Relire ». known : le contenu déjà connu, lu ou écrit par Servym lui-même.
   // Refusé (fichier invalide, projet en marche retiré) : réessayé à chaque tour,
   // pour s'appliquer dès que possible (projet arrêté), et signalé une seule fois.
   let known = readText(configFile);
@@ -269,7 +269,7 @@ export function createApp({
   const log = (...parts) => {
     const line = `${new Date().toISOString()} ${parts.join(' ')}\n`;
     process.stdout.write(line);
-    // Même rotation que les journaux de projets : servynex.prev.log garde le précédent.
+    // Même rotation que les journaux de projets : servym.prev.log garde le précédent.
     ownLogSize += Buffer.byteLength(line);
     if (ownLogSize > 1_000_000) {
       try {
@@ -282,7 +282,7 @@ export function createApp({
     } catch {}
   };
 
-  // Historique : chaque changement d'état est écrit dans servynex.log, pour pouvoir
+  // Historique : chaque changement d'état est écrit dans servym.log, pour pouvoir
   // expliquer après coup un arrêt survenu en l'absence de l'utilisateur.
   manager.on('transition', ({ id, from, to, managed, exitCode, error, detail }) => {
     const details = [];
@@ -327,7 +327,7 @@ export function createApp({
   // Notification du système quand un projet passe en échec (réglage instance.notify),
   // pour le savoir même la page fermée. Un arrêt demandé n'en envoie pas, ni un
   // plantage que la relance automatique va réparer : seulement son abandon.
-  const source = () => manager.config.instance.name ?? 'Servynex';
+  const source = () => manager.config.instance.name ?? 'Servym';
   manager.on('transition', ({ id, from, to, exitCode, error, autoRestart }) => {
     if (to !== 'failed' || autoRestart === 'scheduled' || manager.config.instance.notify !== true) return;
     const name = manager.config.projects.find((p) => p.id === id)?.name ?? id;
@@ -365,7 +365,7 @@ export function createApp({
     if (!isLocalViewer(req)) throw new HttpError(403, 'http.hostOnly');
   };
 
-  // Actions sur Servynex lui-même (page Paramètres). Chemins fixes : rien ne vient de la requête.
+  // Actions sur Servym lui-même (page Paramètres). Chemins fixes : rien ne vient de la requête.
   const instanceActions = {
     folder: () => sys.openFolder(ROOT_DIR),
     config: () => sys.openInEditor(configFile),
@@ -453,7 +453,7 @@ export function createApp({
         lan: sys.lanAddresses(),
         restartable: Boolean(restart),
         name: manager.config.instance.name ?? null,
-        // Présentation vue : par compte si la protection est active, sinon pour Servynex.
+        // Présentation vue : par compte si la protection est active, sinon pour Servym.
         onboarded: user ? Boolean(user.prefs?.onboarded) : Boolean(readUi().onboarded),
         access: manager.config.instance.access ?? 'local', // réglage (appliqué au démarrage)
         listening, // adresse d'écoute réelle
@@ -552,14 +552,14 @@ export function createApp({
       return send(res, 200, { access, listening });
     }
     if (section === 'instance' && !id && method === 'PATCH') {
-      // Nom de l'instance, affiché dans la barre latérale (« Servynex · Serveur maison »).
+      // Nom de l'instance, affiché dans la barre latérale (« Servym · Serveur maison »).
       const { name } = await readJson(req);
       if (name !== null && (typeof name !== 'string' || name.trim().length > 40)) throw new HttpError(400, 'http.nameTooLong');
       const next = diskConfig();
       if (name?.trim()) next.instance.name = name.trim();
       else delete next.instance.name;
       applyConfig(next);
-      audit('-', 'audit.instanceName', { name: name?.trim() || 'Servynex' });
+      audit('-', 'audit.instanceName', { name: name?.trim() || 'Servym' });
       return send(res, 200, { name: next.instance.name ?? null });
     }
     if (section === 'events' && method === 'GET') {
@@ -587,12 +587,12 @@ export function createApp({
     }
     if (section === 'ports' && method === 'GET') return send(res, 200, await ports());
     if (section === 'stats' && method === 'GET') {
-      // Racines de chaque projet en marche : le PID lancé par Servynex et celui qui écoute
+      // Racines de chaque projet en marche : le PID lancé par Servym et celui qui écoute
       // sur son port (un projet qui se relance lui-même n'est plus sous le premier).
       const running = manager.snapshot().filter((p) => p.type !== 'file' && ['running', 'starting', 'stopping'].includes(p.state));
       const listening = running.some((p) => p.type !== 'static') ? await sys.listeners() : [];
       const roots = {};
-      const inProcess = {}; // sites statiques : servis par Servynex lui-même
+      const inProcess = {}; // sites statiques : servis par Servym lui-même
       for (const p of running) {
         if (p.type === 'static') {
           inProcess[p.id] = { inProcess: true };
@@ -601,14 +601,14 @@ export function createApp({
         const port = p.activePort ?? p.port;
         roots[p.id] = [p.managed ? p.pid : null, ...listening.filter((l) => l.port === port).map((l) => l.pid)].filter(Boolean);
       }
-      // Servynex lui-même (sites statiques compris) et le total de la machine pour Servynex.
+      // Servym lui-même (sites statiques compris) et le total de la machine pour Servym.
       const { projects: measured, self, total } = await sampler.measureAll(roots, process.pid);
       return send(res, 200, { cores: sys.cores, projects: { ...measured, ...inProcess }, self, total });
     }
     if (section === 'network' && method === 'GET') return send(res, 200, { lan: sys.lanAddresses(), networks: await networkProfiles() });
     if (section === 'restart' && method === 'POST') {
       if (!restart) throw new HttpError(409, 'http.notRestartable');
-      log(`[restart] Servynex${user ? ` · ${tr('history.by', { user: who })}` : ''}`);
+      log(`[restart] Servym${user ? ` · ${tr('history.by', { user: who })}` : ''}`);
       send(res, 200, { ok: true });
       return void setImmediate(restart);
     }
@@ -621,7 +621,7 @@ export function createApp({
       const day = new Date().toISOString().slice(0, 10);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Content-Disposition': `attachment; filename="servynex-projects-${day}.json"`,
+        'Content-Disposition': `attachment; filename="servym-projects-${day}.json"`,
         'Cache-Control': 'no-store',
       });
       return res.end(fs.readFileSync(configFile, 'utf8'));
@@ -757,13 +757,13 @@ const RESTART_CODE = 75;
 // Lancé par un superviseur qui le relance : scripts/start-hidden.vbs sous Windows,
 // le service systemd utilisateur sous Linux (src/platform/linux.js).
 export function isSupervised(env = process.env) {
-  return ['vbs', 'systemd'].includes(env.SERVYNEX_SUPERVISOR);
+  return ['vbs', 'systemd'].includes(env.SERVYM_SUPERVISOR);
 }
 
 if (import.meta.filename === path.resolve(process.argv[1] ?? '')) {
   let app;
   // Redémarrage depuis l'interface : seulement sous le superviseur, qui relance
-  // Servynex ; lancé par npm start, personne ne le relancerait.
+  // Servym ; lancé par npm start, personne ne le relancerait.
   const supervised = isSupervised();
   try {
     app = createApp({ restart: supervised ? () => shutdown(RESTART_CODE) : null });
@@ -771,12 +771,12 @@ if (import.meta.filename === path.resolve(process.argv[1] ?? '')) {
     // Lancé sans fenêtre : l'erreur doit rester lisible dans le journal.
     const logsDir = path.join(ROOT_DIR, 'logs');
     fs.mkdirSync(logsDir, { recursive: true });
-    fs.appendFileSync(path.join(logsDir, 'servynex.log'), `${new Date().toISOString()} [config] ${err.message}\n`);
+    fs.appendFileSync(path.join(logsDir, 'servym.log'), `${new Date().toISOString()} [config] ${err.message}\n`);
     console.error(`[config] ${err.message}`);
     process.exit(1);
   }
   const { server, manager, log, auth } = app;
-  const port = Number(process.env.SERVYNEX_PORT) || manager.config.instance.port;
+  const port = Number(process.env.SERVYM_PORT) || manager.config.instance.port;
   const host = bindHost(manager.config.instance, auth.enabled);
   app.setListening(host === '0.0.0.0' ? 'lan' : 'local');
   if (manager.config.instance.access === 'lan' && host !== '0.0.0.0') log(`[listen] ${tr('log.lanRefused')}`);
@@ -787,8 +787,8 @@ if (import.meta.filename === path.resolve(process.argv[1] ?? '')) {
   // Ce PC seulement, sauf accès réseau demandé avec la protection active (bindHost) :
   // le panneau lance des programmes.
   server.listen(port, host, async () => {
-    log(`Servynex → http://localhost:${port}`);
-    if (host === '0.0.0.0') for (const a of sys.lanAddresses()) log(`Servynex → http://${a.address}:${port} (${a.name})`);
+    log(`Servym → http://localhost:${port}`);
+    if (host === '0.0.0.0') for (const a of sys.lanAddresses()) log(`Servym → http://${a.address}:${port} (${a.name})`);
     await manager.init();
   });
   // Les projets lancés continuent de tourner : la prochaine instance les reprendra.

@@ -6,7 +6,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
-const OUT = new URL('../crates/servynex-desktop/icons/', import.meta.url);
+const OUT = new URL('../crates/servym-desktop/icons/', import.meta.url);
 const DARK = [0x18, 0x18, 0x1b];
 const WHITE = [0xff, 0xff, 0xff];
 const RED = [0xef, 0x44, 0x44];

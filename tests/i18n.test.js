@@ -30,11 +30,11 @@ describe('langues', () => {
     const values = Object.fromEntries(params(serverEn[key]).map((p) => [p, `<${p}>`]));
     assert.ok(!/\{\w+\}/.test(tr(key, values, 'en')), 'paramètres remplacés');
     assert.equal(tr('clé.inconnue', {}, 'fr'), 'clé.inconnue');
-    assert.equal(tr('config.duplicatePort', { port: 3001, first: msg('config.instance'), second: 'B' }, 'en'), 'Port 3001 used by both Servynex and B');
-    assert.equal(tr('config.duplicatePort', { port: 3001, first: msg('config.instance'), second: 'B' }, 'fr'), 'Port 3001 utilisé à la fois par Servynex et B');
+    assert.equal(tr('config.duplicatePort', { port: 3001, first: msg('config.instance'), second: 'B' }, 'en'), 'Port 3001 used by both Servym and B');
+    assert.equal(tr('config.duplicatePort', { port: 3001, first: msg('config.instance'), second: 'B' }, 'fr'), 'Port 3001 utilisé à la fois par Servym et B');
   });
 
-  test('langue du serveur : variable SERVYNEX_LANG, sinon celle du système, sinon l’anglais', () => {
+  test('langue du serveur : variable SERVYM_LANG, sinon celle du système, sinon l’anglais', () => {
     assert.equal(detectLang('fr-FR', undefined), 'fr');
     assert.equal(detectLang('de-DE', undefined), 'en');
     assert.equal(detectLang('fr-FR', 'en'), 'en');

@@ -1,12 +1,12 @@
 // Fichiers de référence du formateur : entrée JSON et sortie de formatConfig() de la version Node.
-// Le test Rust (crates/servynex-core/tests/format.rs) doit produire la même sortie, octet par octet.
+// Le test Rust (crates/servym-core/tests/format.rs) doit produire la même sortie, octet par octet.
 // Usage : node tools/gen-format-golden.mjs
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { formatConfig } from '../src/config.js';
 
 const root = path.resolve(import.meta.dirname, '..');
-const out = path.join(root, 'crates', 'servynex-core', 'tests', 'golden');
+const out = path.join(root, 'crates', 'servym-core', 'tests', 'golden');
 mkdirSync(out, { recursive: true });
 
 const long = 'x'.repeat(170);

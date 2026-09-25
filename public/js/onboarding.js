@@ -44,7 +44,7 @@ function check(sel, value) {
 }
 
 export async function open() {
-  // Sans permission sur le démarrage (Servynex) ni sur les projets, l'étape « Démarrage » disparaît.
+  // Sans permission sur le démarrage (Servym) ni sur les projets, l'étape « Démarrage » disparaît.
   steps = allSteps.filter((s) => s.dataset.step !== '2' || can('instance') || can('edit'));
   for (const s of allSteps) s.hidden = true;
   [...$('#ob-dots').children].forEach((dot, i) => (dot.hidden = i >= steps.length));
@@ -85,6 +85,6 @@ function go(n) {
 async function finish() {
   dialog.close();
   await api('instance/onboarded', { method: 'POST' }).catch(() => {});
-  // Navigateur choisi depuis la fenêtre : Servynex s'y ouvre et la fenêtre se ferme.
+  // Navigateur choisi depuis la fenêtre : Servym s'y ouvre et la fenêtre se ferme.
   if (inAppWindow && openerShown() && handlers.instance().app.opener === 'browser') await openInBrowser(true);
 }

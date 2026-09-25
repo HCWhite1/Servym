@@ -183,7 +183,7 @@ export function createForm({ handlers, submitLabel, onSubmit }) {
   }
 
   // Lecture seule sans « Modifier les projets » ; sans « Commandes », les champs
-  // qui décident de ce qui s'exécute restent grisés (Servynex le refuse de toute façon).
+  // qui décident de ce qui s'exécute restent grisés (Servym le refuse de toute façon).
   function applyPermissions() {
     const edit = can('edit');
     const commands = can('commands');

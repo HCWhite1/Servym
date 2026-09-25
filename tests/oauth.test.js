@@ -7,13 +7,13 @@ import { after, before, describe, test } from 'node:test';
 import { createApp } from '../server.js';
 import { setServerLang } from '../src/i18n.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 function request(port, { method = 'GET', path: p = '/', cookie, body } = {}) {
   return new Promise((resolve, reject) => {
     const headers = { host: `localhost:${port}` };
-    if (method !== 'GET') headers['x-servynex-request'] = '1';
+    if (method !== 'GET') headers['x-servym-request'] = '1';
     if (body !== undefined) Object.assign(headers, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(JSON.stringify(body)) });
     if (cookie) headers.cookie = cookie;
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers }, (res) => {
@@ -58,7 +58,7 @@ function fakeGitHub() {
 }
 
 describe('connexion avec GitHub', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-oauth-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-oauth-'));
   let app;
   let port;
   let gh;
@@ -71,9 +71,9 @@ describe('connexion avec GitHub', () => {
     const res = await call('GET', `/api/auth/github/start${link ? '?link=1' : ''}`, { cookie });
     assert.equal(res.status, 302, `démarrage : ${res.body}`);
     const url = new URL(res.location);
-    return { url, state: url.searchParams.get('state'), cookie: res.cookieOf('servynex_oauth'), setCookie: res.setCookies.find((c) => c.startsWith('servynex_oauth=')) };
+    return { url, state: url.searchParams.get('state'), cookie: res.cookieOf('servym_oauth'), setCookie: res.setCookies.find((c) => c.startsWith('servym_oauth=')) };
   }
-  // Page de retour : Servynex redirige par une balise meta (voir la conception dans src/auth.js).
+  // Page de retour : Servym redirige par une balise meta (voir la conception dans src/auth.js).
   const target = (res) => res.body.match(/url=([^"]+)"/)?.[1];
 
   before(async () => {
@@ -91,7 +91,7 @@ describe('connexion avec GitHub', () => {
     });
     await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
     port = app.server.address().port;
-    admin = (await call('POST', '/api/auth/setup', { body: { username: 'alice', password: 'mot de passe 1' } })).cookieOf('servynex_session');
+    admin = (await call('POST', '/api/auth/setup', { body: { username: 'alice', password: 'mot de passe 1' } })).cookieOf('servym_session');
   });
 
   after(async () => {
@@ -144,11 +144,11 @@ describe('connexion avec GitHub', () => {
     let s = await start();
     let res = await call('GET', `/auth/github/callback?code=stranger&state=${s.state}`, { cookie: s.cookie });
     assert.equal(target(res), '/?auth_error=unlinked');
-    assert.equal(res.cookieOf('servynex_session'), null, 'aucune session');
+    assert.equal(res.cookieOf('servym_session'), null, 'aucune session');
     s = await start();
     res = await call('GET', `/auth/github/callback?code=alice-code&state=${s.state}`, { cookie: s.cookie });
     assert.equal(target(res), '/');
-    const session = res.cookieOf('servynex_session');
+    const session = res.cookieOf('servym_session');
     assert.ok(session, 'session ouverte');
     assert.equal((await call('GET', '/api/projects', { cookie: session })).status, 200);
     const audit = (await call('GET', '/api/history', { cookie: admin })).json.entries.filter((e) => e.kind === 'audit').map((e) => e.text);
@@ -173,9 +173,9 @@ describe('connexion avec GitHub', () => {
     assert.ok(!res.body.includes('alert(1)'));
   });
 
-  test('un compte GitHub ne se lie qu’à un seul compte Servynex ; délier', async () => {
+  test('un compte GitHub ne se lie qu’à un seul compte Servym ; délier', async () => {
     const { token } = (await call('POST', '/api/auth/invites', { cookie: admin, body: { permissions: ['operate'] } })).json;
-    const bob = (await call('POST', '/api/auth/invite', { body: { token, username: 'bob', password: 'mot de passe 2' } })).cookieOf('servynex_session');
+    const bob = (await call('POST', '/api/auth/invite', { body: { token, username: 'bob', password: 'mot de passe 2' } })).cookieOf('servym_session');
     const s = await start(bob, true);
     assert.equal(target(await call('GET', `/auth/github/callback?code=alice-code&state=${s.state}`, { cookie: s.cookie })), '/?auth_error=taken');
     assert.equal((await call('DELETE', '/api/auth/me/identities/github', { cookie: admin })).status, 200);

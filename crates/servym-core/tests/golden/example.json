@@ -1,0 +1,72 @@
+{
+  "instance": { "port": 9000 },
+  "projects": [
+    {
+      "id": "mon-api",
+      "name": "Mon API",
+      "icon": "server",
+      "color": "#38bdf8",
+      "desc": "Application Node qui lit PORT et HOST.",
+      "tags": ["Express", "SQLite"],
+      "cwd": "C:/Projets/mon-api",
+      "cmd": "node",
+      "args": ["server.js"],
+      "port": 3000,
+      "hostControl": "env",
+      "expose": false,
+      "url": "http://localhost:{port}",
+      "health": { "path": "/", "expect": "<title>Mon API" },
+      "requires": ["mysql"]
+    },
+    {
+      "id": "mon-front",
+      "name": "Mon front",
+      "icon": "layout-dashboard",
+      "color": "#8b5cf6",
+      "desc": "Serveur de développement lancé par npm.",
+      "cwd": "C:/Projets/mon-front",
+      "cmd": "npm",
+      "args": ["run", "dev", "--", "--port", "{port}", "--host", "{host}"],
+      "port": 5173,
+      "hostControl": "args",
+      "url": "http://localhost:{port}",
+      "startTimeout": 90
+    },
+    {
+      "id": "doc",
+      "name": "Documentation",
+      "icon": "book-open",
+      "color": "#14b8a6",
+      "desc": "Site statique servi par Servym.",
+      "type": "static",
+      "cwd": "C:/Projets/doc/dist",
+      "port": 4000,
+      "url": "http://localhost:{port}"
+    },
+    {
+      "id": "portfolio",
+      "name": "Portfolio",
+      "icon": "globe",
+      "color": "#f97316",
+      "desc": "Page HTML ouverte directement dans le navigateur.",
+      "type": "file",
+      "cwd": "C:/Projets/portfolio",
+      "open": "index.html"
+    },
+    {
+      "id": "mysql",
+      "name": "MySQL",
+      "icon": "database",
+      "color": "#60a5fa",
+      "desc": "Base de données lancée à la demande, arrêtée proprement.",
+      "service": true,
+      "cwd": "C:/Projets/mysql",
+      "cmd": "mysqld",
+      "args": ["--datadir=C:/Projets/mysql/data", "--console", "--port={port}", "--bind-address={host}"],
+      "stop": { "cmd": "mysqladmin", "args": ["--user=root", "--protocol=tcp", "--port={port}", "shutdown"] },
+      "port": 3306,
+      "hostControl": "args",
+      "health": { "type": "tcp" }
+    }
+  ]
+}

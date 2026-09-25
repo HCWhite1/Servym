@@ -7,13 +7,13 @@ import { describe, test } from 'node:test';
 import { createApp } from '../server.js';
 import { setServerLang } from '../src/i18n.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 function request(port, { method = 'GET', path: p = '/', cookie, body, header = true } = {}) {
   return new Promise((resolve, reject) => {
     const headers = { host: `localhost:${port}` };
-    if (header) headers['x-servynex-request'] = '1';
+    if (header) headers['x-servym-request'] = '1';
     const raw = body === undefined ? undefined : JSON.stringify(body);
     if (raw !== undefined) Object.assign(headers, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(raw) });
     if (cookie) headers.cookie = cookie;
@@ -25,7 +25,7 @@ function request(port, { method = 'GET', path: p = '/', cookie, body, header = t
         try {
           json = JSON.parse(data);
         } catch {}
-        const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servynex_session='));
+        const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servym_session='));
         resolve({ status: res.statusCode, headers: res.headers, body: data, json, cookie: set ?? null });
       });
     });
@@ -34,9 +34,9 @@ function request(port, { method = 'GET', path: p = '/', cookie, body, header = t
   });
 }
 
-// Servynex de test : un site statique (démarrable sans processus), une page, une API.
+// Servym de test : un site statique (démarrable sans processus), une page, une API.
 async function makeApp() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-transfer-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-transfer-'));
   fs.mkdirSync(path.join(dir, 'site'));
   fs.writeFileSync(path.join(dir, 'site', 'index.html'), 'ok');
   const site = path.join(dir, 'site');
@@ -77,7 +77,7 @@ describe('export et import de la configuration', () => {
       const res = await s.call('GET', '/api/config/export');
       assert.equal(res.status, 200);
       assert.match(res.headers['content-type'], /application\/json/);
-      assert.match(res.headers['content-disposition'], /^attachment; filename="servynex-projects-\d{4}-\d{2}-\d{2}\.json"$/);
+      assert.match(res.headers['content-disposition'], /^attachment; filename="servym-projects-\d{4}-\d{2}-\d{2}\.json"$/);
       assert.deepEqual(res.json, s.disk(), 'le fichier tel qu’il est, variables d’environnement comprises');
     } finally {
       await s.close();

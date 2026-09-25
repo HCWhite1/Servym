@@ -8,13 +8,13 @@ import { bindHost, createApp } from '../server.js';
 import { validate } from '../src/config.js';
 import { setServerLang } from '../src/i18n.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 function request(port, { method = 'GET', path: p = '/', cookie, body, host } = {}) {
   return new Promise((resolve, reject) => {
     const headers = { host: host ?? `localhost:${port}` };
-    if (method !== 'GET') headers['x-servynex-request'] = '1';
+    if (method !== 'GET') headers['x-servym-request'] = '1';
     if (body !== undefined) Object.assign(headers, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(JSON.stringify(body)) });
     if (cookie) headers.cookie = cookie;
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers }, (res) => {
@@ -25,7 +25,7 @@ function request(port, { method = 'GET', path: p = '/', cookie, body, host } = {
         try {
           json = JSON.parse(data);
         } catch {}
-        const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servynex_session='));
+        const set = (res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).find((c) => c.startsWith('servym_session='));
         resolve({ status: res.statusCode, json, cookie: set ?? null });
       });
     });
@@ -34,9 +34,9 @@ function request(port, { method = 'GET', path: p = '/', cookie, body, host } = {
   });
 }
 
-// Servynex de test : options de createApp en plus (visiteur distant, noms de la machine).
+// Servym de test : options de createApp en plus (visiteur distant, noms de la machine).
 async function makeApp(options = {}, instance = { port: 1 }) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-access-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-access-'));
   fs.mkdirSync(path.join(dir, 'site'));
   fs.writeFileSync(path.join(dir, 'projects.json'), JSON.stringify({ instance, projects: [{ id: 'doc', name: 'Doc', type: 'file', cwd: path.join(dir, 'site'), open: 'index.html' }] }));
   const app = createApp({
@@ -130,7 +130,7 @@ describe('accès depuis le réseau privé', () => {
     }
   });
 
-  test('visiteur distant : rien ne s’ouvre sur la machine de Servynex', async () => {
+  test('visiteur distant : rien ne s’ouvre sur la machine de Servym', async () => {
     const s = await makeApp({ isLocalViewer: () => false });
     try {
       assert.equal((await s.call('GET', '/api/projects')).json.instance.viewerLocal, false);
@@ -163,14 +163,14 @@ describe('langue du serveur', () => {
       assert.equal('lang' in JSON.parse(fs.readFileSync(file, 'utf8')).instance, false);
       ({ instance } = (await s.call('GET', '/api/projects')).json);
       assert.equal(instance.lang, null);
-      assert.equal(instance.serverLang, 'fr', 'de nouveau celle du système (SERVYNEX_LANG ici)');
+      assert.equal(instance.serverLang, 'fr', 'de nouveau celle du système (SERVYM_LANG ici)');
     } finally {
       setServerLang('fr');
       await s.close();
     }
   });
 
-  test('permission « Servynex »', async () => {
+  test('permission « Servym »', async () => {
     const s = await makeApp();
     try {
       const admin = (await s.call('POST', '/api/auth/setup', { body: { username: 'alice', password: 'mot de passe 1' } })).cookie;

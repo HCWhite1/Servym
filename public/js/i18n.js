@@ -7,7 +7,7 @@ import fr from '../locales/fr.js';
 
 export const LANGS = { en: 'English', fr: 'Français' };
 const MESSAGES = { en, fr };
-const STORE_KEY = 'servynex.lang';
+const STORE_KEY = 'servym.lang';
 
 const pick = (value) => Object.keys(LANGS).find((l) => String(value ?? '').toLowerCase().startsWith(l)) ?? null;
 
@@ -29,8 +29,8 @@ export function setChoice(value) {
 export const lang = pick(choice()) ?? navigator.languages.map(pick).find(Boolean) ?? 'en';
 document.documentElement.lang = lang;
 
-// Système de la machine de Servynex : une clé peut avoir sa variante « clé@linux »
-// (« Démarrer Servynex avec la session » plutôt qu'« avec Windows »).
+// Système de la machine de Servym : une clé peut avoir sa variante « clé@linux »
+// (« Démarrer Servym avec la session » plutôt qu'« avec Windows »).
 let platform = null;
 export function setPlatform(value) {
   const changed = value !== platform;

@@ -148,7 +148,7 @@ export function update(p) {
   const file = p.type === 'file';
   $('#panel-actions [data-act="stop"]').hidden = file || !canStop(p) || !can('operate');
   $('#panel-actions [data-act="restart"]').hidden = file || !canRestart(p) || !can('operate');
-  // Dossier, VS Code, terminal : s'ouvrent sur la machine de Servynex, pour qui est devant.
+  // Dossier, VS Code, terminal : s'ouvrent sur la machine de Servym, pour qui est devant.
   for (const act of ['folder', 'terminal']) $(`#panel-actions [data-act="${act}"]`).hidden = !can('operate') || !viewer.local;
   $('#tab-logs').hidden = file;
   $('#tab-history').hidden = file;
@@ -184,7 +184,7 @@ function logNote(p) {
 }
 
 function lineNode(line) {
-  const cls = line.startsWith('[servynex]') ? 'own' : ERROR_LINE.test(line) ? 'err' : WARN_LINE.test(line) ? 'warn' : '';
+  const cls = line.startsWith('[servym]') ? 'own' : ERROR_LINE.test(line) ? 'err' : WARN_LINE.test(line) ? 'warn' : '';
   const node = h('span', cls ? { class: cls } : {});
   node.line = line;
   showMatch(node);

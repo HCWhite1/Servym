@@ -1,21 +1,21 @@
 @echo off
 :: ============================================================
-:: Servynex - demarrage automatique a l'ouverture de session
-:: ON  : cree la tache planifiee "Servynex" (sans droits administrateur)
-:: OFF : la supprime. Servynex deja lance continue jusqu'a la
+:: Servym - demarrage automatique a l'ouverture de session
+:: ON  : cree la tache planifiee "Servym" (sans droits administrateur)
+:: OFF : la supprime. Servym deja lance continue jusqu'a la
 ::       fermeture de session.
 :: ASCII uniquement : un accent desynchronise l'analyse de cmd.exe.
 :: ============================================================
 setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
-title Servynex - demarrage automatique
+title Servym - demarrage automatique
 
 set "ETAT=OFF"
-for /f %%E in ('powershell -NoProfile -Command "$t = Get-ScheduledTask -TaskName Servynex -ErrorAction SilentlyContinue; if ($t -and $t.State -ne 'Disabled') { 'ON' } else { 'OFF' }"') do set "ETAT=%%E"
+for /f %%E in ('powershell -NoProfile -Command "$t = Get-ScheduledTask -TaskName Servym -ErrorAction SilentlyContinue; if ($t -and $t.State -ne 'Disabled') { 'ON' } else { 'OFF' }"') do set "ETAT=%%E"
 
 echo ==========================================
-echo  Servynex - demarrage automatique
+echo  Servym - demarrage automatique
 echo  Etat actuel : %ETAT%
 echo ==========================================
 echo.
@@ -34,25 +34,25 @@ if errorlevel 1 (
   echo [ERREUR] La tache n'a pas pu etre creee.
   goto :fin
 )
-:: Lance Servynex tout de suite s'il ne tourne pas deja.
+:: Lance Servym tout de suite s'il ne tourne pas deja.
 netstat -ano | findstr /i "LISTENING" | findstr ":9000 " >nul
 if errorlevel 1 (
-  powershell -NoProfile -Command "Start-ScheduledTask -TaskName Servynex"
-  echo Servynex lance : http://localhost:9000
+  powershell -NoProfile -Command "Start-ScheduledTask -TaskName Servym"
+  echo Servym lance : http://localhost:9000
 )
 echo.
-echo ON : Servynex demarrera a chaque ouverture de session.
+echo ON : Servym demarrera a chaque ouverture de session.
 goto :fin
 
 :off
-powershell -NoProfile -Command "if (Get-ScheduledTask -TaskName Servynex -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName Servynex -Confirm:$false }"
+powershell -NoProfile -Command "if (Get-ScheduledTask -TaskName Servym -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName Servym -Confirm:$false }"
 if errorlevel 1 (
   echo [ERREUR] La tache n'a pas pu etre supprimee.
   goto :fin
 )
-echo OFF : Servynex ne demarrera plus tout seul.
+echo OFF : Servym ne demarrera plus tout seul.
 echo Les projets "Lancer au demarrage du PC" ne demarreront donc plus non plus.
-echo Servynex deja lance continue de tourner jusqu'a la fermeture de session.
+echo Servym deja lance continue de tourner jusqu'a la fermeture de session.
 
 :fin
 echo.

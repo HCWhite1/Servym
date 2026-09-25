@@ -5,13 +5,13 @@ import { projectUrl } from './urls.js';
 // raw : la réponse elle-même quand elle réussit (fichier à télécharger).
 export async function api(path, { method = 'GET', body, raw = false } = {}) {
   // Accept-Language : les messages d'erreur du serveur arrivent dans la langue de la page.
-  const headers = { 'X-Servynex-Request': '1', 'Accept-Language': lang };
+  const headers = { 'X-Servym-Request': '1', 'Accept-Language': lang };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(`/api/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (raw && res.ok) return res;
   const data = await res.json().catch(() => ({}));
   // Session absente, expirée ou verrouillée : l'écran de connexion prend la main (auth.js).
-  if (data.auth && !path.startsWith('auth/')) dispatchEvent(new CustomEvent('servynex:auth', { detail: data }));
+  if (data.auth && !path.startsWith('auth/')) dispatchEvent(new CustomEvent('servym:auth', { detail: data }));
   if (!res.ok) throw Object.assign(new Error(data.error ?? t('error.status', { status: res.status })), { status: res.status, auth: data.auth });
   return data;
 }
@@ -40,7 +40,7 @@ export function initials(user) {
   return ((words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')).toUpperCase() || '?';
 }
 
-// Qui regarde la page : local (sur la machine de Servynex) ou depuis un autre
+// Qui regarde la page : local (sur la machine de Servym) ou depuis un autre
 // appareil du réseau (main.js le règle d'après le serveur).
 export const viewer = { local: true, hostname: location.hostname };
 // Adresse à ouvrir d'ici, ou null si le projet n'est pas joignable d'ici (voir urls.js).
@@ -273,14 +273,14 @@ export function safeUrl(url) {
 export const store = {
   get(key, fallback) {
     try {
-      return JSON.parse(localStorage.getItem(`servynex.${key}`)) ?? fallback;
+      return JSON.parse(localStorage.getItem(`servym.${key}`)) ?? fallback;
     } catch {
       return fallback;
     }
   },
   set(key, value) {
     try {
-      localStorage.setItem(`servynex.${key}`, JSON.stringify(value));
+      localStorage.setItem(`servym.${key}`, JSON.stringify(value));
     } catch {}
   },
 };

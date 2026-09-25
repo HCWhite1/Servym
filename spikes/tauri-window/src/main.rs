@@ -2,8 +2,8 @@
 //!
 //! - Aucune IPC : aucune capability n'est accordée au contenu distant.
 //! - `window.open` vers une autre origine → navigateur par défaut.
-//! - `window.open` vers Servynex lui-même (page d'attente) → petite fenêtre Tauri qui partage les
-//!   cookies ; quand elle quitte l'origine de Servynex (redirection vers le projet), l'adresse part
+//! - `window.open` vers Servym lui-même (page d'attente) → petite fenêtre Tauri qui partage les
+//!   cookies ; quand elle quitte l'origine de Servym (redirection vers le projet), l'adresse part
 //!   dans le navigateur et la petite fenêtre se ferme.
 //! - Téléchargements (export de la configuration) : journalisés, dossier par défaut.
 //! - Fermer la fenêtre la détruit ; l'application reste dans la zone de notification.
@@ -46,7 +46,7 @@ fn open_main(app: &AppHandle) -> tauri::Result<()> {
     }
     let handle = app.clone();
     WebviewWindowBuilder::new(app, "main", WebviewUrl::External(ORIGIN.parse().unwrap()))
-        .title("Servynex (essai Tauri)")
+        .title("Servym (essai Tauri)")
         .inner_size(1280.0, 820.0)
         .on_navigation(|url| {
             log(format_args!("navigation : {url}"));
@@ -58,14 +58,14 @@ fn open_main(app: &AppHandle) -> tauri::Result<()> {
                 to_browser(&url);
                 return NewWindowResponse::Deny;
             }
-            // Page de Servynex (attente) : petite fenêtre qui garde la session.
+            // Page de Servym (attente) : petite fenêtre qui garde la session.
             let label = format!("popup-{}", POPUPS.fetch_add(1, Ordering::Relaxed));
             let popup_label = label.clone();
             let app = handle.clone();
             let window =
                 WebviewWindowBuilder::new(&handle, &label, WebviewUrl::External("about:blank".parse().unwrap()))
                     .window_features(features)
-                    .title("Servynex")
+                    .title("Servym")
                     .inner_size(520.0, 420.0)
                     .on_navigation(move |next| {
                         if next.scheme() == "about" || same_origin(next) {
@@ -108,12 +108,12 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let open = MenuItem::with_id(app, "open", "Ouvrir Servynex", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Ouvrir Servym", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
             TrayIconBuilder::<Wry>::with_id("tray")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Servynex (essai)")
+                .tooltip("Servym (essai)")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => {

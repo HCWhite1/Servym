@@ -1,6 +1,6 @@
 # Third-party notices
 
-Servynex bundles the following third-party files. Their licenses apply to those files only.
+Servym bundles the following third-party files. Their licenses apply to those files only.
 
 ## Lucide icons — `public/icons.svg`
 
@@ -24,7 +24,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-The `servynex-logo` symbol in that file is original to Servynex and covered by the project's MIT license.
+The `servym-logo` symbol in that file is original to Servym and covered by the project's MIT license.
 
 ## Fonts — `public/fonts/`
 

@@ -2,7 +2,7 @@
 //!
 //! `cmd.exe /d /s /c "chcp 65001 >nul & <commande>"` avec CREATE_NO_WINDOW (aucune console
 //! visible, les sous-processus en mode console en héritent) et CREATE_BREAKAWAY_FROM_JOB quand
-//! c'est permis (le projet survit à la fin de Servynex). Sorties standard et d'erreur : le
+//! c'est permis (le projet survit à la fin de Servym). Sorties standard et d'erreur : le
 //! journal, ouvert en ajout. Le code de sortie vient du handle du processus.
 //!
 //! Usage :

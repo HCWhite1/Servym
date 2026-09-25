@@ -9,7 +9,7 @@ import { createApp } from '../server.js';
 import { patchProject, validate } from '../src/config.js';
 import { setServerLang } from '../src/i18n.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,7 +31,7 @@ function freePort() {
 }
 function request(port, method, p) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { host: `localhost:${port}`, 'x-servynex-request': '1' } }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { host: `localhost:${port}`, 'x-servym-request': '1' } }, (res) => {
       let data = '';
       res.on('data', (c) => (data += c));
       res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(data || 'null') }));
@@ -41,11 +41,11 @@ function request(port, method, p) {
   });
 }
 
-// Servynex de test. « api » répond, puis plante 1,5 s après chaque lancement tant
+// Servym de test. « api » répond, puis plante 1,5 s après chaque lancement tant
 // qu'il n'a pas planté CRASHES fois (compté dans runs.txt) ; « dead » plante
 // avant de répondre (échec au lancement).
 async function makeApp({ crashes = 99, restartOnCrash = true, ...options } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-restart-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-restart-'));
   const app = path.join(dir, 'app');
   fs.mkdirSync(app);
   fs.writeFileSync(path.join(app, 'server.js'), `
@@ -61,7 +61,7 @@ if (runs <= Number(process.env.CRASHES)) setTimeout(() => { console.error('Error
     { id: 'dead', name: 'Morte', cwd: app, cmd: 'node', args: ['dead.js'], port: await freePort(), hostControl: 'env', restartOnCrash: true },
   ] }));
   const sent = [];
-  const servynex = createApp({
+  const servym = createApp({
     configFile: path.join(dir, 'projects.json'),
     logsDir: path.join(dir, 'logs'),
     runtimeDir: path.join(dir, 'runtime'),
@@ -74,21 +74,21 @@ if (runs <= Number(process.env.CRASHES)) setTimeout(() => { console.error('Error
     restartDelaysMs: [100, 200, 300],
     ...options,
   });
-  await new Promise((r) => servynex.server.listen(0, '127.0.0.1', r));
-  await servynex.manager.init();
-  const port = servynex.server.address().port;
+  await new Promise((r) => servym.server.listen(0, '127.0.0.1', r));
+  await servym.manager.init();
+  const port = servym.server.address().port;
   const call = (method, p) => request(port, method, p);
   const close = async () => {
-    if (servynex.manager.state('api').managed) await servynex.manager.stop('api').catch(() => {});
-    await servynex.manager.close();
-    servynex.server.closeAllConnections();
-    await new Promise((r) => servynex.server.close(r));
+    if (servym.manager.state('api').managed) await servym.manager.stop('api').catch(() => {});
+    await servym.manager.close();
+    servym.server.closeAllConnections();
+    await new Promise((r) => servym.server.close(r));
     // Sous Windows, le dossier peut rester verrouillé un instant après l'arrêt du projet.
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   };
   const runs = () => Number(fs.readFileSync(path.join(app, 'runs.txt'), 'utf8'));
   const history = async (id) => (await call('GET', `/api/projects/${id}/history`)).json.entries;
-  return { manager: servynex.manager, call, close, sent, runs, history, state: (id) => servynex.manager.state(id) };
+  return { manager: servym.manager, call, close, sent, runs, history, state: (id) => servym.manager.state(id) };
 }
 
 describe('relancer s’il plante : configuration', () => {

@@ -9,7 +9,7 @@ version = "2.0.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
-repository = "https://github.com/HCWhite1/Servynex"
+repository = "https://github.com/HCWhite1/Servym"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
@@ -37,7 +37,7 @@ opt-level = 3
 opt-level = 3
 
 # Développement : informations de débogage réduites pour les dépendances (cache de compilation
-# bien plus petit), complètes pour le code de Servynex.
+# bien plus petit), complètes pour le code de Servym.
 [profile.dev]
 debug = "line-tables-only"
 [profile.dev.package."*"]

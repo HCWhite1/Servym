@@ -1,4 +1,4 @@
-// Vue « orbite » : Servynex au centre, chaque application sur son anneau.
+// Vue « orbite » : Servym au centre, chaque application sur son anneau.
 // Seuls les projets en ligne tournent ; un service requis (MySQL) est une lune de
 // l'application qui en dépend ; un projet exposé sur le réseau porte un halo.
 import { t } from './i18n.js';
@@ -88,7 +88,7 @@ export function build() {
   }
   const bodies = [...apps, ...loose];
   const sun = h('div', { class: 'sun', 'aria-hidden': 'true' });
-  sun.innerHTML = '<svg class="logo" viewBox="0 0 32 32"><use href="icons.svg#servynex-logo"/></svg>';
+  sun.innerHTML = '<svg class="logo" viewBox="0 0 32 32"><use href="icons.svg#servym-logo"/></svg>';
   sun.append(sunCount);
   stage.replaceChildren(
     ...bodies.map((_, i) => h('div', { class: 'ring', dataset: { ring: i } })),

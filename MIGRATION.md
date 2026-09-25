@@ -4,6 +4,10 @@ Plan complet : rapport « Servynex-migration-rust » (C:\audits). Ce fichier gar
 ce qui a été fait, les décisions prises en cours de route et les mesures. La version Node reste la
 référence jusqu'à la bascule (phase 7).
 
+**Servynex s'appelle désormais Servym** (renommé le 25/09/2026, avant d'être public : aucun
+crate, paquet npm, dépôt ni domaine de ce nom). Les sections ci-dessous gardent l'ancien nom,
+celui en vigueur au moment où elles ont été écrites.
+
 ## Phase 0 · Prototype des risques
 
 Voir [spikes/RESULTATS.md](spikes/RESULTATS.md). Quatre essais concluants. Décisions :
@@ -216,3 +220,12 @@ relance automatique commençait **et aboutissait** pendant ce contrôle, la sond
 ligne » par un « arrêté » périmé, et le projet relancé tournait sans surveillance. La sonde
 abandonne désormais son relevé si l'état a changé entre-temps. Côté Node, le nettoyage d'un test
 de relance réessaie la suppression du dossier (verrouillé un instant sous Windows).
+
+## Renommage en Servym (25/09/2026)
+
+Sur la branche Rust seulement (la version Node sera retirée à la phase 7) : crates `servym-*`,
+binaires `servym` et `Servym.exe`, variables `SERVYM_*`, en-tête `X-Servym-Request`, cookie
+`servym_session`, identifiant `io.github.hcwhite1.servym`, données dans `%LOCALAPPDATA%Servym`,
+valeur « Servym » de la clé Run, textes de l'interface. Nom vérifié libre sur crates.io, npm,
+GitHub et les domaines usuels. Effets : cookie renommé et nouveau dossier WebView2, donc une
+reconnexion dans le navigateur et dans la fenêtre.

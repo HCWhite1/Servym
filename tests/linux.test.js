@@ -11,14 +11,14 @@ import { setServerLang } from '../src/i18n.js';
 import * as linux from '../src/platform/linux.js';
 import * as windows from '../src/platform/windows.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Faux /proc : { pid: { comm, ppid, utime, stime, start, rss } }, btime en secondes.
 function fakeProc(processes, btime = 1_700_000_000) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-proc-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-proc-'));
   fs.writeFileSync(path.join(dir, 'stat'), `cpu  1 2 3 4\ncpu0 1 2 3 4\nbtime ${btime}\nprocesses 1234\n`);
   fs.mkdirSync(path.join(dir, 'self'));
   fs.mkdirSync(path.join(dir, 'sys'));
@@ -153,9 +153,9 @@ describe('Linux : arrêt de toute l’arborescence', () => {
 
 describe('Linux : lancement d’un projet', () => {
   test('sans shell, sortie dans le journal, code de sortie transmis', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-launch-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-launch-'));
     const log = path.join(dir, 'p.log');
-    fs.writeFileSync(log, '[servynex] en-tête\n');
+    fs.writeFileSync(log, '[servym] en-tête\n');
     try {
       let exit;
       const pid = await linux.launch([process.execPath, '-e', 'console.log("sortie $HOME"); console.error("erreur"); process.exit(3)'], {
@@ -168,7 +168,7 @@ describe('Linux : lancement d’un projet', () => {
       for (let i = 0; i < 100 && !exit; i++) await sleep(50);
       assert.deepEqual(exit, { p: pid, code: 3 });
       const text = fs.readFileSync(log, 'utf8');
-      assert.match(text, /^\[servynex\] en-tête\n/, 'journal complété, pas remplacé');
+      assert.match(text, /^\[servym\] en-tête\n/, 'journal complété, pas remplacé');
       assert.match(text, /sortie \$HOME/, 'aucun shell : $HOME reste tel quel');
       assert.match(text, /erreur/);
     } finally {
@@ -184,7 +184,7 @@ describe('Linux : lancement d’un projet', () => {
   });
 
   test('commande introuvable : message clair', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-launch-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-launch-'));
     try {
       await assert.rejects(
         linux.launch(['commande-qui-n-existe-pas', 'x'], { cwd: dir, env: { ...process.env }, log: path.join(dir, 'p.log'), onExit: () => {} }),
@@ -218,17 +218,17 @@ describe('Linux : outils du bureau', () => {
 
 describe('Linux : démarrage avec la session (systemd)', () => {
   test('service utilisateur : relancé s’il plante, les projets survivent à son arrêt', () => {
-    const unit = linux.unitFile({ node: '/usr/bin/node', root: '/home/hugo/Servynex 100%' });
-    assert.match(unit, /^ExecStart="\/usr\/bin\/node" "\/home\/hugo\/Servynex 100%%\/server\.js"$/m, '% doublé pour systemd');
-    assert.match(unit, /^WorkingDirectory=\/home\/hugo\/Servynex 100%%$/m);
-    assert.match(unit, /^Environment=SERVYNEX_SUPERVISOR=systemd$/m);
+    const unit = linux.unitFile({ node: '/usr/bin/node', root: '/home/hugo/Servym 100%' });
+    assert.match(unit, /^ExecStart="\/usr\/bin\/node" "\/home\/hugo\/Servym 100%%\/server\.js"$/m, '% doublé pour systemd');
+    assert.match(unit, /^WorkingDirectory=\/home\/hugo\/Servym 100%%$/m);
+    assert.match(unit, /^Environment=SERVYM_SUPERVISOR=systemd$/m);
     assert.match(unit, /^Restart=on-failure$/m);
     assert.match(unit, /^KillMode=process$/m);
     assert.match(unit, /^WantedBy=default\.target$/m);
   });
 
   test('activer, lire l’état, désactiver', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-systemd-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-systemd-'));
     const calls = [];
     let enabled = false;
     const run = async (cmd, args) => {
@@ -241,19 +241,19 @@ describe('Linux : démarrage avec la session (systemd)', () => {
       if (args.includes('disable')) enabled = false;
       return { stdout: '' };
     };
-    const task = linux.systemdTask({ dir, run, node: '/usr/bin/node', root: '/opt/servynex' });
+    const task = linux.systemdTask({ dir, run, node: '/usr/bin/node', root: '/opt/servym' });
     try {
       assert.equal(await task.enabled(), false);
       await task.set(true);
-      assert.ok(fs.existsSync(path.join(dir, 'servynex.service')));
+      assert.ok(fs.existsSync(path.join(dir, 'servym.service')));
       assert.equal(await task.enabled(), true);
       await task.set(false);
       assert.equal(await task.enabled(), false);
-      assert.ok(!fs.existsSync(path.join(dir, 'servynex.service')), 'fichier retiré');
+      assert.ok(!fs.existsSync(path.join(dir, 'servym.service')), 'fichier retiré');
       assert.deepEqual(calls.filter((c) => !c.includes('is-enabled')), [
         'systemctl --user daemon-reload',
-        'systemctl --user enable servynex.service',
-        'systemctl --user disable servynex.service',
+        'systemctl --user enable servym.service',
+        'systemctl --user disable servym.service',
         'systemctl --user daemon-reload',
       ]);
     } finally {
@@ -262,21 +262,21 @@ describe('Linux : démarrage avec la session (systemd)', () => {
   });
 
   test('superviseur reconnu : Windows (vbs) ou systemd', () => {
-    assert.equal(isSupervised({ SERVYNEX_SUPERVISOR: 'vbs' }), true);
-    assert.equal(isSupervised({ SERVYNEX_SUPERVISOR: 'systemd' }), true);
+    assert.equal(isSupervised({ SERVYM_SUPERVISOR: 'vbs' }), true);
+    assert.equal(isSupervised({ SERVYM_SUPERVISOR: 'systemd' }), true);
     assert.equal(isSupervised({}), false);
   });
 });
 
 describe('Linux : serveur', () => {
   async function makeApp(options) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-linux-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-linux-'));
     fs.writeFileSync(path.join(dir, 'projects.json'), JSON.stringify({ instance: { port: 1 }, projects: [{ id: 'doc', name: 'Doc', type: 'file', cwd: dir, open: 'index.html' }] }));
     const app = createApp({ configFile: path.join(dir, 'projects.json'), logsDir: path.join(dir, 'logs'), runtimeDir: path.join(dir, 'runtime'), task: { enabled: async () => false, set: async () => {} }, notify: async () => true, ...options });
     await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
     const port = app.server.address().port;
     const call = (method, p) => new Promise((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { host: `localhost:${port}`, 'x-servynex-request': '1' } }, (res) => {
+      const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { host: `localhost:${port}`, 'x-servym-request': '1' } }, (res) => {
         let data = '';
         res.on('data', (c) => (data += c));
         res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(data || 'null') }));

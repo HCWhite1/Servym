@@ -82,7 +82,7 @@ export class Sampler {
     return (await this.measureAll(rootsById)).projects;
   }
 
-  // Avec self (le PID de Servynex) : { projects, self, total }, self étant Servynex
+  // Avec self (le PID de Servym) : { projects, self, total }, self étant Servym
   // sans les arborescences des projets (ses relevés compris), total tout, chaque
   // processus une fois.
   async measureAll(rootsById, self) {

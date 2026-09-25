@@ -1,10 +1,10 @@
 // Adresse d'un projet selon qui ouvre la page : devant la machine, telle quelle ;
-// depuis un autre appareil, « localhost » désigne la machine de Servynex si le
+// depuis un autre appareil, « localhost » désigne la machine de Servym si le
 // projet est exposé, et rien du tout s'il n'écoute que sur elle. Sans DOM :
 // testé sous Node (tests/urls.test.js).
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-// viewer : { local : page ouverte sur la machine de Servynex, hostname : son nom vu d'ici }.
+// viewer : { local : page ouverte sur la machine de Servym, hostname : son nom vu d'ici }.
 export function projectUrl(p, viewer) {
   let url;
   try {

@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const port = process.argv[2] ?? '8765';
 const php = process.argv[3] ?? 'php';
-const root = mkdtempSync(path.join(tmpdir(), 'servynex-essai-'));
+const root = mkdtempSync(path.join(tmpdir(), 'servym-essai-'));
 writeFileSync(path.join(root, 'index.php'), '<?php echo "ok";');
 
 console.log('démarrage : accents éèà ✓');

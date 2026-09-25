@@ -7,7 +7,7 @@ import { describe, test } from 'node:test';
 import { createApp } from '../server.js';
 import { setServerLang } from '../src/i18n.js';
 
-process.env.SERVYNEX_LANG = 'fr';
+process.env.SERVYM_LANG = 'fr';
 setServerLang('fr');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -20,9 +20,9 @@ async function until(check, ms = 5000) {
   throw new Error('délai dépassé');
 }
 
-// Servynex de test qui surveille projects.json toutes les 50 ms.
+// Servym de test qui surveille projects.json toutes les 50 ms.
 async function makeApp() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servynex-reload-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'servym-reload-'));
   fs.mkdirSync(path.join(dir, 'site'));
   fs.writeFileSync(path.join(dir, 'site', 'index.html'), 'ok');
   const file = path.join(dir, 'projects.json');
@@ -39,7 +39,7 @@ async function makeApp() {
   await app.manager.init();
   const port = app.server.address().port;
   const call = (method, p, body) => new Promise((resolve, reject) => {
-    const headers = { host: `localhost:${port}`, 'x-servynex-request': '1' };
+    const headers = { host: `localhost:${port}`, 'x-servym-request': '1' };
     const raw = body === undefined ? undefined : JSON.stringify(body);
     if (raw) Object.assign(headers, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(raw) });
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers }, (res) => {
@@ -56,7 +56,7 @@ async function makeApp() {
     fs.writeFileSync(file, JSON.stringify(next, null, 2));
   };
   const names = async () => (await call('GET', '/api/projects')).json.projects.map((p) => p.name);
-  const own = () => fs.readFileSync(path.join(dir, 'logs', 'servynex.log'), 'utf8');
+  const own = () => fs.readFileSync(path.join(dir, 'logs', 'servym.log'), 'utf8');
   const close = async () => {
     await app.manager.close();
     app.server.closeAllConnections();
@@ -95,7 +95,7 @@ describe('relecture automatique de projects.json', () => {
     }
   });
 
-  test('les écritures de Servynex lui-même ne sont pas relues', async () => {
+  test('les écritures de Servym lui-même ne sont pas relues', async () => {
     const s = await makeApp();
     try {
       assert.equal((await s.call('PATCH', '/api/projects/doc', { desc: 'depuis la page' })).status, 200);

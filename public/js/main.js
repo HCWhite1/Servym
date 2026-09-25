@@ -310,7 +310,7 @@ function updateSummary() {
   const failed = list.filter((p) => ['failed', 'conflict'].includes(p.state)).length;
   const parts = [t('summary.online', { up, total: list.length })];
   if (failed) parts.push(t('summary.failed', { n: failed }));
-  // Total de la machine pour Servynex et ses projets, pendant qu'un projet tourne.
+  // Total de la machine pour Servym et ses projets, pendant qu'un projet tourne.
   const sums = stats.totals();
   const res = sums && projects.size ? h('span', {
     id: 'summary-res',
@@ -321,7 +321,7 @@ function updateSummary() {
   else $('#summary').replaceChildren(parts.join(' · '), ...(res ? [' · ', res] : []));
   $('#nav-count').textContent = list.length ? `${up}/${list.length}` : '';
   orbit.summary(up, list.length);
-  document.title = up ? t('summary.title', { n: up }) : 'Servynex';
+  document.title = up ? t('summary.title', { n: up }) : 'Servym';
 }
 
 function matches(p, query) {
@@ -627,7 +627,7 @@ addEventListener('focus', () => refreshGit());
 function renderUser() {
   const u = session.user;
   $('#user-chip').hidden = !u;
-  $('#brand-name').textContent = instance.name || 'Servynex';
+  $('#brand-name').textContent = instance.name || 'Servym';
   $('#add-project').hidden = !can('commands');
   syncReorder();
   if (!u) return;
@@ -651,7 +651,7 @@ userMenu.addEventListener('click', (e) => {
   else if (act === 'lock') lockNow();
   else if (act === 'logout') logout();
 });
-document.addEventListener('servynex:user', renderUser);
+document.addEventListener('servym:user', renderUser);
 
 // Préférences du compte (thème, vue, animation) : elles priment sur celles du navigateur.
 function applyUserPrefs() {

@@ -3528,7 +3528,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "servynex-core"
+name = "servym-core"
 version = "2.0.0"
 dependencies = [
  "axum",
@@ -3540,8 +3540,8 @@ dependencies = [
  "scrypt",
  "serde",
  "serde_json",
- "servynex-fixtures",
- "servynex-sys",
+ "servym-fixtures",
+ "servym-sys",
  "sha2 0.10.9",
  "subtle",
  "tokio",
@@ -3549,13 +3549,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "servynex-desktop"
+name = "servym-desktop"
 version = "2.0.0"
 dependencies = [
- "servynex-core",
- "servynex-fixtures",
- "servynex-server",
- "servynex-sys",
+ "servym-core",
+ "servym-fixtures",
+ "servym-server",
+ "servym-sys",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
@@ -3565,7 +3565,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "servynex-fixtures"
+name = "servym-fixtures"
 version = "2.0.0"
 dependencies = [
  "regex",
@@ -3576,7 +3576,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "servynex-server"
+name = "servym-server"
 version = "2.0.0"
 dependencies = [
  "axum",
@@ -3587,9 +3587,9 @@ dependencies = [
  "reqwest 0.12.28",
  "rust-embed",
  "serde_json",
- "servynex-core",
- "servynex-fixtures",
- "servynex-sys",
+ "servym-core",
+ "servym-fixtures",
+ "servym-sys",
  "subtle",
  "tokio",
  "tokio-stream",
@@ -3599,12 +3599,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "servynex-sys"
+name = "servym-sys"
 version = "2.0.0"
 dependencies = [
  "libc",
  "serde",
- "servynex-fixtures",
+ "servym-fixtures",
  "tokio",
  "windows 0.62.2",
  "windows-sys 0.61.2",

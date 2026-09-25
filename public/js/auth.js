@@ -5,7 +5,7 @@ import { t } from './i18n.js';
 import { ROLE_LABELS, api, h, icon, initials, session, toast } from './lib.js';
 
 const screen = document.getElementById('auth-screen');
-let instanceName = 'Servynex';
+let instanceName = 'Servym';
 // Retour d'une connexion ou d'une liaison GitHub (?auth_error=… ou ?auth_done=…).
 let notice = null;
 // Page ouverte devant la machine hôte : un code de réinitialisation peut s'y générer.
@@ -35,7 +35,7 @@ function card(title, lead, ...children) {
 
 function logo() {
   const span = h('span', { class: 'auth-logo' });
-  span.innerHTML = '<svg viewBox="0 0 32 32"><use href="icons.svg#servynex-logo"/></svg>';
+  span.innerHTML = '<svg viewBox="0 0 32 32"><use href="icons.svg#servym-logo"/></svg>';
   return span;
 }
 
@@ -246,8 +246,8 @@ export async function lockNow() {
 }
 
 // Verrouillage après inactivité : souris ou clavier sur la page comptent comme
-// activité (signalée à Servynex toutes les 30 s au plus) ; les mises à jour
-// automatiques de la page ne comptent pas. Servynex applique la même règle.
+// activité (signalée à Servym toutes les 30 s au plus) ; les mises à jour
+// automatiques de la page ne comptent pas. Servym applique la même règle.
 function startIdleLock(seconds) {
   if (!seconds) return;
   let last = Date.now();
@@ -276,7 +276,7 @@ export async function gate() {
     notice = { error: error && (OAUTH_ERRORS.includes(error) ? error : 'failed'), done: params.get('auth_done') === 'linked' ? 'linked' : null };
     history.replaceState(null, '', location.pathname + location.hash);
   }
-  instanceName = status.name || 'Servynex';
+  instanceName = status.name || 'Servym';
   localCode = status.localCode === true;
   if (params.has('invite')) {
     await showInvite(params.get('invite'));
@@ -295,7 +295,7 @@ export async function gate() {
     return forever();
   }
   // Session expirée ou verrouillée pendant l'utilisation.
-  addEventListener('servynex:auth', (e) => (e.detail.auth === 'locked' ? showLocked() : e.detail.auth === 'login' ? showLogin() : null));
+  addEventListener('servym:auth', (e) => (e.detail.auth === 'locked' ? showLocked() : e.detail.auth === 'login' ? showLogin() : null));
   if (status.enabled) startIdleLock(status.lockAfter);
   return status;
 }

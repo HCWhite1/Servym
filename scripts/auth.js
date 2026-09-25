@@ -1,7 +1,7 @@
-// Secours en ligne de commande pour les comptes de Servynex, à lancer sur la machine :
+// Secours en ligne de commande pour les comptes de Servym, à lancer sur la machine :
 //   npm run auth -- list                   comptes existants
 //   npm run auth -- reset-password <nom>   code de réinitialisation valable 15 minutes
-// Avoir accès à cette machine donne de toute façon la main sur Servynex : ces
+// Avoir accès à cette machine donne de toute façon la main sur Servym : ces
 // commandes n'ouvrent aucune porte nouvelle. Dernier recours : supprimer
 // runtime/auth.json retire la protection (et tous les comptes).
 import path from 'node:path';

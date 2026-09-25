@@ -24,11 +24,11 @@ export function detach(cmd, args, options = {}) {
   child.unref();
 }
 
-// Enfants lancés sans les variables de l'éditeur ou du terminal qui a démarré Servynex.
+// Enfants lancés sans les variables de l'éditeur ou du terminal qui a démarré Servym.
 export function cleanEnv(extra = {}) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (/^(ELECTRON_|VSCODE_|CLAUDE|SERVYNEX_SUPERVISOR$)/i.test(key)) delete env[key];
+    if (/^(ELECTRON_|VSCODE_|CLAUDE|SERVYM_SUPERVISOR$)/i.test(key)) delete env[key];
   }
   return { ...env, ...extra };
 }

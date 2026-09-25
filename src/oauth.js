@@ -29,7 +29,7 @@ export function authorizeUrl(provider, { clientId, redirectUri, state }) {
 // Code reçu au retour → profil { id, login } du compte chez le fournisseur.
 export async function fetchProfile(provider, { clientId, clientSecret, code, redirectUri }) {
   const signal = AbortSignal.timeout(10_000);
-  const headers = { Accept: 'application/json', 'User-Agent': 'Servynex' };
+  const headers = { Accept: 'application/json', 'User-Agent': 'Servym' };
   const tokenRes = await fetch(provider.tokenUrl, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
