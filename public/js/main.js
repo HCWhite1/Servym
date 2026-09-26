@@ -527,6 +527,21 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  // Entrée agit comme un clic partout, comme sur un bouton : un interrupteur (case à cocher)
+  // bascule, une liste s'ouvre. Par défaut, seul Espace le fait.
+  if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+    if (e.target.matches?.('input[type="checkbox"]:not(:disabled)')) {
+      e.preventDefault();
+      return e.target.click();
+    }
+    if (e.target.matches?.('select:not(:disabled)')) {
+      e.preventDefault();
+      try {
+        e.target.showPicker();
+      } catch {}
+      return;
+    }
+  }
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.target.closest?.('.reorderable .grip')) {
     e.preventDefault();
     return moveRow(e.target.closest('.row'), e.key === 'ArrowUp' ? -1 : 1);
