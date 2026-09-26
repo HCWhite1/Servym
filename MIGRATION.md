@@ -1,8 +1,8 @@
 # Migration vers Rust : journal de bord
 
 Plan complet : rapport « Servynex-migration-rust » (C:\audits). Ce fichier garde, phase par phase,
-ce qui a été fait, les décisions prises en cours de route et les mesures. La version Node reste la
-référence jusqu'à la bascule (phase 7).
+ce qui a été fait, les décisions prises en cours de route et les mesures. La version Node a servi de
+référence jusqu'à la bascule ; elle est retirée à la phase 7 (l'historique Git la garde).
 
 **Servynex s'appelle désormais Servym** (renommé le 25/09/2026, avant d'être public : aucun
 crate, paquet npm, dépôt ni domaine de ce nom). Les sections ci-dessous gardent l'ancien nom,
@@ -229,3 +229,107 @@ binaires `servym` et `Servym.exe`, variables `SERVYM_*`, en-tête `X-Servym-Requ
 valeur « Servym » de la clé Run, textes de l'interface. Nom vérifié libre sur crates.io, npm,
 GitHub et les domaines usuels. Effets : cookie renommé et nouveau dossier WebView2, donc une
 reconnexion dans le navigateur et dans la fenêtre.
+
+## Phase 7 · Bascule et publication (26/09/2026)
+
+### Textes de l'interface
+
+- « Tâche planifiée » devient « Démarrage avec Windows » (« Démarrage avec la session » sous Linux) :
+  description du réglage, état illisible, présentation. La ligne « Lancement » des Paramètres dit
+  « Application de bureau », « Démarrage avec Windows » (superviseur) ou « À la main (servym) ».
+- `npm run auth -- reset-password <nom>` devient `servym auth reset-password <nom>`. L'application
+  de bureau accepte aussi `auth` (même code, déplacé dans `servym_server::cli`) : sans `servym`
+  installé, la commande reste possible (`Servym.exe auth …`, qui emprunte la console du terminal).
+- La ligne « Node.js » devient « Moteur » : l'API rend `instance.engine` au lieu de `node` (`Rust`,
+  ou `Rust · Tauri 2.11.6 · WebView2 …` / `WebKitGTK …` pour l'application de bureau).
+- Plus aucune mention d'`autostart.bat`. Le superviseur `vbs` (transition depuis la version Node)
+  n'est plus reconnu.
+
+### Backend Node retiré
+
+`server.js`, `src/`, `scripts/`, `package.json`, `autostart.bat`, les tests JavaScript du serveur,
+`tools/test-parity.mjs` et `tools/gen-format-golden.mjs` (les fichiers de référence qu'il a écrits
+restent). Gardés : `public/` (l'interface, embarquée dans les exécutables), `tests/urls.test.mjs`
+(le seul test JavaScript : code de l'interface, lancé par `node --test` en CI), `tools/gen-icons.mjs`
+(icônes, indépendant du serveur) et `spikes/` (essais de la phase 0). La CI n'a plus de tâche
+« Node » pour le serveur.
+
+### Application de bureau sous Linux
+
+`servym-desktop` se construit sous Windows et Linux (Tauri + WebKitGTK), avec le même choix
+fenêtre ou navigateur. Ce qui diffère est rangé dans `crates/servym-desktop/src/system.rs` :
+
+- **Démarrage avec la session** : service systemd utilisateur `servym`, variante « bureau »
+  (`servym_sys::linux::Unit { graphical: true }`) : `After=`/`PartOf=`/`WantedBy=graphical-session.target`
+  (il faut l'écran), `--background`, sans `SERVYM_SUPERVISOR` : l'application se supervise elle-même
+  comme sous Windows (redémarrage demandé avec la fenêtre rouverte). Lancée depuis une AppImage,
+  c'est le fichier `$APPIMAGE` qui est inscrit, pas le dossier monté le temps de sa vie.
+- **Notifications** : `notify-send` (déjà dans `servym-sys`).
+- **Message d'erreur** (port occupé…) : zenity, sinon kdialog, sinon une notification ; toujours
+  sur la sortie d'erreur.
+- **Zone de notification** : libayatana-appindicator. Sous Linux, pas d'évènement de clic : un clic
+  ouvre le menu. Libellé « Démarrer avec la session ».
+- **Données** : `$XDG_DATA_HOME/servym`, sinon `~/.local/share/servym` (même ordre de recherche
+  qu'ailleurs : `--data`, `SERVYM_HOME`, mode portable).
+- **Paquets** : `.deb` (4,8 Mo ; dépendances WebKitGTK, GTK, appindicator ajoutées par Tauri,
+  `libnotify-bin` recommandé) et AppImage (83 Mo, GTK et WebKitGTK compris). Exécutable
+  `servym-desktop` (pour ne pas se confondre avec `servym` sans écran), entrée de menu « Servym ».
+
+Le binaire sans écran `servym` reste pour les serveurs sans bureau.
+
+Trouvé en route :
+
+- Le service de `servym` sans écran avait pour dossier de travail celui de l'exécutable, et ignorait
+  `--data` : il lance désormais `servym --data <dossier>`. Le démarrage avec la session n'est plus
+  une méthode de `Platform` (il dépend du programme et des données, pas du système) ; il est
+  construit par le serveur (`servym`) ou l'application de bureau.
+- Service « activé » seulement s'il lance ce programme avec ces données (ligne `ExecStart`), comme
+  la clé Run à la phase 6 : un service laissé par l'autre version (bureau ou sans écran) ne compte
+  pas, et l'activer le remplace (`reenable`, les liens de l'ancienne cible sont refaits).
+- `$` et `"` protégés dans `ExecStart` (variables de systemd).
+
+### Vérifications
+
+- Windows : `cargo clippy --workspace --all-targets -D warnings`, `cargo fmt --check`, 183 tests.
+- Linux (conteneur Ubuntu 22.04, dépendances WebKitGTK de la CI) : clippy et tous les tests passent ;
+  `.deb`, AppImage et `servym` construits par `cargo tauri build`.
+- Pas encore essayé : l'application de bureau sur une vraie machine Linux avec bureau (liste des
+  vérifications ci-dessous).
+
+### CI et release
+
+- CI : dépendances de Tauri installées sous Linux (Ubuntu 22.04), l'application de bureau est donc
+  compilée, vérifiée par clippy et testée sous Windows et Linux ; tâche « Interface (Node) » pour
+  `tests/urls.test.mjs`.
+- `.github/workflows/release.yml` : une étiquette `v*` construit l'installateur NSIS, le `.deb`,
+  l'AppImage et `servym_<version>_linux_x86_64.tar.gz`, puis prépare une release **en brouillon**
+  avec `SHA256SUMS.txt`. Elle n'est publiée qu'à la main.
+- Installateur non signé : le README explique l'avertissement SmartScreen et la vérification de
+  l'empreinte.
+
+### Mesures (26/09/2026)
+
+Même machine, données vides, `node server.js` (Node 24) contre `servym` (release) :
+
+| | Node | Rust |
+| --- | --- | --- |
+| Démarrage jusqu'à la 1re réponse de `/api/projects` | 0,7–0,8 s | 0,2 s |
+| Mémoire privée, aucune page | 31 Mo | 4,5 Mo |
+| Mémoire privée, liste affichée | 109 Mo (avec la sonde PowerShell) | 4,6 Mo |
+| `/api/ports` | 790 ms | 33 ms |
+| `/api/autostart` | 2 450 ms | 11 ms |
+| `/api/network` | 18 ms (en cache) | 14 ms |
+
+Installation réelle (application de bureau, fenêtre fermée, 7 projets) : superviseur 1,4 Mo et
+application 6,9 Mo de mémoire privée. Tailles : `Servym.exe` 11,9 Mo, installateur 3,4 Mo (phase 6),
+`servym.exe` 6,4 Mo, `servym` Linux 5,8 Mo.
+
+Incident pendant les mesures : un arrêt par nom (`taskkill /IM servym.exe`, insensible à la casse)
+a aussi arrêté le Servym installé, et un arrêt des `node … server.js` a arrêté MangaFlow
+(`node server/server.js`). Servym a été relancé comme le fait la clé Run, puis MangaFlow par son
+bouton « Démarrer ». Leçon : n'arrêter que les PID qu'on a lancés.
+
+### Reste
+
+- Essai de l'application de bureau sur une vraie machine Linux.
+- `rust-rewrite` devient `main`, étiquette `v2.0.0`, publication de la release préparée par la CI.

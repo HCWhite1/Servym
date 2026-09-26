@@ -1,0 +1,84 @@
+name: Release
+
+# Une étiquette vX.Y.Z construit l'installateur Windows, les paquets Linux (.deb, AppImage) et le
+# binaire Linux sans écran, puis prépare une release en brouillon : elle n'est publiée qu'à la main.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Installateur Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install tauri-cli --version "^2" --locked
+      - name: Application de bureau (NSIS)
+        working-directory: crates/servym-desktop
+        run: cargo tauri build --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  linux:
+    name: Paquets Linux
+    # La plus ancienne version encore prise en charge : les paquets marchent sur les systèmes plus
+    # récents (glibc), pas l'inverse.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dépendances de Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev file
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install tauri-cli --version "^2" --locked
+      - name: Application de bureau (.deb, AppImage)
+        working-directory: crates/servym-desktop
+        run: cargo tauri build --bundles deb,appimage
+      - name: Binaire sans écran
+        run: |
+          cargo build --release -p servym-server
+          version=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          tar -czf "dist/servym_${version}_linux_x86_64.tar.gz" -C target/release servym -C "$GITHUB_WORKSPACE" LICENSE THIRD-PARTY-NOTICES.md projects.example.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Release en brouillon
+    needs: [windows, linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Fichiers et empreintes SHA-256
+        run: |
+          mkdir release
+          find artifacts -type f -exec mv {} release/ \;
+          cd release && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: Servym ${{ github.ref_name }}
+          files: release/*

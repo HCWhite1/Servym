@@ -13,10 +13,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # Application de bureau sous Linux : WebKitGTK, GTK et la zone de notification.
+      - name: Dépendances de Tauri (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -25,15 +31,13 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
-  # La version Node reste la référence jusqu'à la bascule. Ses tests supposent Windows (chemins
-  # « C:/… ») : ils ne tournent que là.
-  node:
-    name: Node (windows-latest)
-    runs-on: windows-latest
+  # Le seul code JavaScript testé : l'adresse d'un projet selon qui ouvre la page (interface).
+  interface:
+    name: Interface (Node)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: node --test
-      - run: node tools/test-parity.mjs
