@@ -1,7 +1,7 @@
 // Paramètres : démarrage, apparence, fichier de configuration, Servym, raccourcis.
 import { renderAccount, renderMembers, renderSecurity } from './accounts.js';
 import { choice, setChoice, t, tn } from './i18n.js';
-import { api, applyTheme, ask, can, confirmDialog, h, session, store, tile, toast, viewer } from './lib.js';
+import { api, applyTheme, ask, can, confirmDialog, h, hold, session, store, tile, toast, viewer } from './lib.js';
 import { publicNetworks } from './network.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -264,7 +264,7 @@ export async function loadAutostart() {
 }
 
 export async function setInstanceAutostart(on, input) {
-  if (input) input.disabled = true;
+  const release = input ? hold(input) : null;
   try {
     const { enabled } = await api('autostart', { method: 'PUT', body: { enabled: on } });
     toast(t(enabled ? 'settings.autostartOn' : 'settings.autostartOff'));
@@ -276,7 +276,7 @@ export async function setInstanceAutostart(on, input) {
     if (input) input.checked = !on;
     return null;
   } finally {
-    if (input) input.disabled = !can('instance');
+    release?.(can('instance'));
   }
 }
 
@@ -284,14 +284,14 @@ export async function setInstanceAutostart(on, input) {
 
 export async function setProjectAutostart(id, on, input) {
   if (!id) return;
-  if (input) input.disabled = true;
+  const release = input ? hold(input) : null;
   try {
     await api(`projects/${encodeURIComponent(id)}`, { method: 'PATCH', body: { autostart: on } });
   } catch (err) {
     toast(err.message, 'error');
     if (input) input.checked = !on;
   } finally {
-    if (input) input.disabled = !can('edit');
+    release?.(can('edit'));
   }
 }
 
@@ -549,15 +549,14 @@ async function setNotify(on) {
 }
 
 async function testNotify() {
-  const button = $('#notify-test');
-  button.disabled = true;
+  const release = hold($('#notify-test'));
   try {
     const { sent } = await api('instance/notify-test', { method: 'POST' });
     toast(t(sent ? 'notify.sent' : 'notify.unsupported'), sent ? undefined : 'error');
   } catch (err) {
     toast(err.message, 'error');
   } finally {
-    button.disabled = !can('instance');
+    release(can('instance'));
   }
 }
 

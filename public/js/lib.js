@@ -161,6 +161,18 @@ export function h(tag, props = {}, ...children) {
 }
 
 // Icône du fichier public/icons.svg (Lucide).
+// Désactive un élément le temps d'une requête. Un élément désactivé perd le focus : il le retrouve
+// ensuite s'il l'avait (clavier). `release(enabled)` le réactive, ou le laisse désactivé.
+export function hold(el) {
+  const focused = document.activeElement === el;
+  el.disabled = true;
+  return (enabled = true) => {
+    el.disabled = !enabled;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (focused && enabled && lost && el.isConnected) el.focus();
+  };
+}
+
 export function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');

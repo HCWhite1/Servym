@@ -1,7 +1,7 @@
 // Paramètres › Mon compte, Sécurité, Membres (comptes et protection par mot de passe).
 import { showKeyDialog, logout } from './auth.js';
 import { t } from './i18n.js';
-import { ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, h, icon, initials, permissionLabels, session, toast } from './lib.js';
+import { ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, h, hold, icon, initials, permissionLabels, session, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LOCKS = [[0, t('lock.never')], [120, '2 min'], [300, '5 min'], [900, '15 min'], [1800, '30 min'], [3600, '1 h']];
@@ -22,13 +22,13 @@ function input(attrs) {
 function button(text, iconName, onClick, cls = 'btn') {
   const b = h('button', { class: cls, type: 'button' }, iconName ? icon(iconName) : null, text);
   b.addEventListener('click', async () => {
-    b.disabled = true;
+    const release = hold(b);
     try {
       await onClick(b);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
-      b.disabled = false;
+      release();
     }
   });
   return b;
