@@ -325,8 +325,8 @@ function fillInstance() {
   const rows = [
     ['Version', info.version ?? '—'],
     [t('col.address'), `http://localhost:${info.port}`],
-    ['Node.js', info.node ?? '—'],
-    [t('info.launch'), info.restartable ? t('settings.launchTask') : t('settings.launchHand')],
+    [t('info.engine'), info.engine ?? '—'],
+    [t('info.launch'), info.app ? t('settings.launchApp') : info.restartable ? t('settings.launchTask') : t('settings.launchHand')],
     [t('settings.tools'), [handlers.tools().code ? 'VS Code' : null, handlers.tools().terminal].filter(Boolean).join(', ')],
   ];
   $('#instance-info').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })]));

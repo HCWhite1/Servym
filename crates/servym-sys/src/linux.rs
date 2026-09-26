@@ -278,33 +278,95 @@ pub fn in_path(env: &HashMap<String, String>, cmd: &str) -> bool {
 
 // ---- Démarrage avec la session : service utilisateur systemd ----
 
+/// Ce que lance le service « servym ».
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Unit {
+    pub exe: PathBuf,
+    pub args: Vec<String>,
+    pub workdir: PathBuf,
+    /// Application de bureau : démarre avec la session graphique (il lui faut l'écran) et se
+    /// supervise elle-même, comme sous Windows. Sinon, `servym` sans écran, supervisé par systemd.
+    pub graphical: bool,
+}
+
+impl Unit {
+    /// `servym` sans écran, avec ses données.
+    pub fn headless(exe: &Path, data: &Path) -> Unit {
+        Unit {
+            exe: exe.to_path_buf(),
+            args: vec!["--data".into(), data.to_string_lossy().into_owned()],
+            workdir: data.to_path_buf(),
+            graphical: false,
+        }
+    }
+}
+
+/// Argument de `ExecStart` : entre guillemets, `%` et `$` protégés (variables de systemd).
+fn exec_arg(arg: &str) -> String {
+    let escaped = arg
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('%', "%%")
+        .replace('$', "$$");
+    format!("\"{escaped}\"")
+}
+
+/// Ligne `ExecStart` du service : l'exécutable et ses arguments.
+pub fn exec_start(unit: &Unit) -> String {
+    let mut line = format!("ExecStart={}", exec_arg(&unit.exe.to_string_lossy()));
+    for arg in &unit.args {
+        line.push(' ');
+        line.push_str(&exec_arg(arg));
+    }
+    line
+}
+
 /// Service « servym » : démarre à l'ouverture de session, relancé s'il plante (5 échecs rapides :
 /// abandon). `KillMode=process` : arrêter Servym laisse tourner les projets, repris au démarrage
 /// suivant.
-pub fn unit_file(exe: &Path, workdir: &Path) -> String {
+pub fn unit_file(unit: &Unit) -> String {
     let q = |p: &Path| p.to_string_lossy().replace('%', "%%"); // % introduit une variable pour systemd
-    [
+    let mut lines = vec![
         "[Unit]".to_string(),
-        format!("Description=Servym ({})", q(workdir)),
-        "After=network.target".into(),
+        format!("Description=Servym ({})", q(&unit.workdir)),
+    ];
+    if unit.graphical {
+        // Il faut l'écran : après l'ouverture de la session graphique, arrêté avec elle.
+        lines.push("After=graphical-session.target".into());
+        lines.push("PartOf=graphical-session.target".into());
+    } else {
+        lines.push("After=network.target".into());
+    }
+    lines.extend([
         "StartLimitIntervalSec=300".into(),
         "StartLimitBurst=5".into(),
         String::new(),
         "[Service]".into(),
         "Type=simple".into(),
-        format!("WorkingDirectory={}", q(workdir)),
-        format!("ExecStart=\"{}\"", q(exe)),
-        "Environment=SERVYM_SUPERVISOR=systemd".into(),
-        "# Code 75 : redémarrage demandé depuis l’interface.".into(),
+        format!("WorkingDirectory={}", q(&unit.workdir)),
+        exec_start(unit),
+    ]);
+    if unit.graphical {
+        lines.push("# L’application se supervise elle-même (redémarrage demandé, fenêtre rouverte).".into());
+    } else {
+        lines.push("Environment=SERVYM_SUPERVISOR=systemd".into());
+        lines.push("# Code 75 : redémarrage demandé depuis l’interface.".into());
+    }
+    let target = if unit.graphical {
+        "graphical-session.target"
+    } else {
+        "default.target"
+    };
+    lines.extend([
         "Restart=on-failure".into(),
         "RestartSec=2".into(),
         "KillMode=process".into(),
         String::new(),
         "[Install]".into(),
-        "WantedBy=default.target".into(),
+        format!("WantedBy={target}"),
         String::new(),
-    ]
-    .join("\n")
+    ]);
+    lines.join("\n")
 }
 
 /// Exécution d'une commande : sortie standard, ou erreur (code non nul) avec sa sortie standard.
@@ -316,11 +378,23 @@ pub struct SystemdTask {
     /// Dossier des services utilisateur (`~/.config/systemd/user`).
     pub dir: PathBuf,
     pub run: Runner,
-    pub exe: PathBuf,
-    pub workdir: PathBuf,
+    pub unit: Unit,
 }
 
 impl SystemdTask {
+    /// Service de l'utilisateur courant (`$XDG_CONFIG_HOME/systemd/user`).
+    pub fn for_user(unit: Unit, run: Runner) -> SystemdTask {
+        let config = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+            .unwrap_or_default();
+        SystemdTask {
+            dir: config.join("systemd").join("user"),
+            run,
+            unit,
+        }
+    }
+
     fn systemctl(&self, args: &[&str]) -> BoxFuture<'static, Result<String, String>> {
         let mut all = vec!["--user".to_string()];
         all.extend(args.iter().map(|a| a.to_string()));
@@ -331,6 +405,13 @@ impl SystemdTask {
 impl Autostart for SystemdTask {
     fn enabled(&self) -> BoxFuture<'_, bool> {
         Box::pin(async move {
+            // Activé seulement s'il lance bien ce programme, avec ces données : un service laissé
+            // par l'autre version de Servym (sans écran ou de bureau) ne compte pas.
+            let file = std::fs::read_to_string(self.dir.join("servym.service")).unwrap_or_default();
+            let expected = exec_start(&self.unit);
+            if !file.lines().any(|l| l.trim() == expected) {
+                return false;
+            }
             // is-enabled répond « disabled » avec un code d'erreur : sa sortie suffit.
             let out = self
                 .systemctl(&["is-enabled", "servym.service"])
@@ -345,9 +426,11 @@ impl Autostart for SystemdTask {
             let file = self.dir.join("servym.service");
             if on {
                 std::fs::create_dir_all(&self.dir).map_err(|e| e.to_string())?;
-                std::fs::write(&file, unit_file(&self.exe, &self.workdir)).map_err(|e| e.to_string())?;
+                // Un service de l'autre version est remplacé : un seul Servym par session.
+                std::fs::write(&file, unit_file(&self.unit)).map_err(|e| e.to_string())?;
                 self.systemctl(&["daemon-reload"]).await?;
-                self.systemctl(&["enable", "servym.service"]).await?;
+                // Les liens de l'ancien service (autre cible) sont refaits pour celui-ci.
+                self.systemctl(&["reenable", "servym.service"]).await?;
             } else {
                 self.systemctl(&["disable", "servym.service"]).await?;
                 let _ = std::fs::remove_file(&file);
@@ -373,12 +456,10 @@ mod real {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use super::{
-        KillOptions, SystemdTask, detect_tools, exit_code, in_path, parse_ss, parse_stat, terminal_command,
-    };
+    use super::{KillOptions, detect_tools, exit_code, in_path, parse_ss, parse_stat, terminal_command};
     use crate::{
-        Autostart, BoxFuture, LaunchError, LaunchOptions, Listener, NetworkProfile, OnExit, Platform,
-        ProcTable, Tools, WATCH_STACK, clean_env, run_command,
+        BoxFuture, LaunchError, LaunchOptions, Listener, NetworkProfile, OnExit, Platform, ProcTable, Tools,
+        WATCH_STACK, clean_env, run_command,
     };
 
     const PROC: &str = "/proc";
@@ -388,7 +469,6 @@ mod real {
         ticks: u64,
         page_size: u64,
         tools: Tools,
-        autostart: Arc<SystemdTask>,
     }
 
     fn sysconf(name: libc::c_int, default: u64) -> u64 {
@@ -407,22 +487,10 @@ mod real {
         pub fn new() -> Self {
             let env: HashMap<String, String> = std::env::vars().collect();
             let tools = detect_tools(&env, &|cmd| in_path(&env, cmd));
-            let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("servym"));
-            let workdir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
-            let config = std::env::var_os("XDG_CONFIG_HOME")
-                .map(PathBuf::from)
-                .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-                .unwrap_or_default();
             LinuxPlatform {
                 ticks: sysconf(libc::_SC_CLK_TCK, 100),
                 page_size: sysconf(libc::_SC_PAGESIZE, 4096),
                 tools,
-                autostart: Arc::new(SystemdTask {
-                    dir: config.join("systemd").join("user"),
-                    run: run_command(),
-                    exe,
-                    workdir,
-                }),
             }
         }
     }
@@ -558,10 +626,6 @@ mod real {
             let name = self.tools.terminal.as_deref().ok_or("system.noTerminal")?;
             let (cmd, args) = terminal_command(name, &dir.to_string_lossy()).ok_or("system.noTerminal")?;
             detach(&cmd, &args, Some(dir))
-        }
-
-        fn autostart(&self) -> Arc<dyn Autostart> {
-            self.autostart.clone()
         }
     }
 

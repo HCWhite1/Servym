@@ -1,15 +1,15 @@
-//! `Servym.exe` : l'application de bureau (Windows). Voir `lib.rs`.
+//! `Servym.exe` (Windows) ou `servym-desktop` (Linux) : l'application de bureau. Voir `lib.rs`.
 
 // Pas de fenêtre de console : Servym vit dans la zone de notification.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn main() -> std::process::ExitCode {
     servym_desktop::run()
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn main() -> std::process::ExitCode {
-    eprintln!("L'application de bureau vise Windows ; ailleurs, utilisez `servym` (sans écran).");
+    eprintln!("L'application de bureau vise Windows et Linux ; ailleurs, utilisez `servym` (sans écran).");
     std::process::ExitCode::FAILURE
 }

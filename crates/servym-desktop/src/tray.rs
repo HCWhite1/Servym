@@ -5,7 +5,7 @@
 //! ● MangaFlow — en ligne        › Ouvrir · Redémarrer · Arrêter
 //! ○ Radar — arrêté              › Démarrer
 //! ✕ Bogue — en échec            › Relancer
-//! Ouvrir Servym · Ouvrir dans le navigateur · ✓ Démarrer avec Windows · Quitter
+//! Ouvrir Servym · Ouvrir dans le navigateur · ✓ Démarrer avec Windows (la session) · Quitter
 //! ```
 //!
 //! Sur la machine hôte seulement, sans mot de passe : démarrer, arrêter, redémarrer, ouvrir ;
@@ -150,7 +150,7 @@ fn build(app: &AppHandle, desktop: &Desktop, shown: &Shown) -> tauri::Result<Men
     menu.append(&CheckMenuItem::with_id(
         app,
         "autostart",
-        desktop.app.tr("tray.autostart"),
+        desktop.app.tr(crate::system::AUTOSTART_LABEL),
         true,
         shown.autostart,
         None::<&str>,

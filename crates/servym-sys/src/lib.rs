@@ -115,7 +115,6 @@ pub trait Platform: Send + Sync {
     fn open_in_code(&self, dir: &Path) -> Result<(), String>;
     fn open_in_editor(&self, file: &Path) -> Result<(), String>;
     fn open_terminal(&self, dir: &Path) -> Result<(), String>;
-    fn autostart(&self) -> Arc<dyn Autostart>;
 }
 
 /// Le système de cette machine (le même objet à chaque appel).

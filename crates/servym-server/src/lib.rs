@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 mod api;
 mod app;
 mod auth;
+pub mod cli;
 pub mod http;
 pub mod supervisor;
 pub mod testing;
@@ -61,8 +62,7 @@ pub fn bind_host(instance: &Value, protected_by_password: bool) -> &'static str 
 /// Servym est-il lancé par un superviseur qui le relancera (code 75) ?
 /// `SERVYM_SUPERVISOR` : `servym` (mode `--supervised`) ou `systemd`.
 pub fn is_supervised(supervisor: Option<&str>) -> bool {
-    // « vbs » : scripts/start-hidden.vbs de la version Node, le temps de la transition.
-    matches!(supervisor, Some("servym" | "systemd" | "vbs"))
+    matches!(supervisor, Some("servym" | "systemd"))
 }
 
 /// Code de sortie qui demande au superviseur une relance immédiate.
@@ -106,6 +106,7 @@ pub struct AppBuilder {
     local_viewer: Option<Arc<dyn Fn(IpAddr) -> bool + Send + Sync>>,
     notifier: Option<Arc<dyn Notifier>>,
     platform_name: Option<String>,
+    engine: Option<String>,
     desktop: Option<bool>,
     shell: Option<Arc<dyn Shell>>,
     watch: Option<Duration>,
@@ -172,6 +173,11 @@ impl AppBuilder {
     }
     pub fn notifier(mut self, notifier: Arc<dyn Notifier>) -> Self {
         self.notifier = Some(notifier);
+        self
+    }
+    /// Ligne « Moteur » des Paramètres (par défaut : « Rust »).
+    pub fn engine(mut self, engine: &str) -> Self {
+        self.engine = Some(engine.into());
         self
     }
     /// Système annoncé à la page (« win32 », « linux »).
@@ -295,9 +301,7 @@ impl AppBuilder {
             git_cache: tokio::sync::Mutex::default(),
             network: tokio::sync::Mutex::default(),
             restart: self.restart,
-            autostart: self
-                .autostart
-                .unwrap_or_else(|| default_autostart(&platform, &data_dir)),
+            autostart: self.autostart.unwrap_or_else(|| default_autostart(&data_dir)),
             clock,
             notifier: self
                 .notifier
@@ -307,6 +311,7 @@ impl AppBuilder {
             local_viewer: self
                 .local_viewer
                 .unwrap_or_else(|| Arc::new(|ip: IpAddr| ip.is_loopback() || is_mapped_loopback(ip))),
+            engine: self.engine.unwrap_or_else(|| "Rust".into()),
             platform_name: self.platform_name.unwrap_or_else(|| {
                 if cfg!(windows) {
                     "win32".into()
@@ -575,13 +580,12 @@ impl<T> LockOrTry<T> for tokio::sync::Mutex<T> {
     }
 }
 
-/// Démarrage avec la session : sous Windows, la clé Run lance `servym --supervised` avec le
-/// dossier des données (lancé depuis la clé Run, le dossier courant est System32). Ailleurs, celui
-/// du système (systemd : `WorkingDirectory`).
-fn default_autostart(platform: &Arc<dyn Platform>, data_dir: &Path) -> Arc<dyn Autostart> {
+/// Démarrage avec la session, avec le dossier des données : sous Windows, la clé Run lance
+/// `servym --supervised` (depuis la clé Run, le dossier courant est System32) ; sous Linux, un
+/// service systemd utilisateur lance `servym`, supervisé par systemd.
+fn default_autostart(data_dir: &Path) -> Arc<dyn Autostart> {
     #[cfg(windows)]
     {
-        let _ = platform;
         let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("servym.exe"));
         let data = std::path::absolute(data_dir).unwrap_or_else(|_| data_dir.to_path_buf());
         Arc::new(servym_sys::windows::autostart::RunKey {
@@ -590,7 +594,11 @@ fn default_autostart(platform: &Arc<dyn Platform>, data_dir: &Path) -> Arc<dyn A
     }
     #[cfg(not(windows))]
     {
-        let _ = data_dir;
-        platform.autostart()
+        let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("servym"));
+        let data = std::path::absolute(data_dir).unwrap_or_else(|_| data_dir.to_path_buf());
+        Arc::new(servym_sys::linux::SystemdTask::for_user(
+            servym_sys::linux::Unit::headless(&exe, &data),
+            servym_sys::run_command(),
+        ))
     }
 }

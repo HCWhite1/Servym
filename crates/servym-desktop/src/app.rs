@@ -1,6 +1,6 @@
 //! Démarrage : superviseur, puis application (serveur, zone de notification, fenêtre).
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicI32, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
@@ -12,6 +12,7 @@ use servym_server::{App, Listening, RESTART_CODE, RESTART_WINDOW_CODE, RunningAp
 use tauri::{AppHandle, Manager, RunEvent};
 
 use crate::data;
+use crate::system::{self, error_box};
 
 /// État de l'application, rangé dans Tauri.
 pub struct Desktop {
@@ -53,46 +54,19 @@ impl Shell for DesktopShell {
     }
 }
 
-/// Boîte d'erreur de Windows (avant la fenêtre, ou sans elle).
-fn error_box(text: &str) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        MB_ICONERROR, MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW,
-    };
-    let wide = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
-    let (title, text) = (wide("Servym"), wide(text));
-    // SAFETY : textes UTF-16 terminés par un zéro, vivants pendant l'appel.
-    unsafe {
-        MessageBoxW(
-            std::ptr::null_mut(),
-            text.as_ptr(),
-            title.as_ptr(),
-            MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST,
-        );
-    }
-}
-
-/// Raccourci du menu Démarrer posé par l'installateur : il déclare l'identifiant de l'application,
-/// au nom duquel les notifications peuvent s'afficher.
-fn installed() -> bool {
-    std::env::var_os("APPDATA").is_some_and(|appdata| {
-        Path::new(&appdata)
-            .join(r"Microsoft\Windows\Start Menu\Programs\Servym.lnk")
-            .is_file()
-    })
-}
-
 pub fn run() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("Servym.exe"));
     let home = std::env::var_os("SERVYM_HOME").map(PathBuf::from);
     let explicit = args.iter().any(|a| a == "--data") || home.is_some();
-    let data = data::data_dir(
-        &args,
-        home,
-        exe.parent(),
-        std::env::var_os("LOCALAPPDATA").map(PathBuf::from),
-    );
+    let data = data::data_dir(&args, home, exe.parent(), system::default_data_dir());
     let background = args.iter().any(|a| a == "--background");
+
+    // `auth list`, `auth reset-password <nom>` : mêmes commandes que `servym`, sans interface.
+    if args.first().map(String::as_str) == Some("auth") {
+        system::attach_console();
+        return servym_server::cli::auth_command(&data, &args[1..]);
+    }
 
     // Lancé par l'utilisateur ou la clé Run : ce processus devient le superviseur.
     if std::env::var_os("SERVYM_SUPERVISOR").is_none() {
@@ -118,11 +92,7 @@ pub fn run() -> ExitCode {
         .build()
         .expect("environnement asynchrone");
     tauri::async_runtime::set(runtime.handle().clone());
-    let mut autostart = format!("\"{}\" --background", exe.display());
-    if explicit {
-        let abs = std::path::absolute(&data).unwrap_or_else(|_| data.clone());
-        autostart.push_str(&format!(" --data \"{}\"", abs.display()));
-    }
+    let autostart = system::autostart(&system::program(&exe), &data, explicit);
     let start = Start {
         data,
         background,
@@ -180,7 +150,7 @@ pub fn run() -> ExitCode {
 struct Start {
     data: PathBuf,
     background: bool,
-    autostart: String,
+    autostart: Arc<dyn servym_sys::Autostart>,
     runtime: tokio::runtime::Handle,
 }
 
@@ -205,20 +175,21 @@ fn setup(tauri_app: &mut tauri::App, start: Start, identifier: &str) -> Result<(
         };
         restart_handle.exit(code);
     });
-    let run_key = Arc::new(servym_sys::windows::autostart::RunKey { command: autostart });
+    // Ligne « Moteur » des Paramètres : « Rust · Tauri 2.11.6 · WebView2 140.0… ».
+    let webview = tauri::webview_version()
+        .map(|v| format!(" · {} {v}", system::WEBVIEW))
+        .unwrap_or_default();
     let mut builder = App::builder()
         .data_dir(&data)
+        .engine(&format!("Rust · Tauri {}{webview}", tauri::VERSION))
         .restart(restart)
         .shell(Arc::new(DesktopShell {
             port: port_cell.clone(),
             handle: handle.clone(),
         }))
-        .autostart(run_key);
-    if installed() {
-        builder = builder.notifier(Arc::from(servym_sys::notify::app_notifier(
-            identifier,
-            servym_sys::run_command(),
-        )));
+        .autostart(autostart);
+    if let Some(notifier) = system::notifier(identifier) {
+        builder = builder.notifier(notifier);
     }
     let app = builder.build();
 

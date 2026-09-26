@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "mainBinaryName": "servym-desktop",
+  "bundle": {
+    "targets": [
+      "deb",
+      "appimage"
+    ],
+    "linux": {
+      "deb": {
+        "recommends": [
+          "libnotify-bin"
+        ],
+        "section": "devel"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  }
+}

@@ -55,6 +55,8 @@ pub struct AppInner {
     pub hostnames: Arc<dyn Fn() -> Vec<String> + Send + Sync>,
     pub local_viewer: Arc<dyn Fn(IpAddr) -> bool + Send + Sync>,
     pub platform_name: String,
+    /// Ligne « Moteur » des Paramètres.
+    pub engine: String,
     pub desktop: bool,
     /// Application de bureau autour du serveur (absent : `servym` sans écran).
     pub shell: Option<Arc<dyn crate::Shell>>,

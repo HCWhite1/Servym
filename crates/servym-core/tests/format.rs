@@ -1,5 +1,5 @@
 //! Le formateur produit, octet par octet, la même sortie que `formatConfig` de la version Node
-//! (fichiers de référence écrits par tools/gen-format-golden.mjs).
+//! (fichiers de référence écrits par elle, avant son retrait : voir l’historique Git).
 
 use std::path::Path;
 

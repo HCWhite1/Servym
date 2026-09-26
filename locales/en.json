@@ -231,6 +231,7 @@
   "tray.open": "Open Servym",
   "tray.openBrowser": "Open in the browser",
   "tray.autostart": "Start with Windows",
+  "tray.autostartSession": "Start when you sign in",
   "tray.quit": "Quit Servym (projects keep running)",
   "tray.online": "{count} online",
   "tray.failed": "{count} failed",

@@ -2,11 +2,10 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use crate::{
-    Autostart, BoxFuture, LaunchError, LaunchOptions, Listener, NetworkProfile, OnExit, Platform, ProcTable,
-    Tools, clean_env,
+    BoxFuture, LaunchError, LaunchOptions, Listener, NetworkProfile, OnExit, Platform, ProcTable, Tools,
+    clean_env,
 };
 
 pub mod autostart;
@@ -41,7 +40,6 @@ fn native_path(p: &Path) -> String {
 pub struct WindowsPlatform {
     code: Option<PathBuf>,
     terminal: Option<PathBuf>,
-    autostart: Arc<autostart::RunKey>,
 }
 
 impl Default for WindowsPlatform {
@@ -52,13 +50,9 @@ impl Default for WindowsPlatform {
 
 impl WindowsPlatform {
     pub fn new() -> Self {
-        let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("servym.exe"));
         WindowsPlatform {
             code: vscode(),
             terminal: windows_terminal(),
-            autostart: Arc::new(autostart::RunKey {
-                command: format!("\"{}\" --supervised", exe.display()),
-            }),
         }
     }
 }
@@ -172,9 +166,5 @@ impl Platform for WindowsPlatform {
                 true,
             ),
         }
-    }
-
-    fn autostart(&self) -> Arc<dyn Autostart> {
-        self.autostart.clone()
     }
 }

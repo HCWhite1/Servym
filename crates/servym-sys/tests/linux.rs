@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use servym_fixtures::{TempDir, temp_dir, write};
 use servym_sys::linux::{
-    self, KillOptions, SIGKILL, SIGTERM, Stat, SystemdTask, detect_tools, exit_code, parse_ss, parse_stat,
-    terminal_command, unit_file,
+    self, KillOptions, SIGKILL, SIGTERM, Stat, SystemdTask, Unit, detect_tools, exit_code, parse_ss,
+    parse_stat, terminal_command, unit_file,
 };
 use servym_sys::{Autostart, BoxFuture, Listener, ProcSample, Tools};
 
@@ -412,14 +412,15 @@ fn terminal_dans_le_dossier() {
 /// JS : linux.test.js › Linux : démarrage avec la session (systemd) › service utilisateur : relancé s’il plante, les projets survivent à son arrêt
 #[test]
 fn service_utilisateur() {
-    let unit = unit_file(
+    let unit = unit_file(&Unit::headless(
         Path::new("/home/hugo/Servym 100%/servym"),
         Path::new("/home/hugo/Servym 100%"),
-    );
+    ));
     let lines: Vec<&str> = unit.lines().collect();
     assert!(
-        lines.contains(&"ExecStart=\"/home/hugo/Servym 100%%/servym\""),
-        "% doublé pour systemd :\n{unit}"
+        lines
+            .contains(&"ExecStart=\"/home/hugo/Servym 100%%/servym\" \"--data\" \"/home/hugo/Servym 100%%\""),
+        "% doublé pour systemd, données explicites :\n{unit}"
     );
     assert!(
         lines.contains(&"WorkingDirectory=/home/hugo/Servym 100%%"),
@@ -429,6 +430,70 @@ fn service_utilisateur() {
     assert!(lines.contains(&"Restart=on-failure"), "{unit}");
     assert!(lines.contains(&"KillMode=process"), "{unit}");
     assert!(lines.contains(&"WantedBy=default.target"), "{unit}");
+}
+
+/// Application de bureau : avec la session graphique, sans superviseur systemd (elle se supervise
+/// elle-même) ; `$` et guillemets protégés.
+#[test]
+fn service_application_de_bureau() {
+    let unit = unit_file(&Unit {
+        exe: "/opt/Servym/servym-desktop".into(),
+        args: vec![
+            "--background".into(),
+            "--data".into(),
+            "/home/a/$HOME \"x\"".into(),
+        ],
+        workdir: "/home/a".into(),
+        graphical: true,
+    });
+    let lines: Vec<&str> = unit.lines().collect();
+    assert!(
+        lines.contains(
+            &r#"ExecStart="/opt/Servym/servym-desktop" "--background" "--data" "/home/a/$$HOME \"x\"""#
+        ),
+        "{unit}"
+    );
+    assert!(lines.contains(&"After=graphical-session.target"), "{unit}");
+    assert!(lines.contains(&"PartOf=graphical-session.target"), "{unit}");
+    assert!(lines.contains(&"WantedBy=graphical-session.target"), "{unit}");
+    assert!(lines.contains(&"KillMode=process"), "{unit}");
+    assert!(!unit.contains("SERVYM_SUPERVISOR"), "{unit}");
+}
+
+/// Un service qui lance un autre programme (l'autre version de Servym) n'est pas « activé » pour
+/// celui-ci ; l'activer le remplace.
+#[tokio::test]
+async fn service_d_un_autre_programme() {
+    let dir = temp_dir("servym-systemd-");
+    let run = Arc::new(
+        |_cmd: String, args: Vec<String>| -> BoxFuture<'static, Result<String, String>> {
+            let enabled = args.iter().any(|a| a == "is-enabled");
+            Box::pin(async move {
+                Ok(if enabled {
+                    "enabled\n".into()
+                } else {
+                    String::new()
+                })
+            })
+        },
+    );
+    let other = Unit::headless(Path::new("/usr/bin/servym"), Path::new("/srv/servym"));
+    std::fs::write(dir.path().join("servym.service"), unit_file(&other)).unwrap();
+    let desktop = SystemdTask {
+        dir: dir.path().to_path_buf(),
+        run,
+        unit: Unit {
+            exe: "/usr/bin/servym-desktop".into(),
+            args: vec!["--background".into()],
+            workdir: "/home/a".into(),
+            graphical: true,
+        },
+    };
+    assert!(!desktop.enabled().await, "service de la version sans écran");
+    desktop.set(true).await.unwrap();
+    assert!(desktop.enabled().await);
+    let file = std::fs::read_to_string(dir.path().join("servym.service")).unwrap();
+    assert!(file.contains("servym-desktop"), "{file}");
 }
 
 /// JS : linux.test.js › Linux : démarrage avec la session (systemd) › activer, lire l’état, désactiver
@@ -449,7 +514,7 @@ async fn activer_lire_desactiver() {
                     Err("disabled\n".to_string())
                 }
             } else {
-                if args.iter().any(|a| a == "enable") {
+                if args.iter().any(|a| a == "enable" || a == "reenable") {
                     *on = true;
                 }
                 if args.iter().any(|a| a == "disable") {
@@ -463,8 +528,7 @@ async fn activer_lire_desactiver() {
     let task = SystemdTask {
         dir: dir.path().to_path_buf(),
         run,
-        exe: "/opt/servym/servym".into(),
-        workdir: "/opt/servym".into(),
+        unit: Unit::headless(Path::new("/opt/servym/servym"), Path::new("/opt/servym")),
     };
     assert!(!task.enabled().await);
     task.set(true).await.unwrap();
@@ -484,7 +548,7 @@ async fn activer_lire_desactiver() {
         calls,
         [
             "systemctl --user daemon-reload",
-            "systemctl --user enable servym.service",
+            "systemctl --user reenable servym.service",
             "systemctl --user disable servym.service",
             "systemctl --user daemon-reload",
         ]

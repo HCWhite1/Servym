@@ -23,12 +23,13 @@ async fn make_app(desktop: Option<bool>) -> Servym {
 /// JS : linux.test.js › Linux : démarrage avec la session (systemd) › superviseur reconnu : Windows (vbs) ou systemd
 #[test]
 fn superviseur_reconnu() {
-    assert!(
-        is_supervised(Some("servym")),
-        "mode --supervised (remplace le VBS)"
-    );
+    assert!(is_supervised(Some("servym")), "mode --supervised");
     assert!(is_supervised(Some("systemd")));
     assert!(!is_supervised(None));
+    assert!(
+        !is_supervised(Some("vbs")),
+        "superviseur de la version Node, retirée"
+    );
 }
 
 /// JS : linux.test.js › Linux : serveur › système indiqué à la page

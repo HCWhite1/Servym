@@ -1,4 +1,5 @@
-//! Routes `/api/*` (hors comptes) : portage de la fonction `api()` de `server.js`.
+//! Routes `/api/*` (hors comptes) : portage de la fonction `api()` de `server.js` (version Node,
+//! retirée).
 
 use std::collections::BTreeMap;
 use std::convert::Infallible;
@@ -406,7 +407,7 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         let info = json!({
             "port": instance["port"],
             "version": env!("CARGO_PKG_VERSION"),
-            "node": null,
+            "engine": app.engine,
             "dir": app.data_dir,
             "config": app.config_file,
             "tools": tools,
