@@ -94,6 +94,9 @@ export function open(section = 'general') {
   loadAutostart();
   showSection(section);
   if (!dialog.open) dialog.showModal();
+  // showModal() donne le focus au premier bouton (« Mon compte » quand la protection est active) :
+  // il revient à la section affichée.
+  dialog.querySelector('.settings-nav [aria-current]')?.focus();
 }
 
 export const isOpen = () => dialog.open;
@@ -147,6 +150,7 @@ export function setTheme(value) {
   store.set('theme', value);
   applyTheme(value);
   check('#set-theme', value);
+  check('#ob-theme', value);
   savePref({ theme: value });
 }
 
