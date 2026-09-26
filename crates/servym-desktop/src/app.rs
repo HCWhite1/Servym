@@ -71,7 +71,7 @@ pub fn run() -> ExitCode {
     // Lancé par l'utilisateur ou la clé Run : ce processus devient le superviseur.
     if std::env::var_os("SERVYM_SUPERVISOR").is_none() {
         let base: Vec<String> = args.iter().filter(|a| *a != "--background").cloned().collect();
-        return supervisor::supervise(&exe, &data, move |launch| {
+        let code = supervisor::supervise(&exe, &data, move |launch| {
             // Relancé après un plantage ou un redémarrage : sans rouvrir l'interface, sauf si la
             // fenêtre était ouverte.
             let hidden = match launch {
@@ -85,7 +85,27 @@ pub fn run() -> ExitCode {
             }
             args
         });
+        // Abandon après des plantages en boucle : sans ce message, rien ne se passerait à l'écran.
+        if code == ExitCode::FAILURE {
+            let lang = servym_core::i18n::detect_lang(
+                servym_sys::system_locale().as_deref(),
+                std::env::var("SERVYM_LANG").ok().as_deref(),
+            );
+            let logs = std::path::absolute(data.join("logs")).unwrap_or_else(|_| data.join("logs"));
+            error_box(&tr(
+                "app.gaveUp",
+                &params![logs = logs.display().to_string()],
+                lang,
+            ));
+        }
+        return code;
     }
+
+    // Une panique est écrite dans le journal : la sortie d'erreur n'est souvent visible par personne.
+    let panic_data = data.clone();
+    std::panic::set_hook(Box::new(move |info| {
+        supervisor::supervisor_log(&panic_data, &format!("[panic] {info}"));
+    }));
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -241,7 +261,17 @@ fn setup(tauri_app: &mut tauri::App, start: Start, identifier: &str) -> Result<(
         runtime,
         running: Mutex::new(Some(running)),
     });
-    crate::tray::install(&handle).map_err(|e| e.to_string())?;
+    // Sans zone de notification (Linux sans AppIndicator…), Servym reste utilisable : fenêtre,
+    // navigateur, et un 2ᵉ lancement rouvre l'interface.
+    let tray = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::tray::install(&handle)));
+    match tray {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => handle.state::<Desktop>().app.log(&format!("[tray] {error}")),
+        Err(_) => handle
+            .state::<Desktop>()
+            .app
+            .log("[tray] zone de notification indisponible"),
+    }
     if !background {
         handle.state::<Desktop>().open_ui(&handle);
     }

@@ -27,12 +27,15 @@ Désinstaller : Paramètres de Windows › Applications. Seul le programme est r
 
 ### Linux avec bureau
 
-Deux formats, pour x86_64 :
+Trois formats, pour x86_64 :
 
 - **Debian, Ubuntu et dérivés** : `sudo apt install ./Servym_<version>_amd64.deb`, puis Servym dans le menu des applications (ou `servym-desktop`). Les dépendances (WebKitGTK 4.1, GTK 3, libayatana-appindicator) sont installées avec le paquet.
-- **Toutes distributions** : `Servym_<version>_amd64.AppImage`, à rendre exécutable (`chmod +x`) puis lancer.
+- **Fedora et dérivés** : `sudo dnf install ./Servym-<version>-1.x86_64.rpm`, même chose (dépendances : `webkit2gtk4.1`, `gtk3`, `libayatana-appindicator-gtk3`).
+- **Toutes distributions** : `Servym_<version>_amd64.AppImage`, à rendre exécutable (`chmod +x`) puis lancer. Elle embarque WebKitGTK ; les paquets `.deb` et `.rpm` utilisent celui du système et restent préférables.
 
-La fenêtre utilise WebKitGTK. L'icône de la zone de notification passe par AppIndicator : sous GNOME, elle demande l'extension « AppIndicator and KStatusNotifierItem Support » (activée d'office sous Ubuntu) ; KDE, Xfce, Cinnamon et MATE l'affichent directement. Les notifications passent par `notify-send` (paquet `libnotify-bin`).
+La fenêtre utilise WebKitGTK. L'icône de la zone de notification passe par AppIndicator : sous GNOME, elle demande l'extension « AppIndicator and KStatusNotifierItem Support » (activée d'office sous Ubuntu ; sous Fedora : `sudo dnf install gnome-shell-extension-appindicator`, puis se reconnecter et l'activer dans Extensions) ; KDE, Xfce, Cinnamon et MATE l'affichent directement. Les notifications passent par `notify-send` (paquet `libnotify-bin`, `libnotify` sous Fedora).
+
+Si rien ne s'affiche : `~/.local/share/servym/logs/servym.log` (journal de Servym) et `servym.stderr.log` (sortie d'erreur de GTK et WebKit), dans le même dossier. Après des plantages répétés au démarrage, un message le signale.
 
 ### Linux sans écran (serveur)
 
@@ -52,7 +55,7 @@ Rust stable (`rustup`), puis :
 ```
 cargo build --release -p servym-server        # target/release/servym : sans écran
 cargo install tauri-cli --version "^2" --locked
-cd crates/servym-desktop && cargo tauri build  # installateur NSIS, ou .deb et AppImage
+cd crates/servym-desktop && cargo tauri build  # installateur NSIS, ou .deb, .rpm et AppImage
 ```
 
 Sous Linux, l'application de bureau demande les paquets de développement de WebKitGTK : `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev`.
@@ -105,7 +108,7 @@ Avec de vrais projets (7 projets, dont MySQL, Bogue et MangaFlow repris ; mesure
 | Par projet lancé | ≈ 75 Mo (un PowerShell qui attend la fin du projet) | un fil de 1 Mo réservé, quelques Ko utilisés |
 | Fenêtre ouverte | — (onglet du navigateur) | ≈ 200 Mo (WebView2), rendus à la fermeture |
 | Prérequis | Node.js 22 (node.exe : 86 Mo) et `git clone` | aucun |
-| Distribution | dépôt Git et `npm start` | installateur Windows de 3,4 Mo (programme de 11,9 Mo) ; Linux : `.deb` de 4,8 Mo, AppImage de 83 Mo (GTK et WebKitGTK compris) |
+| Distribution | dépôt Git et `npm start` | installateur Windows de 3,4 Mo (programme de 11,9 Mo) ; Linux : `.deb` et `.rpm` de 4,8 Mo, AppImage de 83 Mo (GTK et WebKitGTK compris) |
 
 Opérations du système mesurées seules (24/09/2026) : ports en écoute 79 ms (deux `netstat`) contre 0,95 ms (`GetExtendedTcpTable`) ; profils réseau 692 ms (PowerShell) contre 25 ms (COM) ; relevé de 339 processus : requête CIM de 169 ms contre 10,5 ms. Connexion refusée vers un port fermé : Windows réessaie près d'une seconde ; comme Node (libuv), Servym désactive ces réessais sur la boucle locale (0,9 ms), sinon chaque sonde d'un projet arrêté serait lente.
 

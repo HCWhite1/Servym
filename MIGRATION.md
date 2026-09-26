@@ -271,7 +271,7 @@ fenêtre ou navigateur. Ce qui diffère est rangé dans `crates/servym-desktop/s
   ouvre le menu. Libellé « Démarrer avec la session ».
 - **Données** : `$XDG_DATA_HOME/servym`, sinon `~/.local/share/servym` (même ordre de recherche
   qu'ailleurs : `--data`, `SERVYM_HOME`, mode portable).
-- **Paquets** : `.deb` (4,8 Mo ; dépendances WebKitGTK, GTK, appindicator ajoutées par Tauri,
+- **Paquets** : `.rpm` (Fedora, ajouté après le premier essai), `.deb` (4,8 Mo ; dépendances WebKitGTK, GTK, appindicator ajoutées par Tauri,
   `libnotify-bin` recommandé) et AppImage (83 Mo, GTK et WebKitGTK compris). Exécutable
   `servym-desktop` (pour ne pas se confondre avec `servym` sans écran), entrée de menu « Servym ».
 
@@ -328,6 +328,26 @@ Incident pendant les mesures : un arrêt par nom (`taskkill /IM servym.exe`, ins
 a aussi arrêté le Servym installé, et un arrêt des `node … server.js` a arrêté MangaFlow
 (`node server/server.js`). Servym a été relancé comme le fait la clé Run, puis MangaFlow par son
 bouton « Démarrer ». Leçon : n'arrêter que les PID qu'on a lancés.
+
+### Premier essai sous Fedora (26/09/2026)
+
+Retour : le `.deb` ne sert à rien sous Fedora, et l'AppImage « ne fait rien ». Reproduit dans un
+conteneur Fedora avec un écran virtuel (Xvfb) :
+
+- **AppImage** : le serveur démarre, mais WebKitGTK s'arrête (`Could not create default EGL
+  display: EGL_BAD_PARAMETER. Aborting...`) et la fenêtre reste vide. Cause : les `libwayland-*`
+  d'Ubuntu 22.04 embarquées par linuxdeploy ne s'accordent pas avec le Mesa de Fedora (vérifié :
+  sans elles, l'interface s'affiche ; avec elles, même paquets installés, l'erreur revient).
+  `LINUXDEPLOY_EXCLUDED_LIBRARIES` est ignorée par la version utilisée par Tauri :
+  `tools/fix-appimage.sh` les retire après coup et refait l'AppImage (appimagetool), dans le
+  workflow de release. Vérifié sous Fedora et Ubuntu 24.04.
+- **Paquet `.rpm`** ajouté (Tauri le construit depuis Ubuntu) : dépendances `webkit2gtk4.1`,
+  `gtk3`, `libayatana-appindicator-gtk3`, `libnotify` recommandé. Installé par `dnf` dans le
+  conteneur Fedora : l'interface s'affiche dans la fenêtre, la zone de notification se charge.
+- **Rien ne se voyait** : le superviseur jetait la sortie d'erreur. Elle va désormais dans
+  `logs/servym.stderr.log` (vidé à chaque démarrage du superviseur), chaque plantage est inscrit
+  dans `servym.log`, une panique aussi, et après 5 plantages rapides un message l'annonce au lieu
+  de rien. Une zone de notification indisponible n'arrête plus l'application (inscrit au journal).
 
 ### Reste
 

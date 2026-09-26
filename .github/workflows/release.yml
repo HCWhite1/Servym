@@ -1,6 +1,6 @@
 name: Release
 
-# Une étiquette vX.Y.Z construit l'installateur Windows, les paquets Linux (.deb, AppImage) et le
+# Une étiquette vX.Y.Z construit l'installateur Windows, les paquets Linux (.deb, .rpm, AppImage) et le
 # binaire Linux sans écran, puis prépare une release en brouillon : elle n'est publiée qu'à la main.
 on:
   push:
@@ -42,9 +42,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo install tauri-cli --version "^2" --locked
-      - name: Application de bureau (.deb, AppImage)
+      - name: Application de bureau (.deb, .rpm, AppImage)
         working-directory: crates/servym-desktop
-        run: cargo tauri build --bundles deb,appimage
+        run: cargo tauri build --bundles deb,rpm,appimage
+      # Sans les libwayland d'Ubuntu 22.04, que WebKitGTK ne supporte pas avec un Mesa récent (Fedora).
+      - name: AppImage sans libwayland
+        run: bash tools/fix-appimage.sh target/release/bundle/appimage/*.AppImage
       - name: Binaire sans écran
         run: |
           cargo build --release -p servym-server
@@ -56,6 +59,7 @@ jobs:
           name: linux
           path: |
             target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
             target/release/bundle/appimage/*.AppImage
             dist/*.tar.gz
           if-no-files-found: error

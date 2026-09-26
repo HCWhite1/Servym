@@ -249,5 +249,6 @@
   "tray.actionFailed": "{name} : {error}",
   "app.portInUse": "Le port {port} est déjà utilisé : une autre instance de Servym tourne peut-être (par exemple la version sans fenêtre). Arrêtez-la, puis relancez Servym.",
   "app.startFailed": "Servym n’a pas pu démarrer : {error}",
+  "app.gaveUp": "Servym s’est arrêté plusieurs fois de suite au démarrage et ne sera pas relancé. Détails dans {logs} (servym.log et servym.stderr.log).",
   "audit.localCode": "Code de réinitialisation créé devant la machine"
 }

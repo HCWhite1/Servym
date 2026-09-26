@@ -27,12 +27,15 @@ Uninstall: Windows Settings › Apps. Only the program is removed; your data sta
 
 ### Linux desktop
 
-Two formats, for x86_64:
+Three formats, for x86_64:
 
 - **Debian, Ubuntu and derivatives**: `sudo apt install ./Servym_<version>_amd64.deb`, then Servym in the application menu (or `servym-desktop`). Dependencies (WebKitGTK 4.1, GTK 3, libayatana-appindicator) are installed with the package.
-- **Any distribution**: `Servym_<version>_amd64.AppImage`, made executable (`chmod +x`) then run.
+- **Fedora and derivatives**: `sudo dnf install ./Servym-<version>-1.x86_64.rpm`, same thing (dependencies: `webkit2gtk4.1`, `gtk3`, `libayatana-appindicator-gtk3`).
+- **Any distribution**: `Servym_<version>_amd64.AppImage`, made executable (`chmod +x`) then run. It bundles WebKitGTK; the `.deb` and `.rpm` packages use the system's and remain preferable.
 
-The window uses WebKitGTK. The tray icon goes through AppIndicator: on GNOME it needs the "AppIndicator and KStatusNotifierItem Support" extension (enabled by default on Ubuntu); KDE, Xfce, Cinnamon and MATE show it directly. Notifications go through `notify-send` (package `libnotify-bin`).
+The window uses WebKitGTK. The tray icon goes through AppIndicator: on GNOME it needs the "AppIndicator and KStatusNotifierItem Support" extension (enabled by default on Ubuntu; on Fedora: `sudo dnf install gnome-shell-extension-appindicator`, then sign in again and turn it on in Extensions); KDE, Xfce, Cinnamon and MATE show it directly. Notifications go through `notify-send` (package `libnotify-bin`, `libnotify` on Fedora).
+
+If nothing shows up: `~/.local/share/servym/logs/servym.log` (Servym's log) and `servym.stderr.log` (GTK and WebKit error output), in the same folder. After repeated crashes at startup, a message says so.
 
 ### Linux without a screen (server)
 
@@ -52,7 +55,7 @@ Stable Rust (`rustup`), then:
 ```
 cargo build --release -p servym-server        # target/release/servym: no screen
 cargo install tauri-cli --version "^2" --locked
-cd crates/servym-desktop && cargo tauri build  # NSIS installer, or .deb and AppImage
+cd crates/servym-desktop && cargo tauri build  # NSIS installer, or .deb, .rpm and AppImage
 ```
 
 On Linux, the desktop app needs the WebKitGTK development packages: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev`.
@@ -105,7 +108,7 @@ With real projects (7 projects, including MySQL, Bogue and MangaFlow picked up; 
 | Per started project | ≈ 75 MB (a PowerShell waiting for the project to end) | a thread with 1 MB reserved, a few KB used |
 | Window open | — (browser tab) | ≈ 200 MB (WebView2), released on close |
 | Prerequisites | Node.js 22 (node.exe: 86 MB) and `git clone` | none |
-| Distribution | Git repository and `npm start` | 3.4 MB Windows installer (11.9 MB program); Linux: 4.8 MB `.deb`, 83 MB AppImage (GTK and WebKitGTK included) |
+| Distribution | Git repository and `npm start` | 3.4 MB Windows installer (11.9 MB program); Linux: 4.8 MB `.deb` and `.rpm`, 83 MB AppImage (GTK and WebKitGTK included) |
 
 System operations measured alone (24/09/2026): listening ports 79 ms (two `netstat`) vs 0.95 ms (`GetExtendedTcpTable`); network profiles 692 ms (PowerShell) vs 25 ms (COM); sampling 339 processes: 169 ms CIM query vs 10.5 ms. Refused connection to a closed port: Windows retries for almost a second; like Node (libuv), Servym turns these retries off on the loopback (0.9 ms), otherwise every probe of a stopped project would be slow.
 

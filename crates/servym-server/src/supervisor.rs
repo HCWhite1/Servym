@@ -19,10 +19,14 @@ pub enum Launch {
     Crash,
 }
 
-/// Lance `exe` avec les arguments de `args_for` tant qu'il ne sort pas avec le code 0. Ses
-/// sorties standard vont nulle part : sans console, celles du superviseur ne sont pas valides, et
-/// Servym écrit son journal dans `logs/servym.log`.
+/// Lance `exe` avec les arguments de `args_for` tant qu'il ne sort pas avec le code 0. Servym
+/// écrit son journal dans `logs/servym.log` ; sa sortie d'erreur (et celle des bibliothèques qu'il
+/// charge : GTK, WebKit…) va dans `logs/servym.stderr.log`, vidé au démarrage du superviseur. Sans
+/// console, les sorties du superviseur lui-même ne sont pas valides.
 pub fn supervise(exe: &Path, data: &Path, mut args_for: impl FnMut(Launch) -> Vec<String>) -> ExitCode {
+    let _ = std::fs::create_dir_all(data.join("logs"));
+    let stderr_file = data.join("logs").join("servym.stderr.log");
+    let _ = std::fs::File::create(&stderr_file);
     let mut failures = 0;
     let mut launch = Launch::First;
     loop {
@@ -33,7 +37,12 @@ pub fn supervise(exe: &Path, data: &Path, mut args_for: impl FnMut(Launch) -> Ve
             .env("SERVYM_SUPERVISOR", "servym")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
+            .stderr(
+                std::fs::OpenOptions::new()
+                    .append(true)
+                    .open(&stderr_file)
+                    .map_or_else(|_| std::process::Stdio::null(), std::process::Stdio::from),
+            );
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -53,6 +62,10 @@ pub fn supervise(exe: &Path, data: &Path, mut args_for: impl FnMut(Launch) -> Ve
             launch = Launch::Restart(code);
             continue;
         }
+        supervisor_log(
+            data,
+            &format!("[supervisor] Servym s'est arrêté (code {code}) : voir logs/servym.stderr.log"),
+        );
         failures = if started.elapsed() > Duration::from_secs(60) {
             0
         } else {

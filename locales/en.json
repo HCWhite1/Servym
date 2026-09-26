@@ -249,5 +249,6 @@
   "tray.actionFailed": "{name}: {error}",
   "app.portInUse": "Port {port} is already in use: another Servym instance may be running (for example the windowless version). Stop it, then start Servym again.",
   "app.startFailed": "Servym could not start: {error}",
+  "app.gaveUp": "Servym stopped several times in a row while starting and will not be restarted. Details in {logs} (servym.log and servym.stderr.log).",
   "audit.localCode": "Reset code created at the host machine"
 }

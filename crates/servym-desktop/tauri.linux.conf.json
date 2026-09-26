@@ -2,16 +2,15 @@
   "$schema": "https://schema.tauri.app/config/2",
   "mainBinaryName": "servym-desktop",
   "bundle": {
-    "targets": [
-      "deb",
-      "appimage"
-    ],
+    "targets": ["deb", "rpm", "appimage"],
     "linux": {
       "deb": {
-        "recommends": [
-          "libnotify-bin"
-        ],
+        "recommends": ["libnotify-bin"],
         "section": "devel"
+      },
+      "rpm": {
+        "depends": ["libayatana-appindicator-gtk3"],
+        "recommends": ["libnotify"]
       },
       "appimage": {
         "bundleMediaFramework": false
