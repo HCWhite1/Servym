@@ -279,7 +279,7 @@ Les messages d'erreur (`{ "error": "…" }`) sont dans la langue de l'en-tête `
 - **Export et import** (Paramètres › Configuration) : tout `projects.json` en fichier, pour retrouver ses projets sur une autre machine. L'import montre d'abord les projets ajoutés, modifiés et retirés, garde les réglages de Servym de cette machine (port, accès, nom) et refuse de retirer un projet en marche.
 - **Notifications du système** (désactivées par défaut, Paramètres › Général) : une notification quand un projet plante ou ne démarre pas, même la page fermée. Sous Windows, notification native au nom de Servym ; sous Linux, `notify-send`.
 - **Activité**, **Réseau**, **Paramètres** (démarrage, fenêtre ou navigateur, langue, thème — système, clair, sombre, Solarized clair ou sombre —, `projects.json`, redémarrage de Servym, raccourcis).
-- Raccourcis : `1`–`9` démarrer ou ouvrir un projet · `/` rechercher · `,` paramètres · `V` liste ou orbite · `P` pause de l'orbite · `Échap` fermer.
+- Raccourcis : `1`–`9` démarrer ou ouvrir un projet · `/` rechercher · `,` paramètres (`↑` `↓` entre les sections, `→` `←` pour entrer dans une section et en sortir) · `V` liste ou orbite · `Échap` fermer.
 - Icônes : [Lucide](https://lucide.dev) (licence ISC). Polices : Inter et JetBrains Mono (licence OFL), servies localement. Textes des licences : `THIRD-PARTY-NOTICES.md`.
 
 ## Développement

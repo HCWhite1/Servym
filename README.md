@@ -279,7 +279,7 @@ Error messages (`{ "error": "…" }`) are in the language of the `Accept-Languag
 - **Export and import** (Settings › Configuration): the whole `projects.json` as a file, to get your projects back on another machine. Import first shows the added, changed and removed projects, keeps this machine's Servym settings (port, access, name) and refuses to remove a running project.
 - **System notifications** (off by default, Settings › General): a notification when a project crashes or fails to start, even with the page closed. On Windows, a native notification in Servym's name; on Linux, `notify-send`.
 - **Activity**, **Network**, **Settings** (startup, window or browser, language, theme — system, light, dark, Solarized light or dark —, `projects.json`, Servym restart, shortcuts).
-- Shortcuts: `1`–`9` start or open a project · `/` search · `,` settings · `V` list or orbit · `P` pause the orbit · `Esc` close.
+- Shortcuts: `1`–`9` start or open a project · `/` search · `,` settings (`↑` `↓` between sections, `→` `←` to enter and leave a section) · `V` list or orbit · `Esc` close.
 - Icons: [Lucide](https://lucide.dev) (ISC license). Fonts: Inter and JetBrains Mono (OFL license), served locally. License texts: `THIRD-PARTY-NOTICES.md`.
 
 ## Development

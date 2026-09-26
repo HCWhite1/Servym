@@ -28,12 +28,22 @@ export function init(hs) {
     const items = [...dialog.querySelectorAll('.settings-nav [data-section]')].filter((b) => !b.hidden);
     const i = items.indexOf(e.target);
     if (i < 0) return;
+    if (e.key === 'ArrowRight') {
+      // → : dans la section affichée, premier réglage.
+      const first = stops()[0];
+      if (first) {
+        e.preventDefault();
+        first.focus();
+      }
+      return;
+    }
     const next = { ArrowDown: items[(i + 1) % items.length], ArrowUp: items.at(i - 1), Home: items[0], End: items.at(-1) }[e.key];
     if (!next) return;
     e.preventDefault();
     next.focus();
     showSection(next.dataset.section);
   });
+  $('.settings-main').addEventListener('keydown', moveInSection);
   $('#set-autostart').addEventListener('change', (e) => setInstanceAutostart(e.target.checked, e.target));
   $('#set-projects').addEventListener('change', (e) => setProjectAutostart(e.target.dataset.id, e.target.checked, e.target));
   radio('#set-theme', setTheme);
@@ -103,6 +113,74 @@ export const isOpen = () => dialog.open;
 
 export function close() {
   dialog.close();
+}
+
+// ---- Clavier dans une section ----
+// ↑ ↓ : réglage précédent ou suivant (un groupe de choix compte pour un seul arrêt) ;
+// ← → : choix voisin dans un groupe ; ← (hors groupe, ou depuis son premier choix) : retour à la
+// liste des sections. Les champs de texte et les listes gardent leurs flèches.
+const FOCUSABLE = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+
+function visible(el) {
+  return !el.disabled && !el.closest('[hidden]') && el.getClientRects().length > 0;
+}
+
+// Arrêts de la section affichée : chaque élément, sauf un seul par groupe de choix (le choisi).
+function stops() {
+  const section = dialog.querySelector('.modal-body > [data-section]:not([hidden])');
+  if (!section) return [];
+  const seen = new Set();
+  const out = [];
+  for (const el of section.querySelectorAll(FOCUSABLE)) {
+    if (!visible(el)) continue;
+    const group = el.closest('[role="radiogroup"]');
+    if (group) {
+      if (seen.has(group)) continue;
+      seen.add(group);
+      const radios = [...group.querySelectorAll('[role="radio"]')].filter(visible);
+      out.push(radios.find((r) => r.getAttribute('aria-checked') === 'true') ?? radios[0] ?? el);
+    } else {
+      out.push(el);
+    }
+  }
+  return out;
+}
+
+function backToNav() {
+  dialog.querySelector('.settings-nav [aria-current]')?.focus();
+}
+
+function moveInSection(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey || !e.target.closest('.modal-body')) return;
+  const el = e.target;
+  const typing = el.matches('textarea, select, input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"])');
+  const group = el.closest('[role="radiogroup"]');
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    // Une liste fermée changerait de valeur (la langue recharge la page) : Espace ou Entrée l'ouvre.
+    if (el.matches('textarea, input[type="number"]')) return;
+    const list = stops();
+    const here = group ? list.findIndex((s) => group.contains(s)) : list.indexOf(el);
+    const next = list[here + (e.key === 'ArrowDown' ? 1 : -1)];
+    e.preventDefault();
+    if (next) next.focus();
+    else if (e.key === 'ArrowUp') backToNav();
+    return;
+  }
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (typing) return;
+  if (group) {
+    const radios = [...group.querySelectorAll('[role="radio"]')].filter(visible);
+    const i = radios.indexOf(el);
+    const next = radios[i + (e.key === 'ArrowRight' ? 1 : -1)];
+    e.preventDefault();
+    if (next) next.focus();
+    else if (e.key === 'ArrowLeft') backToNav();
+    return;
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    backToNav();
+  }
 }
 
 function showSection(name) {

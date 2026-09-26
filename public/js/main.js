@@ -558,8 +558,6 @@ document.addEventListener('keydown', (e) => {
     primary(apps()[Number(key) - 1]);
   } else if (key === 'v') {
     setLayout(prefs.layout === 'orbit' ? 'list' : 'orbit');
-  } else if (key === 'p' && prefs.layout === 'orbit') {
-    setMotion(!prefs.motion);
   }
 });
 

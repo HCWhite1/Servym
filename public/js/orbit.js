@@ -2,7 +2,7 @@
 // Seuls les projets en ligne tournent ; un service requis (MySQL) est une lune de
 // l'application qui en dépend ; un projet exposé sur le réseau porte un halo.
 import { t } from './i18n.js';
-import { addressOf, glyph, h, icon, primaryOf, statusText, tile } from './lib.js';
+import { addressOf, glyph, h, icon, primaryOf, statusText, store, tile } from './lib.js';
 
 const root = document.getElementById('orbit-view');
 const GOLDEN = 137.5; // angle de départ entre deux planètes : jamais alignées au chargement
@@ -158,17 +158,31 @@ export function filter(keep) {
 function renderCard() {
   const p = handlers.get(hovered ?? selected);
   if (!p) {
+    // Légende repliable ; l'état est gardé par le navigateur.
+    const collapsed = store.get('orbitLegend', 'open') === 'closed';
     const item = (cls, text) => h('li', {}, h('i', { class: cls }), text);
+    const toggle = h('button', { class: 'legend-title', type: 'button', 'aria-expanded': String(!collapsed) }, t('orbit.legend'), icon('chevron-right'));
+    toggle.addEventListener('click', () => {
+      store.set('orbitLegend', collapsed ? 'open' : 'closed');
+      renderCard();
+      card.querySelector('.legend-title').focus();
+    });
+    card.classList.toggle('collapsed', collapsed);
     card.replaceChildren(
-      h('p', { class: 'legend-title', text: t('orbit.legend') }),
-      h('ul', { class: 'legend' },
-        item('l-run', t('orbit.run')),
-        item('l-off', t('orbit.off')),
-        item('l-exp', t('orbit.exposed')),
-        item('l-moon', t('orbit.moon'))),
-      h('p', { class: 'hint legend-hint', text: t('orbit.hint') }));
+      toggle,
+      ...(collapsed
+        ? []
+        : [
+            h('ul', { class: 'legend' },
+              item('l-run', t('orbit.run')),
+              item('l-off', t('orbit.off')),
+              item('l-exp', t('orbit.exposed')),
+              item('l-moon', t('orbit.moon'))),
+            h('p', { class: 'hint legend-hint', text: t('orbit.hint') }),
+          ]));
     return;
   }
+  card.classList.remove('collapsed');
   const addr = addressOf(p);
   const main = primaryOf(p);
   const mainButton = h('button', { class: `btn small${main.primary ? ' primary' : ''}`, type: 'button', disabled: main.disabled, hidden: main.hidden }, main.icon ? icon(main.icon) : null, main.label);
