@@ -352,4 +352,4 @@ conteneur Fedora avec un écran virtuel (Xvfb) :
 ### Reste
 
 - Essai de l'application de bureau sur une vraie machine Linux.
-- `rust-rewrite` devient `main`, étiquette `v2.0.0`, publication de la release préparée par la CI.
+- `rust-rewrite` devient `main` (26/09/2026), étiquette `v1.0.0` (première release : la version Node n'a jamais été publiée ; version du workspace passée de 2.0.0 à 1.0.0), publication de la release préparée par la CI.

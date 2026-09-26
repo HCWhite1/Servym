@@ -11,7 +11,7 @@ Tableau de bord local pour lancer, surveiller et arrêter vos projets de dévelo
 - Démarrage avec Windows ou avec la session Linux, projets lancés au démarrage du PC.
 - Comptes facultatifs, interface en français et en anglais.
 
-La version 2 remplace la version Node.js (1.x) : même interface, mêmes fichiers de configuration, un seul exécutable sans prérequis, et une empreinte mémoire bien plus faible (voir [Mesures](#mesures)).
+Servym a d'abord été écrit en Node.js (jamais publié) ; cette réécriture en Rust garde la même interface et les mêmes fichiers de configuration, avec un seul exécutable sans prérequis et une empreinte mémoire bien plus faible (voir [Mesures](#mesures)).
 
 ## Installation
 
@@ -81,13 +81,13 @@ Servym garde tout dans un dossier : `projects.json`, `runtime/` (comptes, état 
 
 Le binaire sans écran `servym` utilise `--data`, `SERVYM_HOME`, sinon le dossier courant.
 
-Les fichiers de la version 1 (Node.js) sont lus tels quels : il suffit de copier `projects.json`, `runtime/`, `logs/` et `config/` dans le dossier des données. Les projets encore en marche sont repris sans redémarrage.
+Les fichiers de l'ancienne version Node.js sont lus tels quels : il suffit de copier `projects.json`, `runtime/`, `logs/` et `config/` dans le dossier des données. Les projets encore en marche sont repris sans redémarrage.
 
 ## Mesures
 
-Même machine (Windows 11, 16 cœurs), le 26/09/2026. Version 1 : `node server.js` (Node.js 24). Version 2 : `servym` (release). Données vides, moyenne de trois appels pour les routes.
+Même machine (Windows 11, 16 cœurs), le 26/09/2026. Ancienne version : `node server.js` (Node.js 24). Version Rust : `servym` (release). Données vides, moyenne de trois appels pour les routes.
 
-| | Version 1 (Node.js) | Version 2 (Rust) |
+| | Node.js | Rust |
 | --- | --- | --- |
 | Démarrage jusqu'à la 1re réponse de `/api/projects` | 0,7 à 0,8 s | 0,2 s (0,7 s au tout premier lancement) |
 | Mémoire privée, aucune page ouverte | 31 Mo (node, conhost) | 4,5 Mo |
@@ -100,7 +100,7 @@ Même machine (Windows 11, 16 cœurs), le 26/09/2026. Version 1 : `node server.j
 
 Avec de vrais projets (7 projets, dont MySQL, Bogue et MangaFlow repris ; mesures du 24 au 26/09/2026) :
 
-| | Version 1 (Node.js) | Version 2 (Rust) |
+| | Node.js | Rust |
 | --- | --- | --- |
 | Processus de Servym | wscript, node, conhost, sonde PowerShell | superviseur et application |
 | Mémoire privée, fenêtre ou page fermée | ≈ 98 Mo (wscript 13, node 85) | 8,3 Mo (superviseur 1,4, application 6,9) |

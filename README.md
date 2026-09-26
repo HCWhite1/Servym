@@ -11,7 +11,7 @@ A local dashboard to start, watch and stop your development projects: Node, PHP 
 - Start with Windows or with the Linux session, projects started when the PC boots.
 - Optional accounts, interface in English and French.
 
-Version 2 replaces the Node.js version (1.x): same interface, same configuration files, a single executable with no prerequisites, and a much smaller memory footprint (see [Measurements](#measurements)).
+Servym was first written in Node.js (never released); this Rust rewrite keeps the same interface and configuration files, with a single executable, no prerequisites and a much smaller memory footprint (see [Measurements](#measurements)).
 
 ## Install
 
@@ -81,13 +81,13 @@ Servym keeps everything in one folder: `projects.json`, `runtime/` (accounts, st
 
 The headless `servym` binary uses `--data`, `SERVYM_HOME`, otherwise the current folder.
 
-Files from version 1 (Node.js) are read as they are: copy `projects.json`, `runtime/`, `logs/` and `config/` into the data folder. Projects that are still running are picked up without a restart.
+Files from the former Node.js version are read as they are: copy `projects.json`, `runtime/`, `logs/` and `config/` into the data folder. Projects that are still running are picked up without a restart.
 
 ## Measurements
 
-Same machine (Windows 11, 16 cores), on 26/09/2026. Version 1: `node server.js` (Node.js 24). Version 2: `servym` (release). Empty data, average of three calls for the routes.
+Same machine (Windows 11, 16 cores), on 26/09/2026. Former version: `node server.js` (Node.js 24). Rust version: `servym` (release). Empty data, average of three calls for the routes.
 
-| | Version 1 (Node.js) | Version 2 (Rust) |
+| | Node.js | Rust |
 | --- | --- | --- |
 | Start until the first `/api/projects` answer | 0.7 to 0.8 s | 0.2 s (0.7 s on the very first run) |
 | Private memory, no page open | 31 MB (node, conhost) | 4.5 MB |
@@ -100,7 +100,7 @@ Same machine (Windows 11, 16 cores), on 26/09/2026. Version 1: `node server.js` 
 
 With real projects (7 projects, including MySQL, Bogue and MangaFlow picked up; measured from 24 to 26/09/2026):
 
-| | Version 1 (Node.js) | Version 2 (Rust) |
+| | Node.js | Rust |
 | --- | --- | --- |
 | Servym processes | wscript, node, conhost, PowerShell probe | supervisor and app |
 | Private memory, window or page closed | ≈ 98 MB (wscript 13, node 85) | 8.3 MB (supervisor 1.4, app 6.9) |
