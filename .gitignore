@@ -1,4 +1,3 @@
-node_modules/
 logs/
 runtime/
 # Configuration personnelle : voir projects.example.json
