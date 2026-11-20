@@ -282,6 +282,28 @@ export function safeUrl(url) {
   }
 }
 
+export async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {}
+  }
+  const prev = document.activeElement;
+  const host = [...document.querySelectorAll('dialog[open]')].at(-1) ?? document.body;
+  const area = h('textarea', { class: 'visually-hidden', 'aria-hidden': 'true', tabindex: '-1' });
+  area.value = text;
+  host.append(area);
+  area.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {}
+  area.remove();
+  if (prev?.isConnected) prev.focus({ preventScroll: true });
+  return ok;
+}
+
 export const store = {
   get(key, fallback) {
     try {

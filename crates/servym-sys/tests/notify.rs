@@ -54,7 +54,7 @@ async fn linux_notify_send_sans_shell() {
     assert_eq!(send.notify(notification(None)).await, Ok(true));
     let calls = calls.lock().unwrap();
     assert_eq!(calls[0].0, "notify-send");
-    assert_eq!(calls[0].1, ["--app-name=Servym", TITLE, BODY]);
+    assert_eq!(calls[0].1, ["--app-name=Servym", "--", TITLE, BODY]);
 }
 
 /// JS : notify.test.js › notificateur du système › ailleurs : rien n’est envoyé

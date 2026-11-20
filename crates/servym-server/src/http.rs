@@ -205,7 +205,7 @@ pub fn guard(ctx: &Ctx, lan_names: Option<&[String]>) -> Result<(), LocalError> 
             Some(p) => format!("{h}:{p}"),
             None => h.to_string(),
         });
-        host.as_deref() == ctx.header("host")
+        host.is_some_and(|h| ctx.header("host").is_some_and(|req| h.eq_ignore_ascii_case(req)))
     });
     if same {
         Ok(())
@@ -247,7 +247,7 @@ pub fn permission_for(
     {
         return match id {
             "config" => "commands",
-            "log" | "folder" | "lang" | "notify" | "notify-test" => "instance",
+            "log" | "folder" | "lang" | "notify" | "notify-test" | "quit" => "instance",
             // Devant la machine seulement (application de bureau) : qui est devant elle a la main.
             "onboarded" | "opener" | "browser" => "view",
             _ => "admin",

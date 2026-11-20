@@ -661,3 +661,59 @@ fn last_error_explique_l_arret() {
         Some("Connexion impossible à la base")
     );
 }
+
+#[test]
+fn fixed_port_non_modifiable_et_permissions_unix() {
+    let base = base();
+    assert_match!(
+        fr(patch_project(&base, "b", &json!({ "fixedPort": null }))),
+        "non modifiable"
+    );
+    assert_match!(
+        fr(patch_project(&base, "b", &json!({ "fixedPort": "autre" }))),
+        "non modifiable"
+    );
+
+    #[cfg(unix)]
+    {
+        use servym_core::config::save_config;
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_dir("servym-perm-");
+        let file = dir.path().join("projects.json");
+        save_config(&file, &base).unwrap();
+        let mode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+}
+
+#[tokio::test]
+async fn site_statique_bloque_lien_symbolique_hors_dossier() {
+    let dir = temp_dir("servym-symlink-");
+    let root = dir.path().join("site");
+    let outside = dir.path().join("secret.txt");
+    write(root.join("ok.txt"), "ok");
+    write(&outside, "secret");
+
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&outside, root.join("leak.txt")).unwrap();
+    #[cfg(windows)]
+    if let Err(err) = std::os::windows::fs::symlink_file(&outside, root.join("leak.txt")) {
+        // Sans droits administrateur ou mode développeur, Windows refuse de créer un lien symbolique.
+        if err.kind() == std::io::ErrorKind::PermissionDenied || err.raw_os_error() == Some(1314) {
+            return;
+        }
+        panic!("création du lien symbolique : {err}");
+    }
+
+    assert!(
+        servym_core::static_site::serve(&root, &axum::http::Method::GET, "/ok.txt", true)
+            .await
+            .is_some()
+    );
+    assert!(
+        servym_core::static_site::serve(&root, &axum::http::Method::GET, "/leak.txt", true)
+            .await
+            .is_none(),
+        "un lien symbolique vers l'extérieur ne doit jamais être servi"
+    );
+}

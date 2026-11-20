@@ -7,6 +7,5 @@ projects.json.tmp
 config/
 # Rust
 /target/
-/spikes/target/
 # Schémas régénérés par Tauri à chaque construction
 /crates/servym-desktop/gen/

@@ -169,32 +169,56 @@ pub fn clean_env() -> HashMap<String, String> {
         .collect()
 }
 
+async fn exec_command(mut command: tokio::process::Command, cmd: &str) -> Result<String, String> {
+    command.stdin(std::process::Stdio::null()).kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    let output = tokio::time::timeout(std::time::Duration::from_secs(15), command.output())
+        .await
+        .map_err(|_| format!("{cmd} : délai dépassé"))?
+        .map_err(|e| format!("{cmd} : {e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    if output.status.success() {
+        Ok(stdout)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let err = stderr.trim();
+        if err.is_empty() {
+            Err(stdout)
+        } else {
+            Err(err.to_string())
+        }
+    }
+}
+
 /// Exécute une commande (sans shell, sans fenêtre) : sortie standard si elle réussit, sinon sa
-/// sortie standard comme erreur. Délai : 15 s.
+/// sortie d'erreur (ou standard si elle est vide). Délai : 15 s.
 pub fn run_command() -> linux::Runner {
     Arc::new(
         |cmd: String, args: Vec<String>| -> BoxFuture<'static, Result<String, String>> {
             Box::pin(async move {
                 let mut command = tokio::process::Command::new(&cmd);
-                command
-                    .args(&args)
-                    .stdin(std::process::Stdio::null())
-                    .kill_on_drop(true);
-                #[cfg(windows)]
-                command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-                let output = tokio::time::timeout(std::time::Duration::from_secs(15), command.output())
-                    .await
-                    .map_err(|_| format!("{cmd} : délai dépassé"))?
-                    .map_err(|e| format!("{cmd} : {e}"))?;
-                let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-                if output.status.success() {
-                    Ok(stdout)
-                } else {
-                    Err(stdout)
-                }
+                command.args(&args);
+                exec_command(command, &cmd).await
             })
         },
     )
+}
+
+/// Exécute une commande dans un dossier et un environnement précis (sans shell, sans fenêtre).
+/// Délai : 15 s.
+pub async fn run_command_in(
+    cmd: &str,
+    args: &[String],
+    cwd: Option<&Path>,
+    env: &HashMap<String, String>,
+) -> Result<String, String> {
+    let mut command = tokio::process::Command::new(cmd);
+    command.args(args).env_clear().envs(env);
+    if let Some(dir) = cwd.filter(|d| d.is_dir()) {
+        command.current_dir(dir);
+    }
+    exec_command(command, cmd).await
 }
 
 /// Heure de démarrage du PC (ms depuis l'époque Unix).
@@ -238,5 +262,39 @@ pub fn system_locale() -> Option<String> {
         ["LC_ALL", "LC_MESSAGES", "LANG"]
             .iter()
             .find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty() && v != "C"))
+    }
+}
+
+/// Nom de cette machine sur le réseau (pour l'en-tête `Host` en accès réseau local).
+pub fn hostname() -> Option<String> {
+    #[cfg(windows)]
+    {
+        std::env::var("COMPUTERNAME")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    }
+    #[cfg(unix)]
+    {
+        let mut buf = [0u8; 256];
+        // SAFETY : tampon de 256 octets rempli par gethostname.
+        let ok = unsafe { libc::gethostname(buf.as_mut_ptr().cast::<libc::c_char>(), buf.len()) } == 0;
+        if ok {
+            let len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+            let name = String::from_utf8_lossy(&buf[..len]).trim().to_string();
+            if !name.is_empty() {
+                return Some(name);
+            }
+        }
+        std::env::var("HOSTNAME")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                std::fs::read_to_string("/etc/hostname")
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            })
     }
 }

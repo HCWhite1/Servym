@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 /// `decodeURIComponent` : `None` si un `%` est mal formé ou si le résultat n'est pas de l'UTF-8.
-fn decode_uri_component(text: &str) -> Option<String> {
+pub fn decode_uri_component(text: &str) -> Option<String> {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;

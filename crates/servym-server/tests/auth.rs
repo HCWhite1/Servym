@@ -666,3 +666,124 @@ async fn fichier_des_comptes_illisible() {
     assert_match!(res.error(), "illisible");
     a.s.close(&[]).await;
 }
+
+#[tokio::test]
+async fn journal_sans_injection_et_limite_enable_insensible_a_la_casse() {
+    let a = make_app().await;
+    let (admin, _) = with_admin(&a).await;
+    a.login("alice\n2026-01-01T00:00:00Z [audit] - bob · Faux", "faux")
+        .await;
+    let log = read(a.s.path().join("logs/servym.log"));
+    assert!(
+        log.lines().all(|l| !l.starts_with("2026-01-01T00:00:00Z")),
+        "pas de ligne forgée : {log}"
+    );
+
+    a.s.call_json(
+        "POST",
+        "/api/auth/disable",
+        json!({ "password": "mot de passe 1" }),
+        Some(&admin),
+    )
+    .await;
+    for name in ["Alice", "ALICE", "aLiCe", "alice", "ALiCE"] {
+        let res =
+            a.s.call_json(
+                "POST",
+                "/api/auth/enable",
+                json!({ "username": name, "password": "faux" }),
+                None,
+            )
+            .await;
+        assert_eq!(res.status, 401);
+    }
+    let blocked =
+        a.s.call_json(
+            "POST",
+            "/api/auth/enable",
+            json!({ "username": "alice", "password": "faux" }),
+            None,
+        )
+        .await;
+    assert_eq!(blocked.status, 429);
+    a.s.close(&[]).await;
+}
+
+#[tokio::test]
+async fn env_masque_et_open_protege_sans_commands() {
+    let dir = servym_fixtures::temp_dir("servym-env-");
+    let cwd = path_str(dir.path());
+    let config = json!({
+        "instance": { "port": 1 },
+        "projects": [
+            {
+                "id": "api",
+                "name": "API",
+                "cwd": cwd,
+                "cmd": path_str(servym_fixtures::fixture_exe()),
+                "args": ["server"],
+                "port": servym_fixtures::free_port(),
+                "hostControl": "env",
+                "env": { "SECRET_KEY": "super-secret" },
+            },
+            { "id": "site", "name": "Site", "cwd": cwd, "type": "file", "open": "index.html" },
+        ],
+    });
+    let s = Servym::start_in(dir, config, |b| b).await;
+    let admin = s.setup_admin().await;
+    let ro = s.join(&admin, &[], "lecteur", "mot de passe 3").await;
+    let ed = s.join(&admin, &["edit"], "ed", "mot de passe 4").await;
+
+    for cookie in [&ro, &ed] {
+        let res = s.call_as("GET", "/api/projects", Some(cookie)).await.json();
+        let api = &res["projects"][0];
+        assert_eq!(api["env"]["SECRET_KEY"], "•••");
+        assert_eq!(api["source"]["env"]["SECRET_KEY"], "•••");
+
+        let sse = Req::get("/api/events")
+            .cookie(Some(cookie))
+            .first_event(s.port)
+            .await;
+        assert!(!sse.contains("super-secret"), "SSE sans fuite : {sse}");
+        assert!(sse.contains("•••"), "SSE masqué : {sse}");
+    }
+
+    let patched = s
+        .call_json("PATCH", "/api/projects/api", json!({ "desc": "x" }), Some(&ed))
+        .await;
+    assert_eq!(patched.status, 200);
+    assert_eq!(patched.json()["env"]["SECRET_KEY"], "•••");
+    assert_eq!(patched.json()["source"]["env"]["SECRET_KEY"], "•••");
+
+    let admin_view = s.call_as("GET", "/api/projects", Some(&admin)).await.json();
+    assert_eq!(admin_view["projects"][0]["env"]["SECRET_KEY"], "super-secret");
+    assert_eq!(
+        admin_view["projects"][0]["source"]["env"]["SECRET_KEY"],
+        "super-secret"
+    );
+
+    assert_eq!(
+        s.call_json(
+            "PATCH",
+            "/api/projects/site",
+            json!({ "open": "evil.bat" }),
+            Some(&ed)
+        )
+        .await
+        .status,
+        403
+    );
+    assert_eq!(
+        s.call_json(
+            "PATCH",
+            "/api/projects/site",
+            json!({ "open": "other.html" }),
+            Some(&admin)
+        )
+        .await
+        .status,
+        200
+    );
+
+    s.close(&[]).await;
+}

@@ -233,10 +233,22 @@ impl AuthStore {
         }
         let mut tmp = self.file.as_os_str().to_owned();
         tmp.push(".tmp");
-        std::fs::write(
-            &tmp,
-            format!("{}\n", serde_json::to_string_pretty(&self.data).unwrap()),
-        )?;
+        let text = format!("{}\n", serde_json::to_string_pretty(&self.data).unwrap());
+        #[cfg(unix)]
+        {
+            use std::io::Write;
+            use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+            let mut f = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&tmp)?;
+            f.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+            f.write_all(text.as_bytes())?;
+        }
+        #[cfg(not(unix))]
+        std::fs::write(&tmp, text)?;
         std::fs::rename(&tmp, &self.file)?;
         let info = std::fs::metadata(&self.file)?;
         self.seen = Some((info.modified()?, info.len()));
@@ -266,7 +278,10 @@ pub fn create_reset_code(store: &mut AuthStore, username: &str, now: i64) -> Res
         .map(str::to_string)
         .ok_or_else(|| LocalError::new(404, "auth.unknownUser", params![username = username]))?;
     let code = human_code(2);
-    let resets = data["resets"].as_array_mut().expect("resets");
+    if !data["resets"].is_array() {
+        data["resets"] = json!([]);
+    }
+    let resets = data["resets"].as_array_mut().unwrap();
     resets.retain(|r| r["userId"] != user_id.as_str() && r["expiresAt"].as_i64().unwrap_or(0) > now);
     resets.push(json!({ "userId": user_id, "codeHash": sha256_hex(&normalize_code(&code)), "expiresAt": now + RESET_TTL }));
     store

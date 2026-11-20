@@ -131,7 +131,7 @@ pub fn error_box(text: &str) {
         ("kdialog", vec!["--title", "Servym", "--error", text]),
         (
             "notify-send",
-            vec!["--app-name=Servym", "--urgency=critical", "Servym", text],
+            vec!["--app-name=Servym", "--urgency=critical", "--", "Servym", text],
         ),
     ];
     for (cmd, args) in attempts {

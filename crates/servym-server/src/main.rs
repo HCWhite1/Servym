@@ -57,6 +57,21 @@ fn main() -> ExitCode {
     runtime.block_on(serve(data))
 }
 
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        if let Ok(mut sigterm) = signal(SignalKind::terminate()) {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                _ = sigterm.recv() => {}
+            }
+            return;
+        }
+    }
+    let _ = tokio::signal::ctrl_c().await;
+}
+
 async fn serve(data: PathBuf) -> ExitCode {
     let _ = std::fs::create_dir_all(&data);
     // Redémarrage depuis l'interface : seulement sous un superviseur, qui relance Servym ; lancé à
@@ -106,7 +121,7 @@ async fn serve(data: PathBuf) -> ExitCode {
     manager.init().await;
     // Les projets lancés continuent de tourner : la prochaine instance les reprendra.
     let code = tokio::select! {
-        _ = tokio::signal::ctrl_c() => 0,
+        _ = shutdown_signal() => 0,
         _ = restart_rx.recv() => RESTART_CODE,
     };
     running.close().await;

@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::sync::atomic::{AtomicI32, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 
 use servym_core::i18n::tr;
@@ -51,6 +51,10 @@ impl Shell for DesktopShell {
         if let Some(window) = self.handle.get_webview_window("main") {
             let _ = window.close();
         }
+    }
+
+    fn quit(&self) {
+        self.handle.exit(0);
     }
 }
 
@@ -113,11 +117,13 @@ pub fn run() -> ExitCode {
         .expect("environnement asynchrone");
     tauri::async_runtime::set(runtime.handle().clone());
     let autostart = system::autostart(&system::program(&exe), &data, explicit);
+    let tray_ok = Arc::new(AtomicBool::new(false));
     let start = Start {
         data,
         background,
         autostart,
         runtime: runtime.handle().clone(),
+        tray_ok: tray_ok.clone(),
     };
 
     let context = tauri::generate_context!();
@@ -150,8 +156,18 @@ pub fn run() -> ExitCode {
     let requested = Arc::new(AtomicI32::new(0));
     let code = requested.clone();
     tauri_app.run_return(move |handle, event| match event {
-        // Dernière fenêtre fermée : Servym reste dans la zone de notification.
-        RunEvent::ExitRequested { code: None, api, .. } => api.prevent_exit(),
+        // Dernière fenêtre fermée : Servym reste dans la zone de notification (ou en arrière-plan
+        // si l'interface s'ouvre dans le navigateur). Sans zone de notification en mode fenêtre,
+        // fermer la fenêtre quitte proprement (on peut aussi quitter depuis Paramètres › Servym).
+        RunEvent::ExitRequested { code: None, api, .. } => {
+            let in_tray = tray_ok.load(Ordering::SeqCst);
+            let in_browser = handle
+                .try_state::<Desktop>()
+                .is_some_and(|d| d.app.opener() == "browser");
+            if in_tray || in_browser {
+                api.prevent_exit();
+            }
+        }
         RunEvent::ExitRequested { code: Some(c), .. } => requested.store(c, Ordering::SeqCst),
         RunEvent::Exit => {
             let desktop = handle.state::<Desktop>();
@@ -172,6 +188,7 @@ struct Start {
     background: bool,
     autostart: Arc<dyn servym_sys::Autostart>,
     runtime: tokio::runtime::Handle,
+    tray_ok: Arc<AtomicBool>,
 }
 
 fn setup(tauri_app: &mut tauri::App, start: Start, identifier: &str) -> Result<(), String> {
@@ -181,6 +198,7 @@ fn setup(tauri_app: &mut tauri::App, start: Start, identifier: &str) -> Result<(
         background,
         autostart,
         runtime,
+        tray_ok,
     } = start;
     let _ = std::fs::create_dir_all(&data);
     let _enter = runtime.enter();
@@ -265,7 +283,9 @@ fn setup(tauri_app: &mut tauri::App, start: Start, identifier: &str) -> Result<(
     // navigateur, et un 2ᵉ lancement rouvre l'interface.
     let tray = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::tray::install(&handle)));
     match tray {
-        Ok(Ok(())) => {}
+        Ok(Ok(())) => {
+            tray_ok.store(true, Ordering::SeqCst);
+        }
         Ok(Err(error)) => handle.state::<Desktop>().app.log(&format!("[tray] {error}")),
         Err(_) => handle
             .state::<Desktop>()

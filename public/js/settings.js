@@ -69,6 +69,7 @@ export function init(hs) {
     if (file) importConfig(file);
   });
   $('#restart-instance').addEventListener('click', restartInstance);
+  $('#quit-instance').addEventListener('click', quitInstance);
   $('#instance-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -413,7 +414,11 @@ function fillInstance() {
   ];
   $('#instance-info').replaceChildren(...rows.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })]));
   $('#restart-instance').disabled = !info.restartable || !can('instance');
+  const canQuit = Boolean(info.app) && info.viewerLocal;
+  $('#quit-setting').hidden = !canQuit;
+  $('#quit-instance').disabled = !can('instance');
   renderAccess();
+  renderServerLang();
   renderNotify();
   renderOpener();
   $('#restart-desc').textContent = info.restartable
@@ -588,4 +593,23 @@ async function restartInstance() {
   await until(false, 5_000);
   if (await until(true, 30_000)) location.reload();
   else toast(t('settings.restartTimeout'), 'error');
+}
+
+async function quitInstance() {
+  const ok = await confirmDialog({
+    title: t('settings.quitTitle'),
+    body: t('settings.quitBody'),
+    confirm: t('action.quit'),
+    danger: true,
+  });
+  if (!ok) return;
+  const button = $('#quit-instance');
+  button.disabled = true;
+  try {
+    await api('instance/quit', { method: 'POST' });
+    toast(t('settings.quitting'));
+  } catch (err) {
+    button.disabled = false;
+    toast(err.message, 'error');
+  }
 }

@@ -210,3 +210,13 @@ async fn permission_commandes() {
     );
     t.s.close(&[]).await;
 }
+
+#[tokio::test]
+async fn export_sans_fichier() {
+    let t = make_app().await;
+    std::fs::remove_file(t.s.file()).unwrap();
+    let res = t.s.call("GET", "/api/config/export").await;
+    assert_eq!(res.status, 200, "{}", res.body);
+    assert_eq!(res.json(), servym_core::config::default_config());
+    t.s.close(&[]).await;
+}

@@ -71,3 +71,19 @@ async fn permission_commandes() {
     );
     s.close(&[]).await;
 }
+
+#[tokio::test]
+async fn copie_d_un_nom_de_quarante_caracteres() {
+    let s = make_app().await;
+    let long_name = "A".repeat(40);
+    let patch = s
+        .call_json("PATCH", "/api/projects/api", json!({ "name": long_name }), None)
+        .await;
+    assert_eq!(patch.status, 200);
+    let res = s.call("POST", "/api/projects/api/duplicate").await;
+    assert_eq!(res.status, 201, "{}", res.body);
+    let copy_name = res.json()["name"].as_str().unwrap().to_string();
+    assert!(copy_name.encode_utf16().count() <= 40, "{copy_name}");
+    assert!(copy_name.ends_with(" (copie)"), "{copy_name}");
+    s.close(&[]).await;
+}

@@ -80,6 +80,8 @@ pub trait Shell: Send + Sync {
     fn open_browser(&self);
     /// Ferme la fenêtre de l'application (l'application reste dans la zone de notification).
     fn close_window(&self) {}
+    /// Ferme l'application de bureau (les projets lancés continuent de tourner).
+    fn quit(&self) {}
 }
 
 /// Action lancée depuis la zone de notification : sur la machine hôte, sans compte.
@@ -281,6 +283,7 @@ impl AppBuilder {
         let own_log = logs_dir.join("servym.log");
         let own_log_size = std::fs::metadata(&own_log).map_or(0, |m| m.len());
         let (instance_events, _) = tokio::sync::broadcast::channel(16);
+        let (autostart_events, _) = tokio::sync::broadcast::channel(16);
         let hostnames = self.hostnames.unwrap_or_else(|| Arc::new(default_hostnames));
         let desktop = self.desktop.unwrap_or_else(|| platform.tools().desktop);
         let inner = AppInner {
@@ -293,10 +296,12 @@ impl AppBuilder {
                 &runtime_dir.join("auth.json"),
             ))),
             config_error: Mutex::new(config_error.clone()),
+            config_write: Mutex::default(),
             own_log_size: Mutex::new(own_log_size),
             actors: Mutex::default(),
             streams: Mutex::default(),
             instance_events,
+            autostart_events,
             sampler: Sampler::new(sample, now, cores, Duration::from_secs(2)),
             git_cache: tokio::sync::Mutex::default(),
             network: tokio::sync::Mutex::default(),
@@ -363,10 +368,7 @@ fn default_hostnames() -> Vec<String> {
         .filter(|i| i.ip().is_ipv4() && !i.is_loopback())
         .map(|i| i.ip().to_string())
         .collect();
-    if let Some(host) = std::env::var("COMPUTERNAME")
-        .ok()
-        .or_else(|| std::env::var("HOSTNAME").ok())
-    {
+    if let Some(host) = servym_sys::hostname() {
         names.push(host);
     }
     names
@@ -418,6 +420,16 @@ impl App {
 
     pub fn autostart(&self) -> Arc<dyn Autostart> {
         self.inner.autostart.clone()
+    }
+
+    /// Abonnement aux changements du démarrage avec la session.
+    pub fn subscribe_autostart(&self) -> tokio::sync::broadcast::Receiver<()> {
+        self.inner.autostart_events.subscribe()
+    }
+
+    /// Signale à la zone de notification de relire l'état du démarrage avec la session.
+    pub fn notify_autostart(&self) {
+        let _ = self.inner.autostart_events.send(());
     }
 
     /// Démarrer, redémarrer ou arrêter depuis la zone de notification : même chemin que l'interface,

@@ -61,6 +61,7 @@ fn state_label(desktop: &Desktop, state: &str) -> Option<String> {
         "stopping" => "tray.stateStopping",
         "stopped" => "tray.stateStopped",
         "failed" => "tray.stateFailed",
+        "conflict" => "tray.stateConflict",
         _ => return None,
     };
     Some(desktop.app.tr(key))
@@ -70,24 +71,38 @@ fn item(app: &AppHandle, id: &str, text: &str) -> tauri::Result<MenuItem<Wry>> {
     MenuItem::with_id(app, id, text, true, None::<&str>)
 }
 
-fn build(app: &AppHandle, desktop: &Desktop, shown: &Shown) -> tauri::Result<Menu<Wry>> {
-    let menu = Menu::new(app)?;
-    let online = shown.rows.iter().filter(|r| r.state == "running").count();
-    let failed = shown.rows.iter().filter(|r| r.state == "failed").count();
-    let mut title = format!(
+fn summary(desktop: &Desktop, rows: &[Row]) -> String {
+    let online = rows.iter().filter(|r| r.state == "running").count();
+    let failed = rows.iter().filter(|r| r.state == "failed").count();
+    let conflict = rows.iter().filter(|r| r.state == "conflict").count();
+    let mut text = format!(
         "Servym · {}",
         desktop
             .app
             .tr_with("tray.online", servym_core::params![count = online])
     );
     if failed > 0 {
-        title.push_str(&format!(
+        text.push_str(&format!(
             " · {}",
             desktop
                 .app
                 .tr_with("tray.failed", servym_core::params![count = failed])
         ));
     }
+    if conflict > 0 {
+        text.push_str(&format!(
+            " · {}",
+            desktop
+                .app
+                .tr_with("tray.conflict", servym_core::params![count = conflict])
+        ));
+    }
+    text
+}
+
+fn build(app: &AppHandle, desktop: &Desktop, shown: &Shown) -> tauri::Result<Menu<Wry>> {
+    let menu = Menu::new(app)?;
+    let title = summary(desktop, &shown.rows);
     menu.append(&MenuItem::with_id(app, "title", title, false, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     if shown.rows.is_empty() {
@@ -110,6 +125,7 @@ fn build(app: &AppHandle, desktop: &Desktop, shown: &Shown) -> tauri::Result<Men
         let mark = match row.state.as_str() {
             "running" => "●",
             "failed" => "✕",
+            "conflict" => "!",
             "starting" | "stopping" => "◐",
             _ => "○",
         };
@@ -130,6 +146,17 @@ fn build(app: &AppHandle, desktop: &Desktop, shown: &Shown) -> tauri::Result<Men
             }
             "starting" => sub.append(&action("stop", "tray.stop")?)?,
             "failed" => sub.append(&action("start", "tray.retry")?)?,
+            "conflict" => {
+                let label = state_label(desktop, "conflict").unwrap_or_default();
+                sub.append(&MenuItem::with_id(
+                    app,
+                    format!("conflict:{}", row.id),
+                    label,
+                    false,
+                    None::<&str>,
+                )?)?;
+                sub.append(&action("ui", "tray.open")?)?;
+            }
             "stopping" => {
                 let label = state_label(desktop, "stopping").unwrap_or_default();
                 sub.append(&MenuItem::with_id(
@@ -169,13 +196,15 @@ fn icon(alert: bool) -> tauri::Result<Image<'static>> {
 }
 
 /// Refait le menu, l'icône et l'infobulle si ce qu'ils montrent a changé.
-fn refresh(app: &AppHandle, last: &mut Option<(Vec<Row>, bool)>) {
+fn refresh(app: &AppHandle, last: &mut Option<(Vec<Row>, bool, servym_core::i18n::Lang)>) {
     let desktop = app.state::<Desktop>();
+    let autostart = desktop.runtime.block_on(desktop.app.autostart().enabled());
     let shown = Shown {
         rows: rows(&desktop),
-        autostart: desktop.runtime.block_on(desktop.app.autostart().enabled()),
+        autostart,
     };
-    let key = (shown.rows.clone(), shown.autostart);
+    let lang = desktop.app.manager().lang();
+    let key = (shown.rows.clone(), shown.autostart, lang);
     if last.as_ref() == Some(&key) {
         return;
     }
@@ -184,26 +213,14 @@ fn refresh(app: &AppHandle, last: &mut Option<(Vec<Row>, bool)>) {
     if let Ok(menu) = build(app, &desktop, &shown) {
         let _ = tray.set_menu(Some(menu));
     }
-    let failed = shown.rows.iter().filter(|r| r.state == "failed").count();
-    let online = shown.rows.iter().filter(|r| r.state == "running").count();
-    if let Ok(image) = icon(failed > 0) {
+    let alert = shown
+        .rows
+        .iter()
+        .any(|r| matches!(r.state.as_str(), "failed" | "conflict"));
+    if let Ok(image) = icon(alert) {
         let _ = tray.set_icon(Some(image));
     }
-    let mut tip = format!(
-        "Servym · {}",
-        desktop
-            .app
-            .tr_with("tray.online", servym_core::params![count = online])
-    );
-    if failed > 0 {
-        tip.push_str(&format!(
-            " · {}",
-            desktop
-                .app
-                .tr_with("tray.failed", servym_core::params![count = failed])
-        ));
-    }
-    let _ = tray.set_tooltip(Some(tip));
+    let _ = tray.set_tooltip(Some(summary(&desktop, &shown.rows)));
 }
 
 fn on_menu(app: &AppHandle, event: MenuEvent) {
@@ -214,17 +231,19 @@ fn on_menu(app: &AppHandle, event: MenuEvent) {
         "browser" => crate::window::to_browser(&desktop.url()),
         "quit" => app.exit(0),
         "autostart" => {
-            let autostart = desktop.app.autostart();
-            let on = !desktop.runtime.block_on(autostart.enabled());
-            if let Err(error) = desktop.runtime.block_on(autostart.set(on)) {
-                desktop.app.log(&format!("[autostart] {error}"));
-            } else {
-                let key = if on { "log.autostartOn" } else { "log.autostartOff" };
-                desktop.app.log(&format!("[autostart] {}", desktop.app.tr(key)));
-            }
-            // Coche à jour tout de suite (ce n’est pas un changement de projet).
-            let app = app.clone();
-            std::thread::spawn(move || refresh(&app, &mut None));
+            let server = desktop.app.clone();
+            let autostart = server.autostart();
+            desktop.runtime.spawn(async move {
+                let on = !autostart.enabled().await;
+                if let Err(error) = autostart.set(on).await {
+                    server.log(&format!("[autostart] {error}"));
+                } else {
+                    let key = if on { "log.autostartOn" } else { "log.autostartOff" };
+                    server.log(&format!("[autostart] {}", server.tr(key)));
+                }
+                // Coche à jour tout de suite via le fil « tray ».
+                server.notify_autostart();
+            });
         }
         _ => {
             let Some((action, project)) = id.split_once(':') else {
@@ -235,6 +254,10 @@ fn on_menu(app: &AppHandle, event: MenuEvent) {
                 "start" => TrayAction::Start,
                 "restart" => TrayAction::Restart,
                 "stop" => TrayAction::Stop,
+                "ui" => {
+                    desktop.open_ui(app);
+                    return;
+                }
                 "open" | "open-file" => {
                     open_project(&desktop, &project, action == "open-file");
                     return;
@@ -307,10 +330,11 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         })
         .build(app)?;
     let _ = tray;
-    // Menu refait à chaque changement des projets, sur un fil à part (le menu est construit sur le
-    // fil principal par Tauri).
+    // Menu refait à chaque changement des projets ou du démarrage avec la session, sur un fil à
+    // part (le menu est construit sur le fil principal par Tauri).
     let app = app.clone();
     let mut events = app.state::<Desktop>().app.manager().subscribe();
+    let mut autostart = app.state::<Desktop>().app.subscribe_autostart();
     std::thread::Builder::new()
         .name("tray".into())
         .spawn(move || {
@@ -318,12 +342,16 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             refresh(&app, &mut last);
             let runtime = app.state::<Desktop>().runtime.clone();
             loop {
-                match runtime.block_on(events.recv()) {
-                    Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                        refresh(&app, &mut last)
+                let tick = runtime.block_on(async {
+                    tokio::select! {
+                        r = events.recv() => !matches!(r, Err(tokio::sync::broadcast::error::RecvError::Closed)),
+                        r = autostart.recv() => !matches!(r, Err(tokio::sync::broadcast::error::RecvError::Closed)),
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                });
+                if !tick {
+                    return;
                 }
+                refresh(&app, &mut last);
             }
         })
         .map_err(tauri::Error::Io)?;

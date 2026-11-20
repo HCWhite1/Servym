@@ -10,8 +10,8 @@ use axum::http::{Method, header};
 use axum::response::Response;
 use serde_json::{Value, json};
 use servym_core::config::{
-    create_project, describe_changes, duplicate_project, patch_project, port_of, remove_project,
-    reorder_projects, validate,
+    create_project, default_config, describe_changes, duplicate_project, format_config, patch_project,
+    port_of, remove_project, reorder_projects, validate,
 };
 use servym_core::i18n::{Lang, LocalError};
 use servym_core::logs::{Follow, Follower, history, tail_lines};
@@ -25,9 +25,10 @@ use crate::app::{App, read_text};
 use crate::http::{Ctx, err, permission_for, send};
 
 /// Champs dont la modification revient à choisir ce qui s'exécute (ou s'expose).
-const SENSITIVE: [&str; 7] = ["type", "cwd", "cmd", "args", "env", "stop", "expose"];
-/// Ouvrent quelque chose sur cette machine : réservées à qui est devant elle.
-const HOST_ONLY: [&str; 9] = [
+const SENSITIVE: [&str; 8] = ["type", "cwd", "cmd", "args", "env", "stop", "expose", "open"];
+/// Ouvrent quelque chose sur cette machine (ou ferment l'application) : réservées à qui est
+/// devant elle.
+const HOST_ONLY: [&str; 10] = [
     "open",
     "folder",
     "code",
@@ -36,6 +37,7 @@ const HOST_ONLY: [&str; 9] = [
     "log",
     "opener",
     "browser",
+    "quit",
     "reset-code",
 ];
 
@@ -52,6 +54,36 @@ fn who_of(user: &Option<Value>) -> String {
         .and_then(|u| u["username"].as_str())
         .unwrap_or("-")
         .to_string()
+}
+
+/// Sans la permission « Commandes », les noms des variables d'environnement restent visibles, mais
+/// leurs valeurs (souvent des secrets) sont masquées.
+fn redact_env_map(v: &mut Value) {
+    if let Some(map) = v.as_object_mut() {
+        for val in map.values_mut() {
+            *val = json!("•••");
+        }
+    }
+}
+
+fn project_view(mut view: Value, can_commands: bool) -> Value {
+    if !can_commands {
+        redact_env_map(&mut view["env"]);
+        if let Some(src) = view.get_mut("source") {
+            redact_env_map(&mut src["env"]);
+        }
+    }
+    view
+}
+
+fn project_snapshot(app: &App, can_commands: bool) -> Value {
+    let list: Vec<Value> = app
+        .manager
+        .snapshot()
+        .into_iter()
+        .map(|v| project_view(v, can_commands))
+        .collect();
+    Value::Array(list)
 }
 
 impl crate::app::AppInner {
@@ -271,12 +303,12 @@ fn stream(
     let token = CancellationToken::new();
     // Sans session (protection désactivée) : rangé sous « - », fermé seulement à l'arrêt du serveur.
     let key = session.unwrap_or_else(|| "-".into());
-    app.streams
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .entry(key)
-        .or_default()
-        .push(token.clone());
+    {
+        let mut streams = app.streams.lock().unwrap_or_else(|e| e.into_inner());
+        let list = streams.entry(key.clone()).or_default();
+        list.retain(|t| !t.is_cancelled());
+        list.push(token.clone());
+    }
     let ping_tx = tx.clone();
     let ping_token = token.clone();
     tokio::spawn(async move {
@@ -285,14 +317,23 @@ fn stream(
         loop {
             tokio::select! {
                 _ = ping_token.cancelled() => return,
+                _ = ping_tx.closed() => { ping_token.cancel(); return; }
                 _ = every.tick() => if ping_tx.send(Ok(Bytes::from_static(b": ping\n\n"))).await.is_err() { ping_token.cancel(); return },
             }
         }
     });
     let task = run(tx, token.clone());
+    let app = app.clone();
     tokio::spawn(async move {
         token.cancelled().await;
         task.abort();
+        let mut streams = app.streams.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(list) = streams.get_mut(&key) {
+            list.retain(|t| !t.is_cancelled());
+            if list.is_empty() {
+                streams.remove(&key);
+            }
+        }
     });
     Response::builder()
         .header(header::CONTENT_TYPE, "text/event-stream")
@@ -301,14 +342,14 @@ fn stream(
         .unwrap()
 }
 
-fn events_stream(app: &App, session: Option<String>, lang: Lang) -> Response {
+fn events_stream(app: &App, session: Option<String>, lang: Lang, can_commands: bool) -> Response {
     let app2 = app.clone();
     stream(app, session, move |tx, token| {
         tokio::spawn(async move {
             let app = app2;
             let mut events = app.manager.subscribe();
             let mut instance = app.instance_events.subscribe();
-            let snapshot = |app: &App| json!(app.manager.snapshot());
+            let snapshot = |app: &App| project_snapshot(app, can_commands);
             if !emit(&tx, "snapshot", &snapshot(&app)).await
                 || !emit(
                     &tx,
@@ -323,7 +364,7 @@ fn events_stream(app: &App, session: Option<String>, lang: Lang) -> Response {
             loop {
                 let sent = tokio::select! {
                     event = events.recv() => match event {
-                        Ok(Event::Change(view)) => emit(&tx, "state", &view).await,
+                        Ok(Event::Change(view)) => emit(&tx, "state", &project_view(view, can_commands)).await,
                         Ok(Event::Config) => emit(&tx, "snapshot", &snapshot(&app)).await,
                         Ok(_) => true,
                         // Flux en retard : un instantané complet remplace ce qui a été perdu.
@@ -387,6 +428,7 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         .require(ctx, permission_for(section, id, action, &method))
         .await?;
     let who = who_of(&user);
+    let can_commands = crate::app::AppInner::can(user.as_ref(), "commands");
     let audit = |project: &str, key: &str, params| app.audit(project, &who, key, params);
     let lang = ctx.lang(app.lang());
     let config = app.config();
@@ -428,13 +470,12 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         });
         return Ok(send(
             200,
-            &json!({ "instance": info, "projects": app.manager.snapshot() }),
+            &json!({ "instance": info, "projects": project_snapshot(app, can_commands) }),
         ));
     }
     if section == "projects" && id.is_none() && method == Method::POST {
         let input = ctx.read_json(16_000).await?;
-        let (next, created) = create_project(&app.disk_config()?, &input)?;
-        app.apply_config(next)?;
+        let created = app.edit_config(|current| create_project(&current, &input))?;
         app.log(&format!(
             "[config] {}",
             app.tr("log.added", params![id = created.as_str()])
@@ -444,10 +485,8 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
     }
     if section == "projects" && id.is_none() && method == Method::PUT {
         let body = ctx.read_json(16_000).await?;
-        app.apply_config(reorder_projects(
-            &app.disk_config()?,
-            body.get("order").unwrap_or(&Value::Null),
-        )?)?;
+        let order = body.get("order").cloned().unwrap_or(Value::Null);
+        app.edit_config(|current| Ok((reorder_projects(&current, &order)?, ())))?;
         app.log(&format!("[config] {}", app.tr("log.reordered", params![])));
         audit("-", "audit.reordered", params![]);
         return Ok(ok());
@@ -472,6 +511,7 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
                 "log.autostartOff"
             };
             app.log(&format!("[autostart] {}", app.tr(key, params![])));
+            let _ = app.autostart_events.send(());
             return Ok(send(200, &json!({ "enabled": app.autostart.enabled().await })));
         }
     }
@@ -503,8 +543,8 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         }
         return Ok(ok());
     }
-    // Application de bureau, devant la machine : fenêtre ou navigateur.
-    if section == "instance" && matches!(id, Some("opener" | "browser")) {
+    // Application de bureau, devant la machine : fenêtre ou navigateur, et fermeture propre.
+    if section == "instance" && matches!(id, Some("opener" | "browser" | "quit")) {
         let id = id.unwrap();
         let Some(shell) = app.shell.clone() else {
             return Err(err(404, "http.unknownRoute"));
@@ -533,6 +573,19 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
             std::fs::write(&app.ui_file, ui.to_string()).map_err(|e| raw(e.to_string()))?;
             return Ok(send(200, &json!({ "opener": opener })));
         }
+        if id == "quit" && method == Method::POST {
+            let by = if user.is_some() {
+                format!(" · {}", app.tr("history.by", params![user = who.as_str()]))
+            } else {
+                String::new()
+            };
+            app.log(&format!("[quit] Servym{by}"));
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                shell.quit();
+            });
+            return Ok(ok());
+        }
     }
     if section == "instance" && id == Some("lang") && method == Method::PUT {
         // Langue des journaux, de l'historique et des états : appliquée tout de suite. null :
@@ -542,14 +595,17 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         if !(chosen.is_null() || matches!(chosen.as_str(), Some("en" | "fr"))) {
             return Err(err(400, "http.badLang"));
         }
-        let mut next = app.disk_config()?;
-        match chosen.as_str() {
-            Some(l) => next["instance"]["lang"] = json!(l),
-            None => {
-                next["instance"].as_object_mut().unwrap().shift_remove("lang");
+        app.edit_config(|mut next| {
+            match chosen.as_str() {
+                Some(l) => next["instance"]["lang"] = json!(l),
+                None => {
+                    if let Some(inst) = next["instance"].as_object_mut() {
+                        inst.shift_remove("lang");
+                    }
+                }
             }
-        }
-        app.apply_config(next)?;
+            Ok((next, ()))
+        })?;
         audit(
             "-",
             "audit.serverLang",
@@ -566,13 +622,14 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         let Some(enabled) = body["notify"].as_bool() else {
             return Err(err(400, "http.badNotify"));
         };
-        let mut next = app.disk_config()?;
-        if enabled {
-            next["instance"]["notify"] = json!(true);
-        } else {
-            next["instance"].as_object_mut().unwrap().shift_remove("notify");
-        }
-        app.apply_config(next)?;
+        app.edit_config(|mut next| {
+            if enabled {
+                next["instance"]["notify"] = json!(true);
+            } else if let Some(inst) = next["instance"].as_object_mut() {
+                inst.shift_remove("notify");
+            }
+            Ok((next, ()))
+        })?;
         audit(
             "-",
             if enabled {
@@ -614,13 +671,14 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
                 app.confirm_password(ctx, u, &body["password"]).await?;
             }
         }
-        let mut next = app.disk_config()?;
-        if access == "lan" {
-            next["instance"]["access"] = json!("lan");
-        } else {
-            next["instance"].as_object_mut().unwrap().shift_remove("access");
-        }
-        app.apply_config(next)?;
+        app.edit_config(|mut next| {
+            if access == "lan" {
+                next["instance"]["access"] = json!("lan");
+            } else if let Some(inst) = next["instance"].as_object_mut() {
+                inst.shift_remove("access");
+            }
+            Ok((next, ()))
+        })?;
         audit(
             "-",
             if access == "lan" {
@@ -648,14 +706,17 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
             return Err(err(400, "http.nameTooLong"));
         }
         let trimmed = name.as_str().map(str::trim).filter(|n| !n.is_empty());
-        let mut next = app.disk_config()?;
-        match trimmed {
-            Some(n) => next["instance"]["name"] = json!(n),
-            None => {
-                next["instance"].as_object_mut().unwrap().shift_remove("name");
+        app.edit_config(|mut next| {
+            match trimmed {
+                Some(n) => next["instance"]["name"] = json!(n),
+                None => {
+                    if let Some(inst) = next["instance"].as_object_mut() {
+                        inst.shift_remove("name");
+                    }
+                }
             }
-        }
-        app.apply_config(next)?;
+            Ok((next, ()))
+        })?;
         audit(
             "-",
             "audit.instanceName",
@@ -665,16 +726,33 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
     }
     if section == "events" && get {
         let session = app.session_id(ctx).await;
-        return Ok(events_stream(app, session, lang));
+        return Ok(events_stream(app, session, lang, can_commands));
     }
     if section == "git" && get {
         let fresh = ctx.has_query("fresh");
+        let projects = config["projects"].as_array().cloned().unwrap_or_default();
+        let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(8));
+        let mut set = tokio::task::JoinSet::new();
+        for (i, p) in projects.into_iter().enumerate() {
+            let app = app.clone();
+            let sem = sem.clone();
+            set.spawn(async move {
+                let _permit = sem.acquire_owned().await.ok();
+                let id = p["id"].as_str().unwrap_or_default().to_string();
+                let info = app.git(&p, fresh).await;
+                (i, id, info)
+            });
+        }
+        let mut results = Vec::new();
+        while let Some(res) = set.join_next().await {
+            if let Ok(item) = res {
+                results.push(item);
+            }
+        }
+        results.sort_by_key(|(i, _, _)| *i);
         let mut out = serde_json::Map::new();
-        for p in config["projects"].as_array().into_iter().flatten() {
-            out.insert(
-                p["id"].as_str().unwrap_or_default().to_string(),
-                app.git(p, fresh).await,
-            );
+        for (_, id, info) in results {
+            out.insert(id, info);
         }
         return Ok(send(200, &Value::Object(out)));
     }
@@ -768,9 +846,15 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         return Ok(ok());
     }
     if section == "config" && id == Some("export") && get {
-        // Le fichier tel qu'il est sur le disque, à télécharger.
+        // Le fichier tel qu'il est sur le disque, à télécharger (ou défaut s'il n'existe pas encore).
         let day = chrono::Utc::now().format("%Y-%m-%d");
-        let text = std::fs::read_to_string(&app.config_file).map_err(|e| raw(e.to_string()))?;
+        let text = match std::fs::read_to_string(&app.config_file) {
+            Ok(t) => t,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                format!("{}\n", format_config(&default_config()))
+            }
+            Err(e) => return Err(raw(e.to_string())),
+        };
         return Ok(Response::builder()
             .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
             .header(
@@ -789,39 +873,65 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         if !imported.is_array() {
             return Err(err(400, "config.noProjects"));
         }
-        let current = app.disk_config()?;
-        let mut next = current.clone();
-        next["projects"] = imported.clone();
-        validate(&next)?;
-        let (mut added, mut removed, mut changed, mut unchanged) = (Vec::new(), Vec::new(), Vec::new(), 0);
-        let empty = Vec::new();
-        let olds = current["projects"].as_array().unwrap_or(&empty);
-        for p in next["projects"].as_array().unwrap() {
-            match olds.iter().find(|o| o["id"] == p["id"]) {
-                None => added.push(json!({ "id": p["id"], "name": p["name"] })),
-                Some(old) => {
-                    let changes = describe_changes(old, p);
-                    if changes.is_empty() {
-                        unchanged += 1;
-                    } else {
-                        changed.push(json!({ "id": p["id"], "name": p["name"], "changes": changes }));
+        struct ImportDiff {
+            added: Vec<Value>,
+            removed: Vec<Value>,
+            changed: Vec<Value>,
+            unchanged: usize,
+        }
+        let apply = body["apply"] == true;
+        let compute = |current: Value| -> Result<(Value, ImportDiff), LocalError> {
+            let mut next = current.clone();
+            next["projects"] = imported.clone();
+            validate(&next)?;
+            let (mut added, mut removed, mut changed, mut unchanged) =
+                (Vec::new(), Vec::new(), Vec::new(), 0);
+            let empty = Vec::new();
+            let olds = current["projects"].as_array().unwrap_or(&empty);
+            for p in next["projects"].as_array().unwrap() {
+                match olds.iter().find(|o| o["id"] == p["id"]) {
+                    None => added.push(json!({ "id": p["id"], "name": p["name"] })),
+                    Some(old) => {
+                        let changes = describe_changes(old, p);
+                        if changes.is_empty() {
+                            unchanged += 1;
+                        } else {
+                            changed.push(json!({ "id": p["id"], "name": p["name"], "changes": changes }));
+                        }
                     }
                 }
             }
-        }
-        for old in olds {
-            if !next["projects"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|p| p["id"] == old["id"])
-            {
-                removed.push(json!({ "id": old["id"], "name": old["name"] }));
+            for old in olds {
+                if !next["projects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|p| p["id"] == old["id"])
+                {
+                    removed.push(json!({ "id": old["id"], "name": old["name"] }));
+                }
             }
-        }
-        let apply = body["apply"] == true;
+            Ok((
+                next,
+                ImportDiff {
+                    added,
+                    removed,
+                    changed,
+                    unchanged,
+                },
+            ))
+        };
+        let ImportDiff {
+            added,
+            removed,
+            changed,
+            unchanged,
+        } = if apply {
+            app.edit_config(compute)?
+        } else {
+            compute(app.disk_config()?)?.1
+        };
         if apply {
-            app.apply_config(next)?;
             audit(
                 "-",
                 "audit.imported",
@@ -865,21 +975,25 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         if sensitive && !crate::app::AppInner::can(user.as_ref(), "commands") {
             return Err(err(403, "auth.needsCommands"));
         }
-        let current = app.disk_config()?;
-        let next = patch_project(&current, id, &patch)?;
-        app.apply_config(next.clone())?;
+        let changes = app.edit_config(|current| {
+            let next = patch_project(&current, id, &patch)?;
+            let find = |c: &Value| {
+                c["projects"]
+                    .as_array()
+                    .and_then(|l| l.iter().find(|p| p["id"] == id).cloned())
+                    .unwrap_or_default()
+            };
+            let changes = describe_changes(&find(&current), &find(&next));
+            Ok((next, changes))
+        })?;
         app.log(&format!("[config] {}", app.tr("log.changed", params![id = id])));
-        let find = |c: &Value| {
-            c["projects"]
-                .as_array()
-                .and_then(|l| l.iter().find(|p| p["id"] == id).cloned())
-                .unwrap_or_default()
-        };
-        let changes = describe_changes(&find(&current), &find(&next));
         if !changes.is_empty() {
             audit(id, "audit.changed", params![changes = changes]);
         }
-        return Ok(send(200, &app.manager.view(&app.manager.project(id)?)));
+        return Ok(send(
+            200,
+            &project_view(app.manager.view(&app.manager.project(id)?), can_commands),
+        ));
     }
     if action.is_none() && method == Method::DELETE {
         // Confirmation : mot de passe du compte si la protection est active, sinon le nom exact du
@@ -903,7 +1017,7 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
             let reason = app.tr("history.deleted", params![]);
             app.manager.stop_with(id, true, Some(reason)).await?;
         }
-        app.apply_config(remove_project(&app.disk_config()?, id)?)?;
+        app.edit_config(|current| Ok((remove_project(&current, id)?, ())))?;
         app.log(&format!("[config] {}", app.tr("log.deleted", params![id = id])));
         audit(id, "audit.deleted", params![name = name.as_str()]);
         return Ok(ok());
@@ -924,7 +1038,7 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
         return Ok(log_stream(app, session, file));
     }
     if action == Some("duplicate") && method == Method::POST {
-        // Port libre après celui de l'original ; nom dans la langue du serveur.
+        // Port libre après celui de l'original ; nom dans la langue du serveur (borné à 40 unités UTF-16).
         let port = if project["type"] == "file" {
             None
         } else {
@@ -933,9 +1047,28 @@ pub async fn api(app: &App, ctx: &mut Ctx) -> Result<Response, LocalError> {
                     .await?,
             )
         };
-        let copy_name = app.tr("project.copyName", params![name = name.as_str()]);
-        let (next, created) = duplicate_project(&app.disk_config()?, id, &copy_name, port)?;
-        app.apply_config(next)?;
+        let overhead = app
+            .tr("project.copyName", params![name = ""])
+            .encode_utf16()
+            .count();
+        let max_base = 40usize.saturating_sub(overhead);
+        let base = if name.encode_utf16().count() > max_base {
+            let mut cut = String::new();
+            let mut units = 0;
+            for c in name.chars() {
+                let u = c.len_utf16();
+                if units + u > max_base {
+                    break;
+                }
+                units += u;
+                cut.push(c);
+            }
+            cut.trim_end().to_string()
+        } else {
+            name.clone()
+        };
+        let copy_name = app.tr("project.copyName", params![name = base.as_str()]);
+        let created = app.edit_config(|current| duplicate_project(&current, id, &copy_name, port))?;
         audit(&created, "audit.duplicated", params![name = name.as_str()]);
         return Ok(send(201, &app.manager.view(&app.manager.project(&created)?)));
     }

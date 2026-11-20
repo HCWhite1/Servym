@@ -176,6 +176,9 @@ pub struct KillOptions {
 /// SIGTERM au groupe du projet (le lancement le crée) et à tous ses descendants, qui peuvent
 /// s'arrêter proprement ; SIGKILL à ceux qui restent. Erreur (avec le PID) si le projet survit.
 pub async fn kill_tree(pid: u32, options: KillOptions) -> Result<(), String> {
+    if pid == 0 {
+        return Ok(());
+    }
     let snapshot = sample_processes(&options.proc, 100, 4096);
     let mut tree: Vec<u32> = tree_of(&snapshot, &[pid]).into_iter().collect();
     if !tree.contains(&pid) {
@@ -187,9 +190,13 @@ pub async fn kill_tree(pid: u32, options: KillOptions) -> Result<(), String> {
             .filter(|p| (options.alive)(*p))
             .collect::<Vec<_>>()
     };
-    (options.kill)(-(pid as i32), SIGTERM);
+    if pid > 1 && pid <= i32::MAX as u32 {
+        (options.kill)(-(pid as i32), SIGTERM);
+    }
     for p in &tree {
-        (options.kill)(*p as i32, SIGTERM);
+        if *p > 0 && *p <= i32::MAX as u32 {
+            (options.kill)(*p as i32, SIGTERM);
+        }
     }
     let step = Duration::from_millis(50);
     let mut waited = Duration::ZERO;
@@ -197,8 +204,16 @@ pub async fn kill_tree(pid: u32, options: KillOptions) -> Result<(), String> {
         tokio::time::sleep(step).await;
         waited += step;
     }
-    for p in living() {
-        (options.kill)(p as i32, SIGKILL);
+    let remaining = living();
+    if !remaining.is_empty() {
+        if pid > 1 && pid <= i32::MAX as u32 {
+            (options.kill)(-(pid as i32), SIGKILL);
+        }
+        for p in remaining {
+            if p > 0 && p <= i32::MAX as u32 {
+                (options.kill)(p as i32, SIGKILL);
+            }
+        }
     }
     let mut waited = Duration::ZERO;
     while waited < options.wait && (options.alive)(pid) {
@@ -495,13 +510,26 @@ mod real {
         }
     }
 
+    fn is_zombie(pid: u32) -> bool {
+        let Ok(text) = std::fs::read_to_string(Path::new(PROC).join(pid.to_string()).join("stat")) else {
+            return false;
+        };
+        let Some(close) = text.rfind(')') else {
+            return false;
+        };
+        text.as_bytes().get(close + 2) == Some(&b'Z')
+    }
+
     fn alive(pid: u32) -> bool {
-        if pid == 0 {
+        if pid == 0 || pid > i32::MAX as u32 {
             return false;
         }
         // SAFETY : le signal 0 ne fait que vérifier l'existence du processus.
         let ok = unsafe { libc::kill(pid as libc::pid_t, 0) } == 0;
-        ok || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+        if ok {
+            return !is_zombie(pid);
+        }
+        std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
     }
 
     /// Programme du bureau détaché (xdg-open, code, terminal), sans lien avec Servym.
@@ -532,7 +560,11 @@ mod real {
         }
 
         fn process_names(&self) -> BoxFuture<'_, HashMap<u32, String>> {
-            Box::pin(async { super::process_names(Path::new(PROC)) })
+            Box::pin(async {
+                tokio::task::spawn_blocking(|| super::process_names(Path::new(PROC)))
+                    .await
+                    .unwrap_or_default()
+            })
         }
 
         fn network_profiles(&self) -> BoxFuture<'_, Vec<NetworkProfile>> {

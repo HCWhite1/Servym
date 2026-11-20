@@ -1,8 +1,6 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
-# Les essais de la phase 0 ont leur propre espace de travail : ils ne sont pas construits par la CI.
-exclude = ["spikes"]
 
 [workspace.package]
 version = "1.0.0"

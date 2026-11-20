@@ -1,5 +1,5 @@
 // Volet d'un projet : journal en direct, historique, réglages, infos.
-import { STATE_LABELS, ago, api, can, canRestart, canStop, confirmDialog, exposure, fillTile, formatBytes, formatCpu, h, icon, isExternal, primaryOf, statusText, toast, uptime, urlOf, viewer } from './lib.js';
+import { STATE_LABELS, ago, api, can, canRestart, canStop, confirmDialog, copyText, exposure, fillTile, formatBytes, formatCpu, h, icon, isExternal, primaryOf, statusText, toast, uptime, urlOf, viewer } from './lib.js';
 import { ERROR_LINE, WARN_LINE } from './log-patterns.js';
 import { createForm } from './project-form.js';
 import { auditLine } from './activity.js';
@@ -39,8 +39,7 @@ export function init(hs) {
   $('#log-search').addEventListener('input', (e) => search(e.target.value));
   $('#log-run').addEventListener('change', (e) => showRun(e.target.value));
   $('#log-copy').addEventListener('click', async () => {
-    await navigator.clipboard.writeText(logBox.textContent);
-    toast(t('panel.logCopied'));
+    if (await copyText(logBox.textContent)) toast(t('panel.logCopied'));
   });
   form = createForm({ handlers, submitLabel: t('common.save'), onSubmit: save });
   const remove = h('button', { class: 'btn danger', type: 'button' }, icon('trash-2'), t('action.delete'));

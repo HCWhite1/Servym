@@ -34,6 +34,10 @@ fn github(url: &Url) -> bool {
     url.scheme() == "https" && url.host_str() == Some("github.com")
 }
 
+fn external_web(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https")
+}
+
 /// Montre la fenêtre principale, créée au besoin.
 pub fn show_main(app: &AppHandle, port: u16) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("main") {
@@ -53,12 +57,16 @@ pub fn show_main(app: &AppHandle, port: u16) -> tauri::Result<()> {
             if same_origin(url, port) || github(url) || url.scheme() == "about" {
                 return true;
             }
-            to_browser(url.as_str());
+            if external_web(url) {
+                to_browser(url.as_str());
+            }
             false
         })
         .on_new_window(move |url, features| {
             if !same_origin(&url, port) {
-                to_browser(url.as_str());
+                if external_web(&url) {
+                    to_browser(url.as_str());
+                }
                 return NewWindowResponse::Deny;
             }
             let label = format!("popup-{}", POPUPS.fetch_add(1, Ordering::Relaxed));
@@ -76,7 +84,9 @@ pub fn show_main(app: &AppHandle, port: u16) -> tauri::Result<()> {
                 if next.scheme() == "about" || same_origin(next, port) {
                     return true;
                 }
-                to_browser(next.as_str());
+                if external_web(next) {
+                    to_browser(next.as_str());
+                }
                 if let Some(w) = app.get_webview_window(&popup_label) {
                     let _ = w.close();
                 }

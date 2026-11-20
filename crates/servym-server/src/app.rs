@@ -34,6 +34,8 @@ pub struct AppInner {
     pub auth: tokio::sync::Mutex<AuthCore>,
     /// Erreur de projects.json, affichée par la page (mode dégradé).
     pub config_error: Mutex<Option<LocalError>>,
+    /// Sérialise les lectures-modifications-écritures de projects.json.
+    pub config_write: Mutex<()>,
     /// Contenu de projects.json déjà connu (lu ou écrit par Servym) : pas à relire.
     pub known: Mutex<Option<String>>,
     pub own_log_size: Mutex<u64>,
@@ -44,6 +46,8 @@ pub struct AppInner {
     pub streams: Mutex<HashMap<String, Vec<CancellationToken>>>,
     /// Changement de l'erreur de configuration, pour les flux SSE.
     pub instance_events: broadcast::Sender<()>,
+    /// Changement du démarrage avec la session, pour la zone de notification.
+    pub autostart_events: broadcast::Sender<()>,
     pub sampler: Sampler,
     pub git_cache: tokio::sync::Mutex<HashMap<String, (Instant, Value)>>,
     pub network: tokio::sync::Mutex<Option<(Instant, Vec<NetworkProfile>)>>,
@@ -84,7 +88,11 @@ impl AppInner {
     /// Ligne du journal de Servym (servym.log, gardé à 1 Mo : le précédent dans
     /// servym.prev.log), recopiée sur la sortie standard.
     pub fn log(&self, text: &str) {
-        let line = format!("{} {text}\n", chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"));
+        let clean = text.replace(['\r', '\n'], " ");
+        let line = format!(
+            "{} {clean}\n",
+            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        );
         print!("{line}");
         let mut size = self.own_log_size.lock().unwrap_or_else(|e| e.into_inner());
         *size += line.len() as u64;
@@ -183,10 +191,22 @@ impl AppInner {
         Ok(())
     }
 
+    pub fn edit_config<T>(
+        &self,
+        f: impl FnOnce(Value) -> Result<(Value, T), LocalError>,
+    ) -> Result<T, LocalError> {
+        let _guard = self.config_write.lock().unwrap_or_else(|e| e.into_inner());
+        let current = self.disk_config()?;
+        let (next, out) = f(current)?;
+        self.apply_config(next)?;
+        Ok(out)
+    }
+
     /// Relit projects.json (bouton « Relire » ou relecture automatique) ; `who` : compte qui l'a
     /// demandé, « - » sinon. Fichier invalide ou projet en marche retiré : l'erreur est affichée
     /// par la page et la configuration actuelle reste en place.
     pub fn reload_config(&self, who: &str, log_key: &str) -> Result<(), LocalError> {
+        let _guard = self.config_write.lock().unwrap_or_else(|e| e.into_inner());
         *self.known.lock().unwrap_or_else(|e| e.into_inner()) = read_text(&self.config_file);
         let next =
             load_config(&self.config_file).and_then(|next| self.manager.check_config(&next).map(|()| next));

@@ -452,3 +452,32 @@ async fn demarrage_automatique_une_fois_par_demarrage() {
     until_state(&reboot, "auto", |s| s.state == State::Running).await;
     stop_all(&reboot, &["auto"]).await;
 }
+
+#[tokio::test]
+async fn arret_propre_recoit_cwd_et_env() {
+    let dir = temp_dir("servym-stop-");
+    let app = app_dir(&dir);
+    let port = free_port();
+    let exe = path_str(fixture_exe());
+    let m = manager(
+        &dir,
+        vec![program(
+            "api",
+            &app,
+            "server",
+            port,
+            json!({
+                "health": { "expect": "Factice" },
+                "env": { "SERVYM_TEST_ENV": "stop-secret" },
+                "stop": { "cmd": exe, "args": ["stop-probe", "stopped.txt"] },
+            }),
+        )],
+    );
+    m.init().await;
+    m.start("api").unwrap();
+    until_state(&m, "api", |s| s.state == State::Running).await;
+    m.stop("api").await.unwrap();
+    let probe = read(app.join("stopped.txt"));
+    assert_eq!(probe, format!("PORT={port}\nENV=stop-secret\n"));
+    m.close().await;
+}

@@ -71,7 +71,7 @@ fn is_text(v: Option<&Value>, max: usize) -> bool {
 /// Les arguments passent par cmd.exe : guillemets et % y garderaient un sens même entre
 /// guillemets. & | < > ^ ( ) sont refusés aussi, pour que la sécurité ne repose pas sur le seul
 /// placement des guillemets.
-fn safe_arg(s: &str) -> bool {
+pub fn safe_arg(s: &str) -> bool {
     !s.chars().any(|c| {
         matches!(
             c,
@@ -574,19 +574,36 @@ pub fn format_config(config: &Value) -> String {
     format_at(config, 0)
 }
 
-/// Écrit le fichier (fichier temporaire puis renommage).
+/// Écrit le fichier (fichier temporaire puis renommage). Restreint au propriétaire sous Unix :
+/// `projects.json` peut contenir des variables d'environnement secrètes.
 pub fn save_config(file: &Path, config: &Value) -> std::io::Result<()> {
     let mut tmp = file.as_os_str().to_owned();
     tmp.push(".tmp");
-    std::fs::write(&tmp, format!("{}\n", format_config(config)))?;
+    let text = format!("{}\n", format_config(config));
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&tmp)?;
+        f.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        f.write_all(text.as_bytes())?;
+    }
+    #[cfg(not(unix))]
+    std::fs::write(&tmp, text)?;
     std::fs::rename(&tmp, file)
 }
 
 // ---- Modifications ----
 
-/// Champs d'un projet modifiables depuis l'interface. L'identifiant ne l'est pas : il nomme le
-/// journal et l'historique. La valeur `null` retire un champ facultatif.
-const FIELDS: [&str; 23] = [
+/// Champs d'un projet modifiables depuis l'interface. L'identifiant et `fixedPort` ne le sont pas
+/// (`id` nomme le journal et l'historique ; `fixedPort` se règle dans `projects.json`). La valeur
+/// `null` retire un champ facultatif.
+const FIELDS: [&str; 22] = [
     "name",
     "desc",
     "icon",
@@ -607,7 +624,6 @@ const FIELDS: [&str; 23] = [
     "open",
     "requires",
     "service",
-    "fixedPort",
     "autostart",
     "restartOnCrash",
 ];
@@ -699,12 +715,7 @@ pub fn patch_project(config: &Value, id: &str, patch: &Value) -> Result<Value, L
     let before_port = project.get("port").cloned();
     let fixed = project.get("fixedPort").cloned();
     apply_fields(project, patch)?;
-    let in_patch = |k: &str| patch.get(k).is_some();
-    if project.get("port") != before_port.as_ref()
-        && truthy(fixed.as_ref())
-        && in_patch("port")
-        && !in_patch("fixedPort")
-    {
+    if project.get("port") != before_port.as_ref() && truthy(fixed.as_ref()) && patch.get("port").is_some() {
         check(
             false,
             "config.fixedPort",

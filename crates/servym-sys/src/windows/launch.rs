@@ -28,7 +28,7 @@ use windows_sys::Win32::System::Threading::{
     CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_CONSOLE, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
     CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
     InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW, UpdateProcThreadAttribute,
+    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW, STARTUPINFOW, UpdateProcThreadAttribute,
 };
 
 use super::procs::{Owned, watch_handle};
@@ -52,9 +52,16 @@ pub fn comspec() -> String {
 /// après, lance le projet. cmd.exe choisit l'encodage de ses propres messages (« commande
 /// introuvable ») à son démarrage quand sa sortie est un fichier : seul un cmd.exe démarré après
 /// `chcp` les écrit en UTF-8 dans le journal. Les programmes lancés partagent la console, déjà en
-/// UTF-8.
+/// UTF-8. Les barres obliques inversées en fin d'argument sont doublées pour que le guillemet
+/// fermant ne soit pas échappé par l'analyseur C (`CommandLineToArgvW`).
 pub fn project_command_line(argv: &[String]) -> String {
-    let quoted: Vec<String> = argv.iter().map(|a| format!("\"{a}\"")).collect();
+    let quoted: Vec<String> = argv
+        .iter()
+        .map(|a| {
+            let trailing = a.bytes().rev().take_while(|&b| b == b'\\').count();
+            format!("\"{a}{}\"", "\\".repeat(trailing))
+        })
+        .collect();
     let cmd = comspec();
     format!(
         "\"{cmd}\" /d /s /c \"chcp 65001 >nul & \"{cmd}\" /d /s /c \"{}\"\"",
@@ -206,7 +213,11 @@ pub fn create_process(
     // valides pendant l'appel ; les handles rendus sont fermés par `Owned`.
     unsafe {
         let mut si: STARTUPINFOEXW = std::mem::zeroed();
-        si.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
+        si.StartupInfo.cb = if std_handles.is_some() {
+            size_of::<STARTUPINFOEXW>() as u32
+        } else {
+            size_of::<STARTUPINFOW>() as u32
+        };
         let mut list = None;
         let mut flags = flags | CREATE_UNICODE_ENVIRONMENT;
         if let Some((input, output)) = std_handles {
@@ -242,8 +253,20 @@ pub fn create_process(
     }
 }
 
+fn has_cmd_metachar(s: &str) -> bool {
+    s.chars().any(|c| {
+        matches!(
+            c,
+            '"' | '%' | '\r' | '\n' | '&' | '|' | '<' | '>' | '^' | '(' | ')'
+        )
+    })
+}
+
 /// Lance un projet ; rend le PID de cmd.exe, racine de son arborescence.
 pub fn launch(argv: &[String], options: LaunchOptions) -> Result<u32, LaunchError> {
+    if argv.iter().any(|a| has_cmd_metachar(a)) {
+        return Err(LaunchError::Other("caractère refusé dans la commande".into()));
+    }
     let other = |e: std::io::Error| LaunchError::Other(e.to_string());
     let log = inheritable_file(&options.log, FILE_APPEND_DATA | SYNCHRONIZE, OPEN_ALWAYS).map_err(other)?;
     let nul = inheritable_file(Path::new("NUL"), GENERIC_READ, OPEN_EXISTING).map_err(other)?;
@@ -311,5 +334,28 @@ mod tests {
             "{line}"
         );
         assert!(line.contains(r#"/d /s /c "chcp 65001 >nul & ""#), "{line}");
+
+        let slashed = project_command_line(&["tool".into(), r"C:\mon dossier\".into(), r"C:\autre\\".into()]);
+        assert!(
+            slashed.ends_with(r#"/d /s /c ""tool" "C:\mon dossier\\" "C:\autre\\\\""""#),
+            "{slashed}"
+        );
+    }
+
+    #[test]
+    fn lance_refuse_metacaracteres() {
+        let dir = std::env::temp_dir();
+        for bad in ["a & calc", "%PATH%"] {
+            let options = LaunchOptions {
+                cwd: dir.clone(),
+                env: HashMap::new(),
+                log: dir.join("servym-unused.log"),
+                on_exit: Box::new(|_, _| {}),
+            };
+            assert!(
+                matches!(launch(&[bad.into()], options), Err(LaunchError::Other(_))),
+                "{bad}"
+            );
+        }
     }
 }

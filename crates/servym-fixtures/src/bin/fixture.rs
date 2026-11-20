@@ -150,6 +150,14 @@ fn main() {
             eprintln!("{}", args.get(2).map_or("", String::as_str));
             std::process::exit(args.get(3).and_then(|c| c.parse().ok()).unwrap_or(0));
         }
+        Some("stop-probe") => {
+            let file = args.get(1).map_or("stopped.txt", String::as_str);
+            std::fs::write(
+                file,
+                format!("PORT={}\nENV={}\n", env("PORT"), env("SERVYM_TEST_ENV")),
+            )
+            .expect("écriture de la sonde");
+        }
         other => {
             eprintln!("mode inconnu : {other:?}");
             std::process::exit(2);

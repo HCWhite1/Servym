@@ -150,6 +150,45 @@ async fn protection_gardee_tant_que_le_reseau_est_ouvert() {
     s.close(&[]).await;
 }
 
+#[tokio::test]
+async fn protection_gardee_tant_que_le_serveur_ecoute_sur_le_reseau() {
+    let s = make_app(json!({ "port": 1, "access": "local" }), |b| {
+        b.listening(Listening::Lan)
+    })
+    .await;
+    let admin = s.setup_admin().await;
+    let res = s
+        .call_json(
+            "POST",
+            "/api/auth/disable",
+            json!({ "password": "mot de passe 1" }),
+            Some(&admin),
+        )
+        .await;
+    assert_eq!(res.status, 409);
+    s.close(&[]).await;
+}
+
+#[tokio::test]
+async fn origin_insensible_a_la_casse() {
+    let names = Arc::new(|| vec!["mon-pc".to_string()]);
+    let lan = make_app(json!({ "port": 1, "access": "lan" }), |b| {
+        b.hostnames(names).listening(Listening::Lan)
+    })
+    .await;
+    let res = lan
+        .send(
+            Req::post("/api/auth/login")
+                .servym()
+                .host(&format!("MON-PC:{}", lan.port))
+                .header("origin", &format!("http://mon-pc:{}", lan.port))
+                .json(&json!({ "username": "x", "password": "y" })),
+        )
+        .await;
+    assert_eq!(res.status, 409, "Origin insensible à la casse : {}", res.body);
+    lan.close(&[]).await;
+}
+
 /// JS : access.test.js › accès depuis le réseau privé › adresses acceptées : celles de la machine en accès réseau, jamais un autre nom
 #[tokio::test]
 async fn adresses_acceptees() {

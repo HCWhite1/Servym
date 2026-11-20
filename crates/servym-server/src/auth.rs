@@ -10,8 +10,8 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::Response;
 use serde_json::{Value, json};
 use servym_core::auth::{
-    AuthStore, LOCK_CHOICES, PERMISSIONS, RESET_TTL, create_reset_code, hash_secret, human_code,
-    normalize_code, normalize_permissions, random_token, role_of, sha256_hex, verify_secret,
+    AuthStore, LOCK_CHOICES, RESET_TTL, create_reset_code, hash_secret, human_code, normalize_code,
+    normalize_permissions, random_token, role_of, sha256_hex, verify_secret,
 };
 use servym_core::i18n::{LocalError, Params, msg, tr};
 use servym_core::params;
@@ -198,6 +198,9 @@ impl AuthCore {
     }
 
     fn fail(&mut self, keys: &[(String, u32)], now: i64) {
+        if self.failures.len() > 1000 {
+            self.failures.retain(|_, (_, until)| *until > now);
+        }
         for (key, threshold) in keys {
             let f = self.failures.entry(key.clone()).or_insert((0, 0));
             f.0 += 1;
@@ -366,6 +369,41 @@ fn with_cookies(mut res: Response, cookies: &[String]) -> Response {
     res
 }
 
+struct PreparedUser {
+    username: String,
+    name: String,
+    password_hash: String,
+    recovery: String,
+    recovery_hash: String,
+    permissions: Vec<String>,
+}
+
+/// Prépare un compte hors verrou (validation et hachage `scrypt` du mot de passe et de la clé).
+async fn prepare_user(body: &Value, permissions: &Value) -> Result<PreparedUser, LocalError> {
+    let username = text(&body["username"]).trim().to_lowercase();
+    check_username(&username)?;
+    check_name(body.get("name").unwrap_or(&Value::Null))?;
+    check_password(&body["password"])?;
+    let perms = normalize_permissions(permissions)?;
+    let recovery = human_code(5);
+    let name = body["name"]
+        .as_str()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .unwrap_or(&username)
+        .to_string();
+    let (password_hash, recovery_hash) =
+        tokio::join!(hash(text(&body["password"])), hash(normalize_code(&recovery)));
+    Ok(PreparedUser {
+        username,
+        name,
+        password_hash,
+        recovery,
+        recovery_hash,
+        permissions: perms,
+    })
+}
+
 impl AppInner {
     fn now(&self) -> i64 {
         (self.clock)()
@@ -440,10 +478,10 @@ impl AppInner {
         }
     }
 
-    /// Vérifie un secret sous limite d'essais (5 par compte et par adresse, 20 par adresse).
+    /// Vérifie un secret sous limite d'essais (5 par compte et par adresse, 20 par adresse), sans
+    /// garder le verrou pendant la dérivation `scrypt`.
     async fn attempt(
         &self,
-        core: &mut AuthCore,
         ctx: &Ctx,
         kind: &str,
         username: &str,
@@ -451,9 +489,14 @@ impl AppInner {
     ) -> Result<bool, LocalError> {
         let ip = client_ip(ctx);
         let keys = [format!("{kind}:{ip}:{username}"), format!("ip:{ip}")];
-        core.check_rate(&keys, self.now())?;
-        if !check.await {
-            let now = self.now();
+        {
+            let core = self.auth.lock().await;
+            core.check_rate(&keys, self.now())?;
+        }
+        let ok = check.await;
+        let now = self.now();
+        let mut core = self.auth.lock().await;
+        if !ok {
             core.fail(&[(keys[0].clone(), 5), (keys[1].clone(), 20)], now);
             return Ok(false);
         }
@@ -469,13 +512,14 @@ impl AppInner {
         user: &Value,
         password: &Value,
     ) -> Result<(), LocalError> {
-        let mut core = self.auth.lock().await;
-        let stored = core
-            .user_mut(&user["id"])
-            .and_then(|u| u["password"].as_str().map(str::to_string));
+        let stored = {
+            let mut core = self.auth.lock().await;
+            core.user_mut(&user["id"])
+                .and_then(|u| u["password"].as_str().map(str::to_string))
+        };
         let username = text(&user["username"]);
         let ok = self
-            .attempt(&mut core, ctx, "login", &username, verify(text(password), stored))
+            .attempt(ctx, "login", &username, verify(text(password), stored))
             .await?;
         if ok {
             Ok(())
@@ -505,6 +549,8 @@ impl AppInner {
         let drop_count = mine.len().saturating_sub(MAX_SESSIONS);
         let dropped: Vec<String> = mine.into_iter().take(drop_count).map(|(_, id)| id).collect();
         sessions.retain(|s| !dropped.contains(&text(&s["id"])) && AuthCore::expires_at(s) >= now);
+        let live: std::collections::HashSet<String> = sessions.iter().map(|s| text(&s["id"])).collect();
+        core.seen_saved.retain(|id, _| live.contains(id));
         let _ = core.store.save();
         let age = if remember {
             format!("; Max-Age={}", SESSION_LONG / 1000)
@@ -528,6 +574,8 @@ impl AppInner {
             .map(|s| text(&s["id"]))
             .collect();
         sessions.retain(|s| !gone.contains(&text(&s["id"])));
+        let live: std::collections::HashSet<String> = sessions.iter().map(|s| text(&s["id"])).collect();
+        core.seen_saved.retain(|id, _| live.contains(id));
         let _ = core.store.save();
         if !gone.is_empty() {
             self.revoke_streams(&gone);
@@ -535,44 +583,35 @@ impl AppInner {
         gone.len()
     }
 
-    async fn create_user(
+    fn insert_user(
         &self,
         core: &mut AuthCore,
-        body: &Value,
-        permissions: &Value,
+        prepared: PreparedUser,
     ) -> Result<(Value, String), LocalError> {
-        let username = text(&body["username"]).trim().to_lowercase();
-        check_username(&username)?;
-        check_name(body.get("name").unwrap_or(&Value::Null))?;
-        check_password(&body["password"])?;
         if core.data()["users"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|u| u["username"] == username.as_str())
+            .any(|u| u["username"] == prepared.username.as_str())
         {
             return Err(err(409, "auth.usernameTaken"));
         }
-        let perms = normalize_permissions(permissions)?;
-        let recovery = human_code(5);
-        let name = body["name"]
-            .as_str()
-            .map(str::trim)
-            .filter(|n| !n.is_empty())
-            .unwrap_or(&username)
-            .to_string();
         let id: String = rand::random::<[u8; 6]>()
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect();
         let user = json!({
-            "id": format!("u_{id}"), "username": username, "name": name,
-            "password": hash(text(&body["password"])).await,
-            "recovery": hash(normalize_code(&recovery)).await,
-            "permissions": perms, "prefs": {}, "createdAt": self.now(),
+            "id": format!("u_{id}"),
+            "username": prepared.username,
+            "name": prepared.name,
+            "password": prepared.password_hash,
+            "recovery": prepared.recovery_hash,
+            "permissions": prepared.permissions,
+            "prefs": {},
+            "createdAt": self.now(),
         });
         core.data()["users"].as_array_mut().unwrap().push(user.clone());
-        Ok((user, recovery))
+        Ok((user, prepared.recovery))
     }
 
     fn admins(core: &mut AuthCore) -> Vec<Value> {
@@ -713,6 +752,7 @@ impl AppInner {
         }
         let creds = core.data()["providers"][key].clone();
         let http = core.http.clone();
+        drop(core);
         let code = ctx.query("code").unwrap_or_default().to_string();
         let profile = fetch_profile(
             &http,
@@ -726,6 +766,10 @@ impl AppInner {
         let Ok((pid, login)) = profile else {
             return fail("failed");
         };
+        let mut core = self.auth.lock().await;
+        if !core.configured(key) {
+            return fail("failed");
+        }
         let params = || params![provider = provider.name, login = login.clone()];
         let owner = core.data()["users"]
             .as_array()
@@ -835,14 +879,21 @@ impl AppInner {
         if self.provider(section).is_some() && id == Some("start") && get {
             return self.start_oauth(ctx, section, ctx.has_query("link")).await;
         }
-        let mut core = self.auth.lock().await;
         let remember = body["remember"] == true;
         if section == "setup" && post {
             // Première activation : crée le compte administrateur.
+            {
+                let mut core = self.auth.lock().await;
+                if core.data()["users"].as_array().is_some_and(|u| !u.is_empty()) {
+                    return Err(err(409, "auth.accountsExist"));
+                }
+            }
+            let prepared = prepare_user(&body, &json!(["admin"])).await?;
+            let mut core = self.auth.lock().await;
             if core.data()["users"].as_array().is_some_and(|u| !u.is_empty()) {
                 return Err(err(409, "auth.accountsExist"));
             }
-            let (user, recovery) = self.create_user(&mut core, &body, &json!(["admin"])).await?;
+            let (user, recovery) = self.insert_user(&mut core, prepared)?;
             core.data()["enabled"] = json!(true);
             let cookie = self.open_session(&mut core, ctx, &user, remember);
             self.auth_audit(user["username"].as_str(), "audit.protectionOn", params![]);
@@ -853,26 +904,32 @@ impl AppInner {
         }
         if section == "enable" && post {
             // Réactivation : il faut les identifiants d'un administrateur existant.
+            let wanted = text(&body["username"]).trim().to_lowercase();
+            let (uid, stored) = {
+                let mut core = self.auth.lock().await;
+                if core.enabled() {
+                    return Err(err(409, "auth.alreadyOn"));
+                }
+                let user = Self::admins(&mut core)
+                    .into_iter()
+                    .find(|u| u["username"] == wanted.as_str());
+                (
+                    user.as_ref().map(|u| u["id"].clone()),
+                    user.as_ref()
+                        .and_then(|u| u["password"].as_str().map(str::to_string)),
+                )
+            };
+            let ok = self
+                .attempt(ctx, "login", &wanted, verify(text(&body["password"]), stored))
+                .await?;
+            let (true, Some(uid)) = (ok, uid) else {
+                return Err(err(401, "auth.badAdmin"));
+            };
+            let mut core = self.auth.lock().await;
             if core.enabled() {
                 return Err(err(409, "auth.alreadyOn"));
             }
-            let wanted = text(&body["username"]).to_lowercase();
-            let user = Self::admins(&mut core)
-                .into_iter()
-                .find(|u| u["username"] == wanted.as_str());
-            let stored = user
-                .as_ref()
-                .and_then(|u| u["password"].as_str().map(str::to_string));
-            let ok = self
-                .attempt(
-                    &mut core,
-                    ctx,
-                    "login",
-                    &text(&body["username"]),
-                    verify(text(&body["password"]), stored),
-                )
-                .await?;
-            let (true, Some(user)) = (ok, user) else {
+            let Some(user) = Self::admins(&mut core).into_iter().find(|u| u["id"] == uid) else {
                 return Err(err(401, "auth.badAdmin"));
             };
             core.data()["enabled"] = json!(true);
@@ -884,36 +941,50 @@ impl AppInner {
             ));
         }
         if section == "login" && post {
+            let username = text(&body["username"]).trim().to_lowercase();
+            let (uid, stored) = {
+                let mut core = self.auth.lock().await;
+                if !core.enabled() {
+                    return Err(err(409, "auth.notOn"));
+                }
+                let user = core.data()["users"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|u| u["username"] == username.as_str());
+                (
+                    user.map(|u| u["id"].clone()),
+                    user.and_then(|u| u["password"].as_str().map(str::to_string)),
+                )
+            };
+            let ok = self
+                .attempt(ctx, "login", &username, verify(text(&body["password"]), stored))
+                .await?;
+            let fail_login = || {
+                let clean: String = username
+                    .chars()
+                    .map(|c| {
+                        if c.is_control() || c.is_whitespace() {
+                            '_'
+                        } else {
+                            c
+                        }
+                    })
+                    .take(64)
+                    .collect();
+                let who = if clean.is_empty() { "?".to_string() } else { clean };
+                self.auth_audit(Some(&who), "audit.loginFailed", params![ip = client_ip(ctx)]);
+                Err(err(401, "auth.badLogin"))
+            };
+            let (true, Some(uid)) = (ok, uid) else {
+                return fail_login();
+            };
+            let mut core = self.auth.lock().await;
             if !core.enabled() {
                 return Err(err(409, "auth.notOn"));
             }
-            let username = text(&body["username"]).trim().to_lowercase();
-            let user = core.data()["users"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|u| u["username"] == username.as_str())
-                .cloned();
-            let stored = user
-                .as_ref()
-                .and_then(|u| u["password"].as_str().map(str::to_string));
-            let ok = self
-                .attempt(
-                    &mut core,
-                    ctx,
-                    "login",
-                    &username,
-                    verify(text(&body["password"]), stored),
-                )
-                .await?;
-            let (true, Some(user)) = (ok, user) else {
-                let who = if username.is_empty() {
-                    "?".to_string()
-                } else {
-                    username
-                };
-                self.auth_audit(Some(&who), "audit.loginFailed", params![ip = client_ip(ctx)]);
-                return Err(err(401, "auth.badLogin"));
+            let Some(user) = core.user_mut(&uid).cloned() else {
+                return fail_login();
             };
             let cookie = self.open_session(&mut core, ctx, &user, remember);
             self.auth_audit(user["username"].as_str(), "audit.login", params![]);
@@ -923,6 +994,7 @@ impl AppInner {
             ));
         }
         if section == "logout" && post {
+            let mut core = self.auth.lock().await;
             if let Some((sid, user)) = core.session(ctx, now) {
                 self.revoke(&mut core, |s| s["id"] == sid.as_str());
                 self.auth_audit(user["username"].as_str(), "audit.logout", params![]);
@@ -938,6 +1010,7 @@ impl AppInner {
             // d’un administrateur.
             self.host_only(ctx, "reset-code")?;
             let username = text(&body["username"]).trim().to_lowercase();
+            let mut core = self.auth.lock().await;
             let code = create_reset_code(&mut core.store, &username, now)?;
             self.auth_audit(Some(&username), "audit.localCode", params![]);
             return Ok(send(200, &json!({ "code": code, "username": username })));
@@ -945,43 +1018,42 @@ impl AppInner {
         if (section == "recover" || section == "reset") && post {
             // recover : clé de secours · reset : code de 15 minutes (servym auth ou un administrateur).
             let username = text(&body["username"]).trim().to_lowercase();
-            let user = core.data()["users"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|u| u["username"] == username.as_str())
-                .cloned();
             let recover = section == "recover";
             let secret = normalize_code(&text(if recover { &body["key"] } else { &body["code"] }));
-            // Vérifié seulement si la limite des essais le permet (scrypt coûte).
-            let check: std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> = if recover {
-                Box::pin(verify(
-                    secret.clone(),
-                    user.as_ref()
-                        .and_then(|u| u["recovery"].as_str().map(str::to_string)),
-                ))
-            } else {
-                let uid = user.as_ref().map(|u| u["id"].clone());
-                let reset = core.data()["resets"]
+            let (uid, recovery_stored, code_match) = {
+                let mut core = self.auth.lock().await;
+                let user = core.data()["users"]
                     .as_array()
                     .unwrap()
                     .iter()
-                    .find(|r| {
+                    .find(|u| u["username"] == username.as_str())
+                    .cloned();
+                let uid = user.as_ref().map(|u| u["id"].clone());
+                let recovery_stored = user
+                    .as_ref()
+                    .and_then(|u| u["recovery"].as_str().map(str::to_string));
+                let code_hash = sha256_hex(&secret);
+                let code_match = if recover {
+                    None
+                } else {
+                    let matched = core.data()["resets"].as_array().unwrap().iter().any(|r| {
                         uid.as_ref().is_some_and(|id| r["userId"] == *id)
                             && r["expiresAt"].as_i64().unwrap_or(0) > now
-                    })
-                    .cloned();
-                let ok = reset.is_some_and(|r| {
-                    bool::from(
-                        sha256_hex(&secret)
-                            .as_bytes()
-                            .ct_eq(text(&r["codeHash"]).as_bytes()),
-                    )
-                });
+                            && bool::from(code_hash.as_bytes().ct_eq(text(&r["codeHash"]).as_bytes()))
+                    });
+                    matched.then_some(code_hash)
+                };
+                (uid, recovery_stored, code_match)
+            };
+            // Vérifié seulement si la limite des essais le permet (scrypt coûte).
+            let check: std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> = if recover {
+                Box::pin(verify(secret.clone(), recovery_stored))
+            } else {
+                let ok = code_match.is_some();
                 Box::pin(async move { ok })
             };
-            let ok = self.attempt(&mut core, ctx, section, &username, check).await?;
-            let (true, Some(user)) = (ok, user) else {
+            let ok = self.attempt(ctx, section, &username, check).await?;
+            let (true, Some(uid)) = (ok, uid) else {
                 return Err(err(401, if recover { "auth.badKey" } else { "auth.badCode" }));
             };
             check_password(&body["password"])?;
@@ -991,13 +1063,24 @@ impl AppInner {
                 Some(r) => Some(hash(normalize_code(r)).await),
                 None => None,
             };
-            let uid = user["id"].clone();
-            {
-                let u = core.user_mut(&uid).unwrap();
-                u["password"] = json!(password);
-                if let Some(h) = recovery_hash {
-                    u["recovery"] = json!(h);
+            let mut core = self.auth.lock().await;
+            if !recover {
+                let wanted = code_match.as_deref().unwrap_or_default();
+                let still = core.data()["resets"].as_array().unwrap().iter().any(|r| {
+                    r["userId"] == uid
+                        && r["expiresAt"].as_i64().unwrap_or(0) > now
+                        && bool::from(wanted.as_bytes().ct_eq(text(&r["codeHash"]).as_bytes()))
+                });
+                if !still {
+                    return Err(err(401, "auth.badCode"));
                 }
+            }
+            let Some(u) = core.user_mut(&uid) else {
+                return Err(err(401, if recover { "auth.badKey" } else { "auth.badCode" }));
+            };
+            u["password"] = json!(password);
+            if let Some(h) = recovery_hash {
+                u["recovery"] = json!(h);
             }
             core.data()["resets"]
                 .as_array_mut()
@@ -1027,12 +1110,17 @@ impl AppInner {
                 text(&body["token"])
             };
             let hash_token = sha256_hex(&token);
-            let invite = core.data()["invites"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|i| i["tokenHash"] == hash_token.as_str() && i["expiresAt"].as_i64().unwrap_or(0) > now)
-                .cloned();
+            let invite = {
+                let mut core = self.auth.lock().await;
+                core.data()["invites"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|i| {
+                        i["tokenHash"] == hash_token.as_str() && i["expiresAt"].as_i64().unwrap_or(0) > now
+                    })
+                    .cloned()
+            };
             if get {
                 return Ok(send(
                     200,
@@ -1048,11 +1136,34 @@ impl AppInner {
                 let Some(invite) = invite else {
                     return Err(err(410, "auth.badInvite"));
                 };
-                let (user, recovery) = self.create_user(&mut core, &body, &invite["permissions"]).await?;
+                let wanted = text(&body["username"]).trim().to_lowercase();
+                check_username(&wanted)?;
+                check_name(body.get("name").unwrap_or(&Value::Null))?;
+                check_password(&body["password"])?;
+                {
+                    let mut core = self.auth.lock().await;
+                    if core.data()["users"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|u| u["username"] == wanted.as_str())
+                    {
+                        return Err(err(409, "auth.usernameTaken"));
+                    }
+                }
+                let prepared = prepare_user(&body, &invite["permissions"]).await?;
+                let mut core = self.auth.lock().await;
+                let still = core.data()["invites"].as_array().unwrap().iter().any(|i| {
+                    i["tokenHash"] == hash_token.as_str() && i["expiresAt"].as_i64().unwrap_or(0) > now
+                });
+                if !still {
+                    return Err(err(410, "auth.badInvite"));
+                }
+                let (user, recovery) = self.insert_user(&mut core, prepared)?;
                 core.data()["invites"]
                     .as_array_mut()
                     .unwrap()
-                    .retain(|i| i["tokenHash"] != invite["tokenHash"]);
+                    .retain(|i| i["tokenHash"] != hash_token.as_str());
                 let cookie = self.open_session(&mut core, ctx, &user, remember);
                 self.auth_audit(
                     user["username"].as_str(),
@@ -1067,41 +1178,125 @@ impl AppInner {
         }
 
         // -- Session ouverte (même verrouillée pour déverrouiller) --
-        if !core.enabled() {
-            return Err(err(409, "auth.notOn"));
-        }
-        let Some((sid, me)) = core.session(ctx, now) else {
-            return Err(with_extra(
-                err(401, "auth.loginRequired"),
-                json!({ "auth": "login" }),
-            ));
+        let (sid, me, locked) = {
+            let mut core = self.auth.lock().await;
+            if !core.enabled() {
+                return Err(err(409, "auth.notOn"));
+            }
+            let Some((sid, me)) = core.session(ctx, now) else {
+                return Err(with_extra(
+                    err(401, "auth.loginRequired"),
+                    json!({ "auth": "login" }),
+                ));
+            };
+            let locked = core.is_locked(&sid, now);
+            (sid, me, locked)
         };
         let me_name = text(&me["username"]);
         let me_id = me["id"].clone();
         if section == "unlock" && post {
             let stored = me["password"].as_str().map(str::to_string);
             let ok = self
-                .attempt(
-                    &mut core,
-                    ctx,
-                    "login",
-                    &me_name,
-                    verify(text(&body["password"]), stored),
-                )
+                .attempt(ctx, "login", &me_name, verify(text(&body["password"]), stored))
                 .await?;
             if !ok {
                 return Err(err(401, "auth.wrongPassword"));
             }
+            let mut core = self.auth.lock().await;
             if let Some(s) = core.session_value(&sid) {
                 s["locked"] = json!(false);
-                s["activeAt"] = json!(now);
+                s["activeAt"] = json!(self.now());
             }
             let _ = core.store.save();
             return Ok(send(200, &json!({ "ok": true })));
         }
-        if core.is_locked(&sid, now) {
+        if locked {
             return Err(with_extra(err(401, "auth.locked"), json!({ "auth": "locked" })));
         }
+        if section == "me" && id == Some("password") && post {
+            let stored = me["password"].as_str().map(str::to_string);
+            let ok = self
+                .attempt(ctx, "login", &me_name, verify(text(&body["current"]), stored))
+                .await?;
+            if !ok {
+                return Err(err(401, "auth.wrongCurrent"));
+            }
+            check_password(&body["password"])?;
+            let password = hash(text(&body["password"])).await;
+            let mut core = self.auth.lock().await;
+            let Some(u) = core.user_mut(&me_id) else {
+                return Err(with_extra(
+                    err(401, "auth.loginRequired"),
+                    json!({ "auth": "login" }),
+                ));
+            };
+            u["password"] = json!(password);
+            let closed = self.revoke(&mut core, |s| s["userId"] == me_id && s["id"] != sid.as_str());
+            self.auth_audit(Some(&me_name), "audit.passwordChanged", params![]);
+            return Ok(send(200, &json!({ "closed": closed })));
+        }
+        if section == "me" && id == Some("recovery") && post {
+            let stored = me["password"].as_str().map(str::to_string);
+            let ok = self
+                .attempt(ctx, "login", &me_name, verify(text(&body["password"]), stored))
+                .await?;
+            if !ok {
+                return Err(err(401, "auth.wrongPassword"));
+            }
+            let recovery = human_code(5);
+            let h = hash(normalize_code(&recovery)).await;
+            let mut core = self.auth.lock().await;
+            let Some(u) = core.user_mut(&me_id) else {
+                return Err(with_extra(
+                    err(401, "auth.loginRequired"),
+                    json!({ "auth": "login" }),
+                ));
+            };
+            u["recovery"] = json!(h);
+            let _ = core.store.save();
+            self.auth_audit(Some(&me_name), "audit.newKey", params![]);
+            return Ok(send(200, &json!({ "recovery": recovery })));
+        }
+        if section == "disable" && post {
+            if !perms_of(&me).iter().any(|p| p == "admin") {
+                return Err(err(403, "auth.adminOnly"));
+            }
+            // Protection retirée alors que la page est ouverte au réseau : n'importe qui y aurait la main.
+            let lan_refused = || {
+                let lan_listening =
+                    *self.listening.lock().unwrap_or_else(|e| e.into_inner()) == crate::Listening::Lan;
+                self.config()["instance"]["access"] == "lan" || lan_listening
+            };
+            if lan_refused() {
+                return Err(err(409, "auth.disableLan"));
+            }
+            let stored = me["password"].as_str().map(str::to_string);
+            let ok = self
+                .attempt(ctx, "login", &me_name, verify(text(&body["password"]), stored))
+                .await?;
+            if !ok {
+                return Err(err(401, "auth.wrongPassword"));
+            }
+            if lan_refused() {
+                return Err(err(409, "auth.disableLan"));
+            }
+            let mut core = self.auth.lock().await;
+            let still_admin = core
+                .user_mut(&me_id)
+                .is_some_and(|u| perms_of(u).iter().any(|p| p == "admin"));
+            if !still_admin {
+                return Err(err(403, "auth.adminOnly"));
+            }
+            core.data()["enabled"] = json!(false);
+            self.revoke(&mut core, |_| true);
+            self.auth_audit(Some(&me_name), "audit.protectionOff", params![]);
+            return Ok(with_cookies(
+                send(200, &json!({ "ok": true })),
+                &[Self::clear_cookie()],
+            ));
+        }
+
+        let mut core = self.auth.lock().await;
         if section == "activity" && post {
             if let Some(s) = core.session_value(&sid) {
                 s["activeAt"] = json!(now);
@@ -1145,48 +1340,6 @@ impl AppInner {
                 let fresh = user.clone();
                 let _ = core.store.save();
                 return Ok(send(200, &json!({ "user": public_user(&fresh) })));
-            }
-            if id == Some("password") && post {
-                let stored = me["password"].as_str().map(str::to_string);
-                let ok = self
-                    .attempt(
-                        &mut core,
-                        ctx,
-                        "login",
-                        &me_name,
-                        verify(text(&body["current"]), stored),
-                    )
-                    .await?;
-                if !ok {
-                    return Err(err(401, "auth.wrongCurrent"));
-                }
-                check_password(&body["password"])?;
-                let password = hash(text(&body["password"])).await;
-                core.user_mut(&me_id).unwrap()["password"] = json!(password);
-                let closed = self.revoke(&mut core, |s| s["userId"] == me_id && s["id"] != sid.as_str());
-                self.auth_audit(Some(&me_name), "audit.passwordChanged", params![]);
-                return Ok(send(200, &json!({ "closed": closed })));
-            }
-            if id == Some("recovery") && post {
-                let stored = me["password"].as_str().map(str::to_string);
-                let ok = self
-                    .attempt(
-                        &mut core,
-                        ctx,
-                        "login",
-                        &me_name,
-                        verify(text(&body["password"]), stored),
-                    )
-                    .await?;
-                if !ok {
-                    return Err(err(401, "auth.wrongPassword"));
-                }
-                let recovery = human_code(5);
-                let h = hash(normalize_code(&recovery)).await;
-                core.user_mut(&me_id).unwrap()["recovery"] = json!(h);
-                let _ = core.store.save();
-                self.auth_audit(Some(&me_name), "audit.newKey", params![]);
-                return Ok(send(200, &json!({ "recovery": recovery })));
             }
             if id == Some("identities")
                 && let Some(p) = sub.and_then(|s| self.provider(s))
@@ -1445,33 +1598,6 @@ impl AppInner {
             self.auth_audit(Some(&me_name), "audit.lock", params![value = value]);
             return Ok(send(200, &json!({ "lockAfter": lock })));
         }
-        if section == "disable" && post {
-            // Protection retirée alors que la page est ouverte au réseau : n'importe qui y aurait la main.
-            if self.config()["instance"]["access"] == "lan" {
-                return Err(err(409, "auth.disableLan"));
-            }
-            let stored = me["password"].as_str().map(str::to_string);
-            let ok = self
-                .attempt(
-                    &mut core,
-                    ctx,
-                    "login",
-                    &me_name,
-                    verify(text(&body["password"]), stored),
-                )
-                .await?;
-            if !ok {
-                return Err(err(401, "auth.wrongPassword"));
-            }
-            core.data()["enabled"] = json!(false);
-            self.revoke(&mut core, |_| true);
-            self.auth_audit(Some(&me_name), "audit.protectionOff", params![]);
-            return Ok(with_cookies(
-                send(200, &json!({ "ok": true })),
-                &[Self::clear_cookie()],
-            ));
-        }
-        let _ = PERMISSIONS;
         Err(err(404, "http.unknownRoute"))
     }
 }

@@ -1,4 +1,4 @@
-//! Domaine de Servym, sans HTTP : configuration, gestionnaire de processus, comptes,
+//! Domaine de Servym : configuration, gestionnaire de processus, sites statiques, comptes,
 //! journaux, processeur et mémoire, textes traduits.
 
 pub mod auth;

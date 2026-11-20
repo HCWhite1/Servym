@@ -59,7 +59,7 @@ function row(r) {
     h('td', { class: 'num', text: String(r.port) }),
     h('td', {}, h('span', { class: 'mono', text: r.addresses.join(', ') }), r.exposed ? h('span', { class: 'badge warn', text: t('badge.network') }) : null),
     h('td', { text: r.process ?? '?' }),
-    h('td', { class: 'num', text: String(r.pid) }),
+    h('td', { class: 'num', text: r.pid == null ? '—' : String(r.pid) }),
     h('td', {}, owner));
 }
 

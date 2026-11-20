@@ -318,6 +318,23 @@ fn requires_of(p: &Value) -> Vec<String> {
         })
 }
 
+fn project_env(p: &Value, port: u16) -> HashMap<String, String> {
+    let mut env = servym_sys::clean_env();
+    for (k, v) in p.get("env").and_then(Value::as_object).into_iter().flatten() {
+        env.insert(k.clone(), v.as_str().unwrap_or_default().to_string());
+    }
+    env.insert("PORT".into(), port.to_string());
+    env.insert("NO_COLOR".into(), "1".into());
+    env.retain(|k, _| !k.eq_ignore_ascii_case("HOST"));
+    // HOST vide = toutes les interfaces (IPv4 et IPv6) pour les projets Node.
+    if p.get("hostControl").and_then(Value::as_str) == Some("env")
+        && p.get("expose") != Some(&Value::Bool(true))
+    {
+        env.insert("HOST".into(), "127.0.0.1".into());
+    }
+    env
+}
+
 impl Manager {
     pub fn builder(config: Value) -> ManagerBuilder {
         ManagerBuilder {
@@ -661,7 +678,7 @@ impl Manager {
             // Projet retiré du fichier pendant que Servym était arrêté : il tourne toujours.
             for (id, s) in &saved {
                 let pid = s["pid"].as_u64().unwrap_or(0) as u32;
-                if !ids.contains(id) && platform.is_alive(pid) {
+                if !ids.contains(id) && platform.is_alive(pid) && same_process(platform.as_ref(), pid, s) {
                     let text = self.t("process.orphan", params![id = id.as_str(), pid = pid]);
                     self.warn(format!("[config] {text}"));
                 }
@@ -967,10 +984,18 @@ impl Manager {
         match health {
             Health::Ok => {
                 let mut st = self.lock();
+                if st
+                    .states
+                    .get(&id)
+                    .is_some_and(|s| s.auto_restart == Some(AutoRestart::Scheduled))
+                {
+                    cancel_restart(&mut st, &id);
+                }
                 self.set(&mut st, &id, |s| {
                     s.state = State::Running;
                     s.error = None;
                     s.detail = None;
+                    s.auto_restart = None;
                 });
             }
             Health::Mismatch => {
@@ -1371,6 +1396,7 @@ impl Manager {
         let pid = self.spawn(p).await?;
         if !self.has_op(&id, op) {
             // Arrêt demandé pendant le lancement.
+            self.lock().early_exits.remove(&pid);
             let _ = self.inner.platform.kill_tree(pid).await;
             return Ok(());
         }
@@ -1417,6 +1443,9 @@ impl Manager {
                 .filter_map(Value::as_str)
                 .map(|a| expand(a, p, dir)),
         );
+        if cfg!(windows) && !argv.iter().all(|a| crate::config::safe_arg(a)) {
+            return Err(self.t("process.unsafeArg", params![]));
+        }
         let port = port_of(p).unwrap_or(0);
         let header = format!(
             "[servym] {} · {} · {}:{port}\n",
@@ -1426,19 +1455,7 @@ impl Manager {
         );
         std::fs::write(&log, header).map_err(|e| e.to_string())?;
 
-        let mut env = servym_sys::clean_env();
-        for (k, v) in p.get("env").and_then(Value::as_object).into_iter().flatten() {
-            env.insert(k.clone(), v.as_str().unwrap_or_default().to_string());
-        }
-        env.insert("PORT".into(), port.to_string());
-        env.insert("NO_COLOR".into(), "1".into());
-        env.retain(|k, _| !k.eq_ignore_ascii_case("HOST"));
-        // HOST vide = toutes les interfaces (IPv4 et IPv6) pour les projets Node.
-        if p.get("hostControl").and_then(Value::as_str) == Some("env")
-            && p.get("expose") != Some(&Value::Bool(true))
-        {
-            env.insert("HOST".into(), "127.0.0.1".into());
-        }
+        let env = project_env(p, port);
 
         let weak = Arc::downgrade(&self.inner);
         let target = id.clone();
@@ -1463,9 +1480,11 @@ impl Manager {
                 LaunchError::NotFound(cmd) => self.t("process.commandNotFound", params![cmd = cmd]),
                 LaunchError::Other(text) => text,
             })?;
-        if self.inner.platform.is_alive(pid) {
-            self.lock().watched.insert(pid);
+        let mut st = self.lock();
+        if !st.early_exits.contains_key(&pid) && self.inner.platform.is_alive(pid) {
+            st.watched.insert(pid);
         }
+        drop(st);
         Ok(pid)
     }
 
@@ -1620,7 +1639,10 @@ impl Manager {
                 .filter_map(Value::as_str)
                 .map(|a| expand(a, p, dir))
                 .collect();
-            let _ = servym_sys::run_command()(cmd, args).await;
+            let port = before.active_port.or_else(|| port_of(p)).unwrap_or(0);
+            let cwd = PathBuf::from(p["cwd"].as_str().unwrap_or_default());
+            let env = project_env(p, port);
+            let _ = servym_sys::run_command_in(&cmd, &args, Some(&cwd), &env).await;
             for _ in 0..60 {
                 if !platform.is_alive(pid) {
                     break;

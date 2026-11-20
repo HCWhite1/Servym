@@ -11,8 +11,6 @@ A local dashboard to start, watch and stop your development projects: Node, PHP 
 - Start with Windows or with the Linux session, projects started when the PC boots.
 - Optional accounts, interface in English and French.
 
-Servym was first written in Node.js (never released); this Rust rewrite keeps the same interface and configuration files, with a single executable, no prerequisites and a much smaller memory footprint (see [Measurements](#measurements)).
-
 ## Install
 
 The files are attached to each [release](https://github.com/HCWhite1/Servym/releases), with their SHA-256 checksums (`SHA256SUMS.txt`).
@@ -81,36 +79,20 @@ Servym keeps everything in one folder: `projects.json`, `runtime/` (accounts, st
 
 The headless `servym` binary uses `--data`, `SERVYM_HOME`, otherwise the current folder.
 
-Files from the former Node.js version are read as they are: copy `projects.json`, `runtime/`, `logs/` and `config/` into the data folder. Projects that are still running are picked up without a restart.
+## Footprint
 
-## Measurements
+Measured on Windows 11 (16 cores), release build:
 
-Same machine (Windows 11, 16 cores), on 26/09/2026. Former version: `node server.js` (Node.js 24). Rust version: `servym` (release). Empty data, average of three calls for the routes.
-
-| | Node.js | Rust |
-| --- | --- | --- |
-| Start until the first `/api/projects` answer | 0.7 to 0.8 s | 0.2 s (0.7 s on the very first run) |
-| Private memory, no page open | 31 MB (node, conhost) | 4.5 MB |
-| Private memory, list shown (samples every 5 s) | 109 MB (node, conhost, PowerShell probe) | 4.6 MB |
-| Network page: `/api/ports` | 790 ms | 33 ms |
-| Network page: `/api/network` | 18 ms (cached) | 14 ms |
-| Settings: `/api/autostart` | 2,450 ms (scheduled task, PowerShell) | 11 ms (registry) |
-| `/api/stats`, first sample then next ones | 191 ms then 13 ms | 20 ms then 11 ms |
-| Executable | node.exe (86 MB) plus the sources | `servym.exe` 6.4 MB, Linux `servym` 5.8 MB |
-
-With real projects (7 projects, including MySQL, Bogue and MangaFlow picked up; measured from 24 to 26/09/2026):
-
-| | Node.js | Rust |
-| --- | --- | --- |
-| Servym processes | wscript, node, conhost, PowerShell probe | supervisor and app |
-| Private memory, window or page closed | ≈ 98 MB (wscript 13, node 85) | 8.3 MB (supervisor 1.4, app 6.9) |
-| While the list is shown | + 92 MB (PowerShell probe for the samples) | nothing more (native sampling) |
-| Per started project | ≈ 75 MB (a PowerShell waiting for the project to end) | a thread with 1 MB reserved, a few KB used |
-| Window open | — (browser tab) | ≈ 200 MB (WebView2), released on close |
-| Prerequisites | Node.js 22 (node.exe: 86 MB) and `git clone` | none |
-| Distribution | Git repository and `npm start` | 3.4 MB Windows installer (11.9 MB program); Linux: 4.8 MB `.deb` and `.rpm`, 83 MB AppImage (GTK and WebKitGTK included) |
-
-System operations measured alone (24/09/2026): listening ports 79 ms (two `netstat`) vs 0.95 ms (`GetExtendedTcpTable`); network profiles 692 ms (PowerShell) vs 25 ms (COM); sampling 339 processes: 169 ms CIM query vs 10.5 ms. Refused connection to a closed port: Windows retries for almost a second; like Node (libuv), Servym turns these retries off on the loopback (0.9 ms), otherwise every probe of a stopped project would be slow.
+| | Servym |
+| --- | --- |
+| Startup to first `/api/projects` response | 0.2 s |
+| Private memory, window closed (idle / 7 active projects) | 4.5 MB / 8.3 MB |
+| Native sampling while list is open | no extra memory |
+| Window open (WebView2) | ≈ 200 MB, released on close |
+| Per started project | 1 thread (a few KB used) |
+| Executable | `servym.exe` 6.4 MB · Linux `servym` 5.8 MB |
+| Packages | 3.4 MB Windows installer · 4.8 MB `.deb` / `.rpm` · 83 MB AppImage |
+| Prerequisites | none |
 
 ## Projects
 
@@ -298,7 +280,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 node --test                                      # the only JavaScript test (tests/urls.test.mjs, interface code)
 ```
 
-CI (GitHub Actions) runs them on Windows and Linux on every push; a `v*` tag builds the release files. The history of the rewrite from the Node.js version is in [MIGRATION.md](MIGRATION.md) (in French).
+CI (GitHub Actions) runs them on Windows and Linux on every push; a `v*` tag builds the release files.
 
 ## Limits
 

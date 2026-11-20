@@ -1,7 +1,7 @@
 // Paramètres › Mon compte, Sécurité, Membres (comptes et protection par mot de passe).
-import { showKeyDialog, logout } from './auth.js';
+import { logout, setIdleLock, showKeyDialog } from './auth.js';
 import { t } from './i18n.js';
-import { ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, h, hold, icon, initials, permissionLabels, session, toast } from './lib.js';
+import { ROLE_LABELS, ROLE_PERMISSIONS, ago, api, ask, confirmDialog, copyText, h, hold, icon, initials, permissionLabels, session, toast } from './lib.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LOCKS = [[0, t('lock.never')], [120, '2 min'], [300, '5 min'], [900, '15 min'], [1800, '30 min'], [3600, '1 h']];
@@ -19,8 +19,8 @@ function input(attrs) {
   return h('input', { class: 'input', ...attrs });
 }
 
-function button(text, iconName, onClick, cls = 'btn') {
-  const b = h('button', { class: cls, type: 'button' }, iconName ? icon(iconName) : null, text);
+function button(text, iconName, onClick, cls = 'btn', attrs = {}) {
+  const b = h('button', { class: cls, type: 'button', ...attrs }, iconName ? icon(iconName) : null, text);
   b.addEventListener('click', async () => {
     const release = hold(b);
     try {
@@ -143,8 +143,7 @@ async function providerSetting() {
     }
   });
   const copy = button(t('common.copy'), 'copy', async () => {
-    await navigator.clipboard.writeText(callback).catch(() => {});
-    toast(t('oauth.callbackCopied'));
+    if (await copyText(callback)) toast(t('oauth.callbackCopied'));
   }, 'btn small');
   const remove = gh.configured ? button(t('oauth.remove'), null, async () => {
     const ok = await confirmDialog({ title: t('oauth.removeTitle'), body: t('oauth.removeBody'), confirm: t('oauth.remove'), danger: true });
@@ -278,6 +277,8 @@ export async function renderSecurity() {
     b.addEventListener('click', async () => {
       try {
         await api('auth/settings', { method: 'PATCH', body: { lockAfter: value } });
+        session.lockAfter = value;
+        setIdleLock(value);
         toast(value ? t('security.lockSet', { delay: label }) : t('security.lockOff'));
         renderSecurity();
       } catch (err) {
@@ -338,7 +339,7 @@ export async function renderMembers() {
         if (!ok) return;
         await api(`auth/users/${u.id}`, { method: 'DELETE' });
         renderMembers();
-      }, 'icon-btn'));
+      }, 'icon-btn', { 'aria-label': t('action.delete'), title: t('action.delete') }));
     return h('div', { class: 'sub-item member' },
       h('span', { class: 'avatar', text: initials(u) }),
       h('span', {}, h('strong', { text: u.name }), h('small', { class: 'block muted', text: [me ? t('members.you', { username: u.username }) : u.username, ...(u.identities ?? []).map((i) => t('members.identity', { provider: 'GitHub', login: i.login }))].join(' · ') })),
@@ -369,7 +370,7 @@ async function invite() {
   if (!perms) return;
   const { token } = await api('auth/invites', { method: 'POST', body: { permissions: perms } });
   const url = `${location.origin}/?invite=${token}`;
-  await navigator.clipboard.writeText(url).catch(() => {});
+  await copyText(url);
   await confirmDialog({
     title: t('members.linkTitle', { role: ROLE_LABELS[roleOf(perms)] }),
     body: t('members.linkBody', { url }),

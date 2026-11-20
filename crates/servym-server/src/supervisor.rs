@@ -21,15 +21,18 @@ pub enum Launch {
 
 /// Lance `exe` avec les arguments de `args_for` tant qu'il ne sort pas avec le code 0. Servym
 /// écrit son journal dans `logs/servym.log` ; sa sortie d'erreur (et celle des bibliothèques qu'il
-/// charge : GTK, WebKit…) va dans `logs/servym.stderr.log`, vidé au démarrage du superviseur. Sans
-/// console, les sorties du superviseur lui-même ne sont pas valides.
+/// charge : GTK, WebKit…) va dans `logs/servym.stderr.log` (conservé avec rotation à 1 Mo vers
+/// `servym.stderr.prev.log`). Sans console, les sorties du superviseur lui-même ne sont pas valides.
 pub fn supervise(exe: &Path, data: &Path, mut args_for: impl FnMut(Launch) -> Vec<String>) -> ExitCode {
     let _ = std::fs::create_dir_all(data.join("logs"));
     let stderr_file = data.join("logs").join("servym.stderr.log");
-    let _ = std::fs::File::create(&stderr_file);
+    let prev_stderr = data.join("logs").join("servym.stderr.prev.log");
     let mut failures = 0;
     let mut launch = Launch::First;
     loop {
+        if std::fs::metadata(&stderr_file).is_ok_and(|m| m.len() > 1_000_000) {
+            let _ = std::fs::rename(&stderr_file, &prev_stderr);
+        }
         let started = Instant::now();
         let mut command = std::process::Command::new(exe);
         command
@@ -39,6 +42,7 @@ pub fn supervise(exe: &Path, data: &Path, mut args_for: impl FnMut(Launch) -> Ve
             .stdout(std::process::Stdio::null())
             .stderr(
                 std::fs::OpenOptions::new()
+                    .create(true)
                     .append(true)
                     .open(&stderr_file)
                     .map_or_else(|_| std::process::Stdio::null(), std::process::Stdio::from),

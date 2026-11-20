@@ -241,14 +241,13 @@ async fn arret_de_l_arborescence() {
         .collect();
     terms.sort();
     assert_eq!(terms, [-100, 100, 101, 102]);
-    assert_eq!(
-        calls
-            .iter()
-            .filter(|(_, s)| *s == SIGKILL)
-            .copied()
-            .collect::<Vec<_>>(),
-        [(102, SIGKILL)]
-    );
+    let mut kills: Vec<i32> = calls
+        .iter()
+        .filter(|(_, s)| *s == SIGKILL)
+        .map(|(p, _)| *p)
+        .collect();
+    kills.sort();
+    assert_eq!(kills, [-100, 102]);
     assert!(alive.lock().unwrap().contains(&200), "processus étranger intact");
 }
 

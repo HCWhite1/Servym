@@ -17,6 +17,7 @@ use servym_server::{Shell, TrayAction};
 struct FakeShell {
     browser: AtomicUsize,
     closed: AtomicUsize,
+    quit: AtomicUsize,
 }
 
 impl Shell for FakeShell {
@@ -25,6 +26,9 @@ impl Shell for FakeShell {
     }
     fn close_window(&self) {
         self.closed.fetch_add(1, Ordering::SeqCst);
+    }
+    fn quit(&self) {
+        self.quit.fetch_add(1, Ordering::SeqCst);
     }
 }
 
@@ -214,4 +218,83 @@ async fn code_de_reinitialisation_refuse_a_distance() {
         )
         .await;
     assert_eq!(res.status, 403);
+}
+
+#[tokio::test]
+async fn quitter_application_de_bureau() {
+    let shell = Arc::new(FakeShell::default());
+    let s = Servym::start(
+        "servym-quit-",
+        json!({ "instance": { "port": 1 }, "projects": [] }),
+        {
+            let shell = shell.clone();
+            move |b| b.shell(shell)
+        },
+    )
+    .await;
+    let admin = s.setup_admin().await;
+    let ed = s.join(&admin, &["edit"], "ed", "mot de passe 3").await;
+    assert_eq!(
+        s.call_as("POST", "/api/instance/quit", Some(&ed)).await.status,
+        403,
+        "permission instance exigée"
+    );
+    assert_eq!(shell.quit.load(Ordering::SeqCst), 0);
+
+    assert_eq!(
+        s.call_as("POST", "/api/instance/quit", Some(&admin)).await.status,
+        200
+    );
+    until(|| async { shell.quit.load(Ordering::SeqCst) == 1 }, 2000).await;
+    s.close(&[]).await;
+
+    let remote_shell = Arc::new(FakeShell::default());
+    let remote = Servym::start(
+        "servym-quit-remote-",
+        json!({ "instance": { "port": 1 }, "projects": [] }),
+        {
+            let shell = remote_shell.clone();
+            move |b| b.shell(shell).local_viewer(Arc::new(|_| false))
+        },
+    )
+    .await;
+    assert_eq!(remote.call("POST", "/api/instance/quit").await.status, 403);
+    assert_eq!(remote_shell.quit.load(Ordering::SeqCst), 0);
+    remote.close(&[]).await;
+
+    let headless = Servym::start(
+        "servym-quit-headless-",
+        json!({ "instance": { "port": 1 }, "projects": [] }),
+        |b| b,
+    )
+    .await;
+    assert_eq!(headless.call("POST", "/api/instance/quit").await.status, 404);
+    headless.close(&[]).await;
+}
+
+#[tokio::test]
+async fn autostart_notifie_les_abonnes() {
+    let dir = servym_fixtures::temp_dir("servym-autostart-");
+    servym_fixtures::write(
+        dir.path().join("projects.json"),
+        json!({ "instance": { "port": 1 }, "projects": [] }).to_string(),
+    );
+    let notifier = FakeNotifier::new(Reply::Sent);
+    let autostart = Arc::new(FakeAutostart::default());
+    let app = common::builder(dir.path(), &notifier, &autostart).build();
+    let mut rx = app.subscribe_autostart();
+    let running = app.listen("127.0.0.1:0").await.unwrap();
+
+    let res = servym_fixtures::Req::new("PUT", "/api/autostart")
+        .servym()
+        .json(&json!({ "enabled": true }))
+        .send(running.port)
+        .await;
+    assert_eq!(res.status, 200);
+    tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+        .await
+        .expect("notification reçue")
+        .expect("canal ouvert");
+
+    running.close().await;
 }

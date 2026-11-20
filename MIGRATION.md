@@ -1,8 +1,6 @@
 # Migration vers Rust : journal de bord
 
-Plan complet : rapport « Servynex-migration-rust » (C:\audits). Ce fichier garde, phase par phase,
-ce qui a été fait, les décisions prises en cours de route et les mesures. La version Node a servi de
-référence jusqu'à la bascule ; elle est retirée à la phase 7 (l'historique Git la garde).
+Ce fichier garde, phase par phase, ce qui a été fait, les décisions prises en cours de route et les mesures. La version Node a servi de référence jusqu'à la bascule ; elle est retirée à la phase 7 (l'historique Git la garde).
 
 **Servynex s'appelle désormais Servym** (renommé le 25/09/2026, avant d'être public : aucun
 crate, paquet npm, dépôt ni domaine de ce nom). Les sections ci-dessous gardent l'ancien nom,
@@ -10,7 +8,7 @@ celui en vigueur au moment où elles ont été écrites.
 
 ## Phase 0 · Prototype des risques
 
-Voir [spikes/RESULTATS.md](spikes/RESULTATS.md). Quatre essais concluants. Décisions :
+Voir `spikes/RESULTATS.md` (retiré après la migration, dans l'historique Git). Quatre essais concluants. Décisions :
 
 - lancement par `CreateProcessW` avec la liste explicite des handles transmis (fuite de handles
   constatée avec `std::process::Command`) ;
@@ -102,8 +100,7 @@ Nouveautés (tests dans `crates/servynex-core/tests/manager.rs`) :
   c'est le gestionnaire qui les ouvre et les ferme.
 - Pile des fils qui attendent la fin des projets : 1 Mo réservé (64 Ko débordaient en debug).
 
-Reste à faire au jalon de la phase 5 : le scénario réel (MySQL puis Bogue, MangaFlow exposé, un site
-statique) comparé à l'historique de la version Node, quand Servynex Rust remplacera Node.
+Reste à faire au jalon de la phase 5 : le scénario réel (une base de données puis une application dépendante, un serveur web exposé, un site statique) comparé à l'historique de la version Node, quand Servynex Rust remplacera Node.
 
 ## Phase 5 · Serveur axum
 
@@ -122,8 +119,7 @@ Binaire `servynex` (6,3 Mo, interface comprise) :
 - `servynex --supervised` : superviseur (mêmes règles que `start-hidden.vbs`) ;
 - `servynex auth list` et `servynex auth reset-password <nom>` (remplacent `npm run auth`).
 
-Mesure du 24/09/2026 sur une copie des données réelles (7 projets, dont Bogue, MangaFlow et MySQL
-repris) : **4,5 Mo de mémoire privée** (Node : 85 Mo, plus 92 Mo pour la sonde PowerShell) ;
+Mesure du 24/09/2026 sur une copie des données réelles (7 projets, dont 3 repris) : **4,5 Mo de mémoire privée** (Node : 85 Mo, plus 92 Mo pour la sonde PowerShell) ;
 `/api/ports` 0,26 s, `/api/stats` 0,23 s, `/api/network` 0,21 s.
 
 Trouvé en route :
@@ -139,19 +135,17 @@ Trouvé en route :
 - `instance.node` vaut `null` (la ligne « Node.js » des Paramètres sera renommée à la phase 7).
 - Superviseur `vbs` accepté le temps de la transition (tâche planifiée actuelle).
 
-Jalon (à faire avec toi) : `servynex.exe` remplace `node server.js` sur ta machine.
-
 ### Jalon (24/09/2026, 21 h 10)
 
 `servynex.exe` a remplacé `node server.js` sur la machine de développement :
 
-- installé dans `%LOCALAPPDATA%\Programs\Servynex\servynex.exe`, données inchangées dans
-  `C:\Servynex` (`--data C:\Servynex`) ;
+- installé dans `%LOCALAPPDATA%\Programs\Servynex\servynex.exe`, données inchangées dans le dossier
+  de données d'origine (`--data <dossier>`) ;
 - tâche planifiée « Servynex » (VBS + Node) **désactivée**, pas supprimée ;
 - démarrage avec Windows : clé Run de HKCU,
-  `"…\servynex.exe" --supervised --data "C:\Servynex"` ;
-- Bogue, MangaFlow et MySQL repris sans redémarrage (MySQL toujours dépendance de Bogue) ;
-  `pids.json` réécrit avec l'heure de création des processus ;
+  `"…\servynex.exe" --supervised --data "<dossier>"` ;
+- projets en cours repris sans redémarrage (avec leur dépendance) ; `pids.json` réécrit avec
+  l'heure de création des processus ;
 - mémoire : superviseur 1,3 Mo et serveur 3,4 Mo de mémoire privée (Node : wscript 13 Mo, node
   85 Mo, sonde PowerShell 92 Mo, plus environ 75 Mo par PowerShell d'attente de projet).
 
@@ -191,7 +185,7 @@ binaire sans écran `servynex` reste la version à utiliser.
 - **Fenêtre ou navigateur** : réglage de la machine (`runtime/ui.json`, `opener`), proposé à la
   fin de la présentation et dans Paramètres › Général, devant la machine seulement. La fenêtre
   se signale à la page par `window.servynexWindow` (une valeur, aucune fonction native).
-- **Mot de passe oublié devant la machine** : « Générer un code sur cette machine » (Q2).
+- **Mot de passe oublié devant la machine** : « Générer un code sur cette machine ».
 - **Notifications** au nom de l'application une fois installée (le raccourci du menu Démarrer
   déclare son identifiant), sinon au nom de Windows PowerShell comme avant.
 
@@ -204,12 +198,12 @@ dossier : c'est sans risque, sa désinstallation ne supprime que `Servynex.exe` 
 
 ### Bascule de la machine de développement (25/09/2026)
 
-Un import a servi une seule fois : au premier lancement, `Servynex.exe` a repris `C:\Servynex`
-(projets, comptes, réglages, journaux) dans `%LOCALAPPDATA%\Servynex`, arrêté l'ancien
+Un import a servi une seule fois : au premier lancement, `Servynex.exe` a repris l'ancien dossier
+des données (projets, comptes, réglages, journaux) dans `%LOCALAPPDATA%\Servynex`, arrêté l'ancien
 `servynex --supervised` sans ses projets, désactivé la tâche planifiée, et suivi le journal des
-projets repris resté dans l'ancien dossier. Bogue, MangaFlow et MySQL ont été repris sans
-redémarrage. Servynex n'ayant pas d'autre utilisateur, ce code a ensuite été retiré (commit
-« Import retiré ») : il ne se déclencherait plus jamais. L'historique Git le garde.
+projets repris resté dans l'ancien dossier. Les projets en cours ont été repris sans redémarrage.
+Servynex n'ayant pas d'autre utilisateur, ce code a ensuite été retiré (commit « Import retiré ») :
+il ne se déclencherait plus jamais. L'historique Git le garde.
 
 Trouvé en route : la clé Run était dite « activée » dès qu'une valeur « Servynex » existait ; elle
 ne l'est plus que si elle lance bien cet exécutable (sinon l'application aurait cru démarrer avec
@@ -225,7 +219,7 @@ de relance réessaie la suppression du dossier (verrouillé un instant sous Wind
 
 Sur la branche Rust seulement (la version Node sera retirée à la phase 7) : crates `servym-*`,
 binaires `servym` et `Servym.exe`, variables `SERVYM_*`, en-tête `X-Servym-Request`, cookie
-`servym_session`, identifiant `io.github.hcwhite1.servym`, données dans `%LOCALAPPDATA%Servym`,
+`servym_session`, identifiant `io.github.hcwhite1.servym`, données dans `%LOCALAPPDATA%\Servym`,
 valeur « Servym » de la clé Run, textes de l'interface. Nom vérifié libre sur crates.io, npm,
 GitHub et les domaines usuels. Effets : cookie renommé et nouveau dossier WebView2, donc une
 reconnexion dans le navigateur et dans la fenêtre.
@@ -251,7 +245,7 @@ reconnexion dans le navigateur et dans la fenêtre.
 `tools/test-parity.mjs` et `tools/gen-format-golden.mjs` (les fichiers de référence qu'il a écrits
 restent). Gardés : `public/` (l'interface, embarquée dans les exécutables), `tests/urls.test.mjs`
 (le seul test JavaScript : code de l'interface, lancé par `node --test` en CI), `tools/gen-icons.mjs`
-(icônes, indépendant du serveur) et `spikes/` (essais de la phase 0). La CI n'a plus de tâche
+(icônes, indépendant du serveur) et `spikes/` (essais de la phase 0, retiré ensuite). La CI n'a plus de tâche
 « Node » pour le serveur.
 
 ### Application de bureau sous Linux
@@ -325,9 +319,9 @@ application 6,9 Mo de mémoire privée. Tailles : `Servym.exe` 11,9 Mo, installa
 `servym.exe` 6,4 Mo, `servym` Linux 5,8 Mo.
 
 Incident pendant les mesures : un arrêt par nom (`taskkill /IM servym.exe`, insensible à la casse)
-a aussi arrêté le Servym installé, et un arrêt des `node … server.js` a arrêté MangaFlow
-(`node server/server.js`). Servym a été relancé comme le fait la clé Run, puis MangaFlow par son
-bouton « Démarrer ». Leçon : n'arrêter que les PID qu'on a lancés.
+a aussi arrêté le Servym installé, et un arrêt des `node … server.js` a arrêté un projet
+Node lancé à part. Servym a été relancé comme le fait la clé Run, puis le projet par son bouton
+« Démarrer ». Leçon : n'arrêter que les PID qu'on a lancés.
 
 ### Premier essai sous Fedora (26/09/2026)
 

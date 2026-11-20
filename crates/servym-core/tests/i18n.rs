@@ -182,7 +182,7 @@ fn chaque_cle_utilisee_existe() {
     // Serveur : clés écrites dans le code Rust.
     let server = read_all(&root().join("crates"), "rs", true);
     let re = Regex::new(
-        r#""((?:config|project|process|http|auth|audit|history|log|system|cli|time|role)\.[A-Za-z.]+)""#,
+        r#""((?:config|project|process|http|auth|audit|history|log|system|cli|time|role|notify|tray|app)\.[A-Za-z.]+)""#,
     )
     .unwrap();
     let en = catalog(Lang::En);

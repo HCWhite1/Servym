@@ -2,7 +2,7 @@
 // Seuls les projets en ligne tournent ; un service requis (MySQL) est une lune de
 // l'application qui en dépend ; un projet exposé sur le réseau porte un halo.
 import { t } from './i18n.js';
-import { addressOf, glyph, h, icon, primaryOf, statusText, store, tile } from './lib.js';
+import { addressOf, can, glyph, h, icon, primaryOf, statusText, store, tile } from './lib.js';
 
 const root = document.getElementById('orbit-view');
 const GOLDEN = 137.5; // angle de départ entre deux planètes : jamais alignées au chargement
@@ -185,7 +185,9 @@ function renderCard() {
   card.classList.remove('collapsed');
   const addr = addressOf(p);
   const main = primaryOf(p);
-  const mainButton = h('button', { class: `btn small${main.primary ? ' primary' : ''}`, type: 'button', disabled: main.disabled, hidden: main.hidden }, main.icon ? icon(main.icon) : null, main.label);
+  const needsOperate = !((p.state === 'running' && p.type !== 'file' && !p.service) || p.state === 'conflict');
+  const hidden = Boolean(main.hidden) || (needsOperate && !can('operate'));
+  const mainButton = h('button', { class: `btn small${main.primary ? ' primary' : ''}`, type: 'button', disabled: main.disabled, hidden }, main.icon ? icon(main.icon) : null, main.label);
   mainButton.addEventListener('click', () => handlers.primary(p, mainButton));
   const details = h('button', { class: 'btn small', type: 'button' }, icon('scroll-text'), t('orbit.details'));
   details.addEventListener('click', () => handlers.openPanel(p.id));

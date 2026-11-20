@@ -423,8 +423,10 @@ document.addEventListener('dragend', () => {
 function renderBanners() {
   const list = [];
   if (instance.configError) {
-    const edit = h('button', { class: 'alert-action', type: 'button', text: t('banner.editConfig') });
-    edit.addEventListener('click', () => api('instance/config', { method: 'POST' }).catch((err) => toast(err.message, 'error')));
+    const edit = viewer.local && can('commands')
+      ? h('button', { class: 'alert-action', type: 'button', text: t('banner.editConfig') })
+      : null;
+    edit?.addEventListener('click', () => api('instance/config', { method: 'POST' }).catch((err) => toast(err.message, 'error')));
     list.push(h('div', { class: 'alert error', role: 'alert' }, icon('triangle-alert'),
       h('span', { text: t('banner.configError', { error: instance.configError }) }), edit));
   }

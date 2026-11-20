@@ -42,10 +42,15 @@ pub fn client() -> reqwest::Client {
 pub async fn http_health(client: &reqwest::Client, port: u16, path: &str, expect: &str, tls: bool) -> Health {
     let scheme = if tls { "https" } else { "http" };
     // Port fermé : réponse immédiate, sans attendre le client HTTP (voir servym_sys::net).
-    if !tcp_open("127.0.0.1", port).await {
+    let (v4, v6) = tokio::join!(tcp_open("127.0.0.1", port), tcp_open("::1", port));
+    let host = if v4 {
+        "127.0.0.1"
+    } else if v6 {
+        "[::1]"
+    } else {
         return Health::Down;
-    }
-    let url = format!("{scheme}://127.0.0.1:{port}{path}");
+    };
+    let url = format!("{scheme}://{host}:{port}{path}");
     let Ok(mut res) = client
         .get(&url)
         .header("host", format!("localhost:{port}"))

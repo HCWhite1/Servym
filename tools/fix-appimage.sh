@@ -18,7 +18,10 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 removed=$(find squashfs-root/usr/lib -maxdepth 1 -name 'libwayland-*' -print -delete | wc -l)
 echo "libwayland retirées : $removed"
 
-curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+APPIMAGETOOL_VERSION=1.9.1
+APPIMAGETOOL_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+curl -fsSL -o appimagetool "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+echo "${APPIMAGETOOL_SHA256}  appimagetool" | sha256sum -c -
 chmod +x appimagetool
 ARCH=x86_64 ./appimagetool --no-appstream squashfs-root "$image.new" >/dev/null
 mv "$image.new" "$image"

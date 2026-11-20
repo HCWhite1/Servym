@@ -47,14 +47,22 @@ fn adapter_names() -> HashMap<String, String> {
             // SAFETY : éléments de la liste chaînée remplie par le système.
             unsafe {
                 let a = &*item;
+                if a.AdapterName.is_null() {
+                    item = a.Next;
+                    continue;
+                }
                 let id = std::ffi::CStr::from_ptr(a.AdapterName.cast())
                     .to_string_lossy()
                     .to_uppercase();
-                let mut len = 0;
-                while *a.FriendlyName.add(len) != 0 {
-                    len += 1;
-                }
-                let friendly = String::from_utf16_lossy(std::slice::from_raw_parts(a.FriendlyName, len));
+                let friendly = if a.FriendlyName.is_null() {
+                    String::new()
+                } else {
+                    let mut len = 0;
+                    while *a.FriendlyName.add(len) != 0 {
+                        len += 1;
+                    }
+                    String::from_utf16_lossy(std::slice::from_raw_parts(a.FriendlyName, len))
+                };
                 names.insert(id, friendly);
                 item = a.Next;
             }

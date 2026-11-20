@@ -55,7 +55,7 @@ impl Notifier for SystemNotifier {
                 Os::Linux => {
                     (self.run)(
                         "notify-send".into(),
-                        vec!["--app-name=Servym".into(), n.title, n.body],
+                        vec!["--app-name=Servym".into(), "--".into(), n.title, n.body],
                     )
                     .await?;
                     Ok(true)

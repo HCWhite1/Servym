@@ -18,10 +18,15 @@ fn table(family: u16) -> Vec<u64> {
     let mut buf: Vec<u64> = Vec::new();
     let mut size = 0u32;
     for _ in 0..8 {
-        // SAFETY : le tampon fait au moins `size` octets (ou est vide avec size = 0).
+        let ptr = if buf.is_empty() {
+            std::ptr::null_mut()
+        } else {
+            buf.as_mut_ptr().cast()
+        };
+        // SAFETY : le tampon fait au moins `size` octets (ou est nul avec size = 0).
         let ret = unsafe {
             GetExtendedTcpTable(
-                buf.as_mut_ptr().cast(),
+                ptr,
                 &mut size,
                 0,
                 u32::from(family),
@@ -47,11 +52,14 @@ fn port(raw: u32) -> u16 {
 pub fn listeners() -> Vec<Listener> {
     let mut v4: Vec<(u32, u16, u32)> = Vec::new();
     let buf = table(AF_INET);
-    if !buf.is_empty() {
+    let byte_len = buf.len() * size_of::<u64>();
+    let header = std::mem::offset_of!(MIB_TCPTABLE_OWNER_PID, table).max(size_of::<u32>());
+    if byte_len >= header {
         let t = buf.as_ptr().cast::<MIB_TCPTABLE_OWNER_PID>();
-        // SAFETY : la table remplie par le système annonce son nombre d'entrées, qui suivent l'en-tête.
-        let rows: &[MIB_TCPROW_OWNER_PID] =
-            unsafe { std::slice::from_raw_parts((*t).table.as_ptr(), (*t).dwNumEntries as usize) };
+        // SAFETY : le tampon contient l'en-tête et le nombre d'entrées est borné à la taille allouée.
+        let count = unsafe { (*t).dwNumEntries as usize }
+            .min((byte_len - header) / size_of::<MIB_TCPROW_OWNER_PID>());
+        let rows: &[MIB_TCPROW_OWNER_PID] = unsafe { std::slice::from_raw_parts((*t).table.as_ptr(), count) };
         v4.extend(
             rows.iter()
                 .map(|r| (u32::from_be(r.dwLocalAddr), port(r.dwLocalPort), r.dwOwningPid)),
@@ -60,11 +68,15 @@ pub fn listeners() -> Vec<Listener> {
     v4.sort();
     let mut v6: Vec<([u8; 16], u32, u16, u32)> = Vec::new();
     let buf = table(AF_INET6);
-    if !buf.is_empty() {
+    let byte_len = buf.len() * size_of::<u64>();
+    let header = std::mem::offset_of!(MIB_TCP6TABLE_OWNER_PID, table).max(size_of::<u32>());
+    if byte_len >= header {
         let t = buf.as_ptr().cast::<MIB_TCP6TABLE_OWNER_PID>();
         // SAFETY : comme pour IPv4.
+        let count = unsafe { (*t).dwNumEntries as usize }
+            .min((byte_len - header) / size_of::<MIB_TCP6ROW_OWNER_PID>());
         let rows: &[MIB_TCP6ROW_OWNER_PID] =
-            unsafe { std::slice::from_raw_parts((*t).table.as_ptr(), (*t).dwNumEntries as usize) };
+            unsafe { std::slice::from_raw_parts((*t).table.as_ptr(), count) };
         v6.extend(rows.iter().map(|r| {
             (
                 r.ucLocalAddr,

@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
+#[cfg(not(unix))]
 use std::time::SystemTime;
 
 use regex::Regex;
@@ -184,16 +185,31 @@ pub enum Follow {
     Lines(Vec<String>),
 }
 
+const MAX_PENDING: usize = 256 * 1024;
+
+#[cfg(unix)]
+type FileId = (u64, u64);
+#[cfg(not(unix))]
+type FileId = SystemTime;
+
+fn file_id(meta: &std::fs::Metadata) -> Option<FileId> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        Some((meta.dev(), meta.ino()))
+    }
+    #[cfg(not(unix))]
+    {
+        meta.created().ok()
+    }
+}
+
 /// Suivi d'un journal par relectures successives (`poll`).
 pub struct Follower {
     file: PathBuf,
     pos: u64,
-    created: Option<SystemTime>,
+    identity: Option<FileId>,
     pending: Vec<u8>,
-}
-
-fn created(file: &Path) -> Option<SystemTime> {
-    std::fs::metadata(file).ok()?.created().ok()
 }
 
 impl Follower {
@@ -202,7 +218,7 @@ impl Follower {
         let mut follower = Follower {
             file: file.to_path_buf(),
             pos: 0,
-            created: None,
+            identity: None,
             pending: Vec::new(),
         };
         let first = follower.reset();
@@ -212,7 +228,7 @@ impl Follower {
     fn reset(&mut self) -> Follow {
         let (lines, size) = read_end(&self.file, 96_000);
         self.pos = size;
-        self.created = created(&self.file);
+        self.identity = std::fs::metadata(&self.file).ok().and_then(|m| file_id(&m));
         self.pending.clear();
         let skip = lines.len().saturating_sub(MAX_LINES);
         Follow::Reset(lines.into_iter().skip(skip).collect())
@@ -221,10 +237,10 @@ impl Follower {
     /// Ce qui a changé depuis la dernière lecture.
     pub fn poll(&mut self) -> Option<Follow> {
         let Ok(info) = std::fs::metadata(&self.file) else {
-            return (self.created.is_some() || self.pos > 0).then(|| self.reset());
+            return (self.identity.is_some() || self.pos > 0).then(|| self.reset());
         };
         let size = info.len();
-        if info.created().ok() != self.created || size < self.pos {
+        if file_id(&info) != self.identity || size < self.pos {
             return Some(self.reset());
         }
         if size == self.pos {
@@ -240,9 +256,16 @@ impl Follower {
         }
         self.pos += buf.len() as u64;
         self.pending.extend_from_slice(&buf);
-        // Lignes complètes seulement ; un caractère UTF-8 coupé attend la suite.
-        let last = self.pending.iter().rposition(|b| *b == b'\n')?;
-        let complete: Vec<u8> = self.pending.drain(..=last).collect();
+        // Lignes complètes seulement ; un caractère UTF-8 coupé attend la suite (sauf ligne sans fin bornée).
+        let complete: Vec<u8> = if let Some(last) = self.pending.iter().rposition(|b| *b == b'\n') {
+            self.pending.drain(..=last).collect()
+        } else if self.pending.len() >= MAX_PENDING {
+            let mut flushed = std::mem::take(&mut self.pending);
+            flushed.push(b'\n');
+            flushed
+        } else {
+            return None;
+        };
         let text = String::from_utf8_lossy(&complete);
         let lines: Vec<String> = text
             .split('\n')

@@ -11,8 +11,6 @@ Tableau de bord local pour lancer, surveiller et arrêter vos projets de dévelo
 - Démarrage avec Windows ou avec la session Linux, projets lancés au démarrage du PC.
 - Comptes facultatifs, interface en français et en anglais.
 
-Servym a d'abord été écrit en Node.js (jamais publié) ; cette réécriture en Rust garde la même interface et les mêmes fichiers de configuration, avec un seul exécutable sans prérequis et une empreinte mémoire bien plus faible (voir [Mesures](#mesures)).
-
 ## Installation
 
 Les fichiers sont joints à chaque [release](https://github.com/HCWhite1/Servym/releases), avec leurs empreintes SHA-256 (`SHA256SUMS.txt`).
@@ -81,36 +79,20 @@ Servym garde tout dans un dossier : `projects.json`, `runtime/` (comptes, état 
 
 Le binaire sans écran `servym` utilise `--data`, `SERVYM_HOME`, sinon le dossier courant.
 
-Les fichiers de l'ancienne version Node.js sont lus tels quels : il suffit de copier `projects.json`, `runtime/`, `logs/` et `config/` dans le dossier des données. Les projets encore en marche sont repris sans redémarrage.
+## Empreinte
 
-## Mesures
+Mesuré sous Windows 11 (16 cœurs), compilation release :
 
-Même machine (Windows 11, 16 cœurs), le 26/09/2026. Ancienne version : `node server.js` (Node.js 24). Version Rust : `servym` (release). Données vides, moyenne de trois appels pour les routes.
-
-| | Node.js | Rust |
-| --- | --- | --- |
-| Démarrage jusqu'à la 1re réponse de `/api/projects` | 0,7 à 0,8 s | 0,2 s (0,7 s au tout premier lancement) |
-| Mémoire privée, aucune page ouverte | 31 Mo (node, conhost) | 4,5 Mo |
-| Mémoire privée, liste affichée (relevés toutes les 5 s) | 109 Mo (node, conhost, sonde PowerShell) | 4,6 Mo |
-| Page Réseau : `/api/ports` | 790 ms | 33 ms |
-| Page Réseau : `/api/network` | 18 ms (en cache) | 14 ms |
-| Paramètres : `/api/autostart` | 2 450 ms (tâche planifiée, PowerShell) | 11 ms (registre) |
-| `/api/stats`, premier relevé puis suivants | 191 ms puis 13 ms | 20 ms puis 11 ms |
-| Exécutable | node.exe (86 Mo) et les sources | `servym.exe` 6,4 Mo, `servym` Linux 5,8 Mo |
-
-Avec de vrais projets (7 projets, dont MySQL, Bogue et MangaFlow repris ; mesures du 24 au 26/09/2026) :
-
-| | Node.js | Rust |
-| --- | --- | --- |
-| Processus de Servym | wscript, node, conhost, sonde PowerShell | superviseur et application |
-| Mémoire privée, fenêtre ou page fermée | ≈ 98 Mo (wscript 13, node 85) | 8,3 Mo (superviseur 1,4, application 6,9) |
-| Pendant l'affichage de la liste | + 92 Mo (sonde PowerShell des relevés) | rien de plus (relevés natifs) |
-| Par projet lancé | ≈ 75 Mo (un PowerShell qui attend la fin du projet) | un fil de 1 Mo réservé, quelques Ko utilisés |
-| Fenêtre ouverte | — (onglet du navigateur) | ≈ 200 Mo (WebView2), rendus à la fermeture |
-| Prérequis | Node.js 22 (node.exe : 86 Mo) et `git clone` | aucun |
-| Distribution | dépôt Git et `npm start` | installateur Windows de 3,4 Mo (programme de 11,9 Mo) ; Linux : `.deb` et `.rpm` de 4,8 Mo, AppImage de 83 Mo (GTK et WebKitGTK compris) |
-
-Opérations du système mesurées seules (24/09/2026) : ports en écoute 79 ms (deux `netstat`) contre 0,95 ms (`GetExtendedTcpTable`) ; profils réseau 692 ms (PowerShell) contre 25 ms (COM) ; relevé de 339 processus : requête CIM de 169 ms contre 10,5 ms. Connexion refusée vers un port fermé : Windows réessaie près d'une seconde ; comme Node (libuv), Servym désactive ces réessais sur la boucle locale (0,9 ms), sinon chaque sonde d'un projet arrêté serait lente.
+| | Servym |
+| --- | --- |
+| Démarrage jusqu'à la 1re réponse de `/api/projects` | 0,2 s |
+| Mémoire privée, fenêtre fermée (à vide / 7 projets actifs) | 4,5 Mo / 8,3 Mo |
+| Relevés natifs pendant l'affichage de la liste | aucune mémoire supplémentaire |
+| Fenêtre ouverte (WebView2) | ≈ 200 Mo, rendus à la fermeture |
+| Par projet lancé | 1 thread (quelques Ko utilisés) |
+| Exécutable | `servym.exe` 6,4 Mo · `servym` Linux 5,8 Mo |
+| Paquets | installateur Windows 3,4 Mo · `.deb` / `.rpm` 4,8 Mo · AppImage 83 Mo |
+| Prérequis | aucun |
 
 ## Projets
 
@@ -298,7 +280,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 node --test                                      # le seul test JavaScript (tests/urls.test.mjs, code de l'interface)
 ```
 
-La CI (GitHub Actions) les lance sous Windows et Linux à chaque push ; une étiquette `v*` construit les fichiers de la release. L'historique de la réécriture depuis la version Node.js est dans [MIGRATION.md](MIGRATION.md).
+La CI (GitHub Actions) les lance sous Windows et Linux à chaque push ; une étiquette `v*` construit les fichiers de la release.
 
 ## Limites
 

@@ -2,7 +2,7 @@
 // invitation) et verrouillage après inactivité. Protection désactivée : rien de
 // tout cela ne s'affiche.
 import { t } from './i18n.js';
-import { ROLE_LABELS, api, h, icon, initials, session, toast } from './lib.js';
+import { ROLE_LABELS, api, copyText, h, icon, initials, session, toast } from './lib.js';
 
 const screen = document.getElementById('auth-screen');
 let instanceName = 'Servym';
@@ -199,8 +199,7 @@ export function takeNotice() {
 export function keyBlock(key, onDone) {
   const copy = h('button', { class: 'btn small', type: 'button' }, icon('copy'), t('common.copy'));
   copy.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(key).catch(() => {});
-    toast(t('key.copied'));
+    if (await copyText(key)) toast(t('key.copied'));
   });
   const ok = h('input', { type: 'checkbox' });
   const done = h('button', { class: 'btn primary', type: 'button', text: t('ob.next'), disabled: true });
@@ -248,20 +247,28 @@ export async function lockNow() {
 // Verrouillage après inactivité : souris ou clavier sur la page comptent comme
 // activité (signalée à Servym toutes les 30 s au plus) ; les mises à jour
 // automatiques de la page ne comptent pas. Servym applique la même règle.
-function startIdleLock(seconds) {
-  if (!seconds) return;
-  let last = Date.now();
-  let reported = Date.now();
+let idleSeconds = 0;
+let idleLast = Date.now();
+let idleReported = Date.now();
+let idleInstalled = false;
+
+export function setIdleLock(seconds) {
+  idleSeconds = seconds || 0;
+  idleLast = Date.now();
+  idleReported = idleLast;
+  if (!idleSeconds || idleInstalled) return;
+  idleInstalled = true;
   const mark = () => {
-    last = Date.now();
-    if (last - reported > 30_000) {
-      reported = last;
+    if (!idleSeconds) return;
+    idleLast = Date.now();
+    if (idleLast - idleReported > 30_000) {
+      idleReported = idleLast;
       api('auth/activity', { method: 'POST' }).catch(() => {});
     }
   };
   for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) addEventListener(type, mark, { passive: true });
   setInterval(() => {
-    if (screen.hidden && Date.now() - last > seconds * 1000) lockNow();
+    if (idleSeconds && screen.hidden && Date.now() - idleLast > idleSeconds * 1000) lockNow();
   }, 5000);
 }
 
@@ -296,6 +303,6 @@ export async function gate() {
   }
   // Session expirée ou verrouillée pendant l'utilisation.
   addEventListener('servym:auth', (e) => (e.detail.auth === 'locked' ? showLocked() : e.detail.auth === 'login' ? showLogin() : null));
-  if (status.enabled) startIdleLock(status.lockAfter);
+  if (status.enabled) setIdleLock(status.lockAfter);
   return status;
 }

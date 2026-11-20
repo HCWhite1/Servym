@@ -77,19 +77,26 @@ pub async fn serve(root: &Path, method: &Method, path: &str, clean_urls: bool) -
     }
     let file = resolve_inside(root, path)?;
     let (file, info) = file_at(&file, clean_urls).await?;
+    // Lien symbolique pointant hors du dossier du site : refusé.
+    let canon_root = tokio::fs::canonicalize(root).await.ok()?;
+    let canon_file = tokio::fs::canonicalize(&file).await.ok()?;
+    if !canon_file.starts_with(&canon_root) {
+        return None;
+    }
     let modified = info.modified().ok().map(|t| {
         chrono::DateTime::<chrono::Utc>::from(t)
             .format("%a, %d %b %Y %H:%M:%S GMT")
             .to_string()
     });
-    let body = if method == Method::HEAD {
-        Body::empty()
+    let (content_len, body) = if method == Method::HEAD {
+        (info.len(), Body::empty())
     } else {
-        Body::from(tokio::fs::read(&file).await.ok()?)
+        let bytes = tokio::fs::read(&canon_file).await.ok()?;
+        (bytes.len() as u64, Body::from(bytes))
     };
     let mut res = Response::builder()
         .header(header::CONTENT_TYPE, content_type(&file))
-        .header(header::CONTENT_LENGTH, info.len())
+        .header(header::CONTENT_LENGTH, content_len)
         .header(header::CACHE_CONTROL, "no-cache");
     if let Some(m) = modified {
         res = res.header(header::LAST_MODIFIED, m);
@@ -106,8 +113,7 @@ pub async fn start(
     log_file: &Path,
     header_line: &str,
 ) -> std::io::Result<StaticSite> {
-    let bind = if host == "0.0.0.0" { "0.0.0.0" } else { host };
-    let listener = tokio::net::TcpListener::bind((bind, port)).await?;
+    let listener = tokio::net::TcpListener::bind((host, port)).await?;
     let mut log = std::fs::File::create(log_file)?;
     writeln!(log, "{header_line}")?;
     let log = Arc::new(Mutex::new(log));

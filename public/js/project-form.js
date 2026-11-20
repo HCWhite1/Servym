@@ -12,7 +12,7 @@ const COLORS = ['#38bdf8', '#8b5cf6', '#14b8a6', '#f43f5e', '#f97316', '#ec4899'
 const KEY_OF = { healthKind: 'health', healthPath: 'health', healthExpect: 'health', stopCmd: 'stop', stopArgs: 'stop' };
 const LAUNCH_KEYS = ['type', 'cwd', 'cmd', 'args', 'env', 'port', 'hostControl', 'expose'];
 // Champs réservés à la permission « Commandes » (voir SENSITIVE dans crates/servym-server/src/api.rs).
-const SENSITIVE = ['cwd', 'cmd', 'args', 'env', 'stopCmd', 'stopArgs', 'expose'];
+const SENSITIVE = ['cwd', 'cmd', 'args', 'env', 'stopCmd', 'stopArgs', 'expose', 'open'];
 
 const lines = (text) => text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
