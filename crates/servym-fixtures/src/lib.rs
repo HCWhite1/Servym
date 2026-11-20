@@ -137,22 +137,90 @@ pub fn fixture_exe() -> PathBuf {
     if let Some(path) = built.as_ref() {
         return path.clone();
     }
-    // target/<profil>/deps/<test>.exe → target/<profil>/servym-fixture.exe
     let test_exe = std::env::current_exe().unwrap();
-    let dir = test_exe.parent().and_then(Path::parent).unwrap().to_path_buf();
-    let exe = dir.join(format!("servym-fixture{}", std::env::consts::EXE_SUFFIX));
-    if !exe.exists() {
-        let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-        let mut command = std::process::Command::new(cargo);
-        command.args(["build", "-p", "servym-fixtures", "--bin", "servym-fixture"]);
-        if dir.file_name().is_some_and(|n| n == "release") {
-            command.arg("--release");
+    let profile_dir = profile_dir_from_test_exe(&test_exe);
+    let bin_name = format!("servym-fixture{}", std::env::consts::EXE_SUFFIX);
+    if let Some(dir) = profile_dir.as_deref() {
+        let candidate = dir.join(&bin_name);
+        if candidate.is_file() {
+            *built = Some(candidate.clone());
+            return candidate;
         }
-        let status = command.status().expect("cargo build");
-        assert!(status.success(), "construction de servym-fixture");
     }
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
+    let mut command = std::process::Command::new(cargo);
+    command.args([
+        "build",
+        "-p",
+        "servym-fixtures",
+        "--bin",
+        "servym-fixture",
+        "--message-format=json",
+    ]);
+    if profile_dir
+        .as_deref()
+        .and_then(Path::file_name)
+        .is_some_and(|n| n == "release")
+    {
+        command.arg("--release");
+    }
+    let output = command.output().expect("cargo build");
+    assert!(
+        output.status.success(),
+        "construction de servym-fixture : {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let exe = executable_from_cargo_json(&output.stdout)
+        .or_else(|| profile_dir.map(|dir| dir.join(&bin_name)))
+        .expect("binaire servym-fixture introuvable dans la sortie de cargo");
+    assert!(
+        exe.is_file(),
+        "binaire servym-fixture introuvable : {}",
+        exe.display()
+    );
     *built = Some(exe.clone());
     exe
+}
+
+fn profile_dir_from_test_exe(test_exe: &Path) -> Option<PathBuf> {
+    let parent = test_exe.parent()?;
+    match parent.file_name().and_then(|n| n.to_str()) {
+        // Ancienne structure Cargo : target/<profil>/deps/<test>
+        Some("deps") => parent.parent().map(Path::to_path_buf),
+        // Nouvelle structure Cargo (build-dir) : target/<profil>/build/<crate>/<hash>/out/<test>
+        Some("out") => parent
+            .ancestors()
+            .skip(1)
+            .take(4)
+            .find(|dir| dir.file_name().and_then(|n| n.to_str()) == Some("build"))
+            .and_then(Path::parent)
+            .map(Path::to_path_buf),
+        _ => None,
+    }
+}
+
+fn executable_from_cargo_json(stdout: &[u8]) -> Option<PathBuf> {
+    let text = std::str::from_utf8(stdout).ok()?;
+    for line in text.lines() {
+        let Ok(msg) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if msg.get("reason").and_then(Value::as_str) != Some("compiler-artifact") {
+            continue;
+        }
+        if msg
+            .get("target")
+            .and_then(|t| t.get("name"))
+            .and_then(Value::as_str)
+            != Some("servym-fixture")
+        {
+            continue;
+        }
+        if let Some(exe) = msg.get("executable").and_then(Value::as_str) {
+            return Some(PathBuf::from(exe));
+        }
+    }
+    None
 }
 
 /// Dossier temporaire propre à un test.
@@ -414,4 +482,46 @@ fn decode_chunked(mut body: &[u8]) -> Vec<u8> {
         body = &body[(end + 2).min(body.len())..];
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dossier_profil_depuis_binaire_de_test() {
+        assert_eq!(
+            profile_dir_from_test_exe(Path::new("/repo/target/debug/deps/manager-abc123")),
+            Some(PathBuf::from("/repo/target/debug"))
+        );
+        assert_eq!(
+            profile_dir_from_test_exe(Path::new(
+                "/repo/target/debug/build/servym-core/5a295beef54adae6/out/manager-5a295beef54adae6"
+            )),
+            Some(PathBuf::from("/repo/target/debug"))
+        );
+        assert_eq!(
+            profile_dir_from_test_exe(Path::new(
+                "/repo/target/release/build/servym-core/1af95074a046d4cf/out/manager-1af95074a046d4cf.exe"
+            )),
+            Some(PathBuf::from("/repo/target/release"))
+        );
+        assert_eq!(profile_dir_from_test_exe(Path::new("/tmp/manager")), None);
+    }
+
+    #[test]
+    fn executable_depuis_sortie_json_cargo() {
+        let stdout = concat!(
+            r#"{"reason":"compiler-artifact","target":{"name":"servym_fixtures"},"executable":null}"#,
+            "\n",
+            r#"{"reason":"compiler-artifact","target":{"name":"servym-fixture"},"executable":"/repo/target/debug/servym-fixture"}"#,
+            "\n",
+            r#"{"reason":"build-finished","success":true}"#,
+            "\n",
+        );
+        assert_eq!(
+            executable_from_cargo_json(stdout.as_bytes()),
+            Some(PathBuf::from("/repo/target/debug/servym-fixture"))
+        );
+    }
 }
